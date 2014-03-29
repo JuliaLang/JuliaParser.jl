@@ -50,12 +50,9 @@ const transpose_op  = symbol(".'")
 const ctranspose_op = symbol("'")
 const vararg_op     = :(...)
 
-
-#XXX: this is wrong
 const operators = union(Set([:(~), :(!), :(->), ctranspose_op, transpose_op, vararg_op]), 
 			[Set(ops) for ops in ops_by_precedent]...)
 
-const operator_strs  = [string(op) for op in operators]
 
 const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
 				    :break, :continue, :function, :macro, :quote,
@@ -66,46 +63,24 @@ const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
 
 #= Helper functions =#
 
-function is_assignment(l)
-    return length(l) == 2 && first(l) === :(=)
-end
+is_assignment(l) = length(l) == 2 && first(l) === :(=)
 
+is_assignment_like(l) = length(l) == 2 && in(first(l), assignment_ops)
 
-function is_assignment_like(l)
-    return length(l) == 2 && in(first(l), assignment_ops)
-end
+is_kwarg(l) = length(l) == 2 && first(l) == :(kw)
 
+is_syntactic_op(op::Symbol) = in(op, syntactic_ops)
 
-function is_kwarg(l)
-    return length(l) == 2 && first(l) == :(kw)
-end
+is_syntactic_unary_op(op::Symbol) = in(op, syntactic_unary_ops)
 
+is_dict_literal(l) = length(l) == 3 && first(l) === :(=>) 
 
-function is_syntactic_op(op::Symbol)
-    return in(op, syntactic_ops)
-end
+const is_special_char = 
+    let chars = Set{Char}([c for c in  "()[]{},;\"`@"])
+	is_special(c::Char)  = in(c, chars)
+    end
 
-
-function is_syntactic_unary_op(op::Symbol)
-    return in(op, syntactic_unary_ops)
-end
-
-
-function is_dict_literal(l)
-    return length(l) == 3 && first(l) === :(=>) 
-end
-
-
-const special_chars = Set{Char}([c for c in  "()[]{},;\"`@"])
-
-function is_special_char(c::Char)
-    return in(c, special_chars)
-end
-
-
-function is_newline(c::Char)
-    return c === '\n'
-end
+is_newline(c::Char) = return c === '\n'
 
 function is_identifier_char(c::Char)
    return (('A' <= c <= 'Z') ||
@@ -114,5 +89,18 @@ function is_identifier_char(c::Char)
 	   ('\uA1' <= c) ||
 	   ('\_' === c))
 end 
+
+#= characters that can be in an operator =#
+const operator_chars  = union([Set(string(op)) for op in operators]...)
+
+is_opchar(c::Char) = in(c, operator_chars)
+
+#= characters that can follow a . in an operator =#
+const is_dot_opchar =
+    let chars = Set(".*^/\\+-'<>!=%")
+        is_dot_char(c::Char) = in(c, chars)
+    end
+
+is_operator(o::Symbol) = in(o, operators)
 
 end
