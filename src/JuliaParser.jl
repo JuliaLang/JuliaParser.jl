@@ -1,5 +1,6 @@
 module JuliaParser
 
-# package code goes here
+include("lexer.jl")
+include("parser.jl") 
 
 end # module
