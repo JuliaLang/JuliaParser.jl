@@ -62,11 +62,11 @@ const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
 
 #= Helper functions =#
 
-is_assignment(l) = length(l) == 2 && first(l) === :(=)
+is_assignment(expr) = length(expr) == 2 && first(expr) === :(=)
 
-is_assignment_like(l) = length(l) == 2 && in(first(l), assignment_ops)
+is_assignment_like(expr) = length(expr) == 2 && in(first(expr), assignment_ops)
 
-is_kwarg(l) = length(l) == 2 && first(l) == :(kw)
+is_kwarg(l) = length(expr) == 2 && first(l) == :(kw)
 
 is_syntactic_op(op::Symbol) = in(op, syntactic_ops)
 
