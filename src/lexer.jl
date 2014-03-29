@@ -53,7 +53,6 @@ const vararg_op     = :(...)
 const operators = union(Set([:(~), :(!), :(->), ctranspose_op, transpose_op, vararg_op]), 
 			[Set(ops) for ops in ops_by_precedent]...)
 
-
 const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
 				    :break, :continue, :function, :macro, :quote,
 				    :let, :local, :global, :const, :abstract,
@@ -76,8 +75,8 @@ is_syntactic_unary_op(op::Symbol) = in(op, syntactic_unary_ops)
 is_dict_literal(l) = length(l) == 3 && first(l) === :(=>) 
 
 const is_special_char = 
-    let chars = Set{Char}([c for c in  "()[]{},;\"`@"])
-	is_special(c::Char)  = in(c, chars)
+    let chars = Set{Char}("()[]{},;\"`@")
+	is_special_char(c::Char)  = in(c, chars)
     end
 
 is_newline(c::Char) = return c === '\n'
@@ -91,14 +90,14 @@ function is_identifier_char(c::Char)
 end 
 
 #= characters that can be in an operator =#
-const operator_chars  = union([Set(string(op)) for op in operators]...)
+const operator_chars = union([Set(string(op)) for op in operators]...)
 
 is_opchar(c::Char) = in(c, operator_chars)
 
 #= characters that can follow a . in an operator =#
 const is_dot_opchar =
-    let chars = Set(".*^/\\+-'<>!=%")
-        is_dot_char(c::Char) = in(c, chars)
+    let chars = Set{Char}(".*^/\\+-'<>!=%")
+        is_dot_opchar(c::Char) = in(c, chars)
     end
 
 is_operator(o::Symbol) = in(o, operators)
