@@ -102,4 +102,15 @@ const is_dot_opchar =
 
 is_operator(o::Symbol) = in(o, operators)
 
+function skip_to_eol!(io::IO)
+   while !(eof(io))
+       c = read(io, Char)
+       if c == '\n'
+           break
+       end
+    end
+    return io
+end
+ 
+
 end
