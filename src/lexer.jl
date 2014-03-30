@@ -222,7 +222,6 @@ function skip_multiline_comment(io::IO, count::Int)
     unterminated = true
     while !eof(io)
         c = readchar(io)
-	@show c, count
         if c == '='
 	    if peekchar(io) == '#'
 	        skip(io, 1) 
