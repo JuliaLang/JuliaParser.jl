@@ -150,9 +150,9 @@ is_char_numeric(c::Char) = '0' <= c <= '9'
 
 #= Lexer =#
 
-function skip_to_eol!(io::IO)
-   while !(eof(io))
-       c = read(io, Char)
+function skip_to_eol(io::IO)
+   while !eof(io)
+       c = readchar(io) 
        if c == '\n'
            break
        end
@@ -217,5 +217,65 @@ end
 is_char_hex(c::Char) = is_char_numeric(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c == '0' || c == '1'
+
+function skip_multiline_comment(io::IO, count::Int)
+    while true
+        c = readchar(io)
+	@show c
+        if eof(io)
+            error("incomplete: unterminated multi-line comment #= ... =#")
+        end
+        if c == '='
+            c = peekchar(io)
+	    if c == '#'
+	        seek(io, 1)
+	        if count > 1
+		    skip_multiline_comment(io, count - 1)
+                end
+	        return io 
+            end
+	    skip_multiline_comment(io, count)
+        elseif c == '#'
+            count = peekchar(io) == '=' ? count + 1 : count
+	    skip_multiline_comment(io, count)
+        end
+        skip_multiline_comment(io, count) 
+    end
+    return io
+end
+       
+function skipcomment(io::IO)
+    c = readchar(io)
+    @assert c == '#'
+    if peekchar(io) == '='
+        skip_multiline_comment(io, 1)
+    else
+	skip_to_eol(io)
+    end
+    return io
+end
+
+function skipwhitespace(io::IO)
+    while !eof(io)
+        c = readchar(io)
+	if isspace(c)
+            continue
+        end 
+	return io
+    end
+    return io
+end
+        
+function skip_ws_comments(io::IO)
+    while !eof(io)
+        skipwhitespace(io)
+	if peekchar(io) == '#'
+	    skipcomment(io)
+	    continue
+	end
+        return io
+    end
+    return io
+end
 
 end
