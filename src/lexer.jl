@@ -217,10 +217,10 @@ is_char_hex(c::Char) = is_char_numeric(c) || ('a' <= c <= 'f')  || ('A' <= c <= 
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c == '0' || c == '1'
 
-# Skip multiline comments
-# Maintains a count of the number of enclosed #= =# pairs
+# skip multiline comments
+# maintain a count of the number of enclosed #= =# pairs
 # to allow nesting of multi-line comments.
-# The loop is exited when this function goes below zero.
+# The loop is exited when this count goes below zero.
 
 # Count is the number of read (#=) tokens.
 # (#= test =#)  (#= test =#)  (#= #= test =# =#)
