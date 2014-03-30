@@ -142,8 +142,11 @@ function peekchar(s::IOStream)
 end
 
 eof(c::Char) = c === char(-1)
+eof(io::IO ) = Base.eof(io)
 
 readchar(io::IO) = read(io, Char)
+
+is_char_numeric(c::Char) = '0' <= c <= '9'
 
 #= Lexer =#
 
@@ -157,7 +160,6 @@ function skip_to_eol!(io::IO)
     return io
 end
 
-# reads and operator
 function read_operator(io::IO, c::Char)
     pc = peekchar(io)
     if (c == '*') && (pc == '*')
@@ -167,6 +169,7 @@ function read_operator(io::IO, c::Char)
     if eof(pc) || !(is_opchar(pc))
         return symbol(c)
     end
+    #TODO: faster to preallocate this to the largest known operator
     str = Char[c]
     c   = pc
     while !(eof(c)) && is_opchar(c)
@@ -183,6 +186,36 @@ function read_operator(io::IO, c::Char)
     return symbol(utf32(str))
 end
 
+#=
+function accum_digits(io::IO, pred::Function, c::Char, lz)
+    if !(bool(lz)) && c == '_'
+        return ('_', false)
+    end
+    str = Char[]
+    if c == '_'
+        readchar(io)
+        c = peekchar(io)
+	if !eof(c) && pred(c)
+	    @goto :loop
+	else
+	    # ungetc(io, '_')
+	    seek(io, -1)
+	    return (utf32(str), false)
+	end
+    else
+        if !eof(c) & pred(c)
+            readchar(io)
+	    push!(str, c)
+	    @goto :loop
+	else
+	    return (utf32(str), true)
+	end
+    end
+end
+=#
 
+is_char_hex(c::Char) = is_char_numeric(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
+is_char_oct(c::Char) = '0' <= c <= '7'
+is_char_bin(c::Char) = c == '0' || c == '1'
 
 end
