@@ -217,10 +217,21 @@ is_char_hex(c::Char) = is_char_numeric(c) || ('a' <= c <= 'f')  || ('A' <= c <= 
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c == '0' || c == '1'
 
+# Skip multiline comments
+# Maintains a count of the number of enclosed #= =# pairs
+# to allow nesting of multi-line comments.
+# The loop is exited when this function goes below zero.
+
+# Count is the number of read (#=) tokens.
+# (#= test =#)  (#= test =#)  (#= #= test =# =#)
+#  ^              ^               ^        ^
+# cnt 0           cnt 1         cnt 2    cnt 1
 function skip_multiline_comment(io::IO, count::Int)
     unterminated = true
     while !eof(io)
         c = readchar(io)
+        # if "=#" token, decement the count.
+        # If count is zero, break out of the loop
         if c == '='
             if peekchar(io) == '#'
                 skip(io, 1)
@@ -232,6 +243,7 @@ function skip_multiline_comment(io::IO, count::Int)
                 break
             end
             continue
+        # if "#=" token increase count
         elseif c == '#'
             count = peekchar(io) == '=' ? count + 1 : count
         end
@@ -242,6 +254,8 @@ function skip_multiline_comment(io::IO, count::Int)
     return io
 end
        
+# if this is a mulitiline comment skip to the end
+# otherwise skip to end of line
 function skipcomment(io::IO)
     c = readchar(io)
     @assert c == '#'
@@ -253,6 +267,8 @@ function skipcomment(io::IO)
     return io
 end
 
+# skip all whitespace characters
+# as defined by isspace()
 function skipwhitespace(io::IO)
     while !eof(io)
         c = readchar(io)
@@ -262,7 +278,11 @@ function skipwhitespace(io::IO)
     end
     return io
 end
-        
+       
+# skip all whitespace before a comment,
+# upon reaching the comment, if it is a
+# single line comment skip to the end of the line
+# otherwise skip to the end of the multiline comment block
 function skip_ws_comments(io::IO)
     while !eof(io)
         skipwhitespace(io)
