@@ -54,11 +54,11 @@ const operators = union(Set([:(~), :(!), :(->), ctranspose_op, transpose_op, var
 			[Set(ops) for ops in ops_by_precedent]...)
 
 const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
-				    :break, :continue, :function, :macro, :quote,
-				    :let, :local, :global, :const, :abstract,
-				    :typealias, :type, :bitstype, :immutable, :ccall,
-				    :do, :module, :baremodule, :using, :import,
-			            :export, :importall])
+                                    :break, :continue, :function, :macro, :quote,
+                                    :let, :local, :global, :const, :abstract,
+                                    :typealias, :type, :bitstype, :immutable, :ccall,
+                                    :do, :module, :baremodule, :using, :import,
+                                    :export, :importall])
 
 
 #= Helper functions =#
@@ -76,7 +76,7 @@ is_dict_literal(l) = length(l) == 3 && first(l) === :(=>)
 
 const is_special_char = 
     let chars = Set{Char}("()[]{},;\"`@")
-	is_special_char(c::Char)  = in(c, chars)
+        is_special_char(c::Char)  = in(c, chars)
     end
 
 is_newline(c::Char) = return c === '\n'
@@ -84,9 +84,9 @@ is_newline(c::Char) = return c === '\n'
 function is_identifier_char(c::Char)
    return (('A' <= c <= 'Z') ||
            ('a' <= c <= 'z') ||
-	   ('0' <= c <= '0') ||
-	   ('\uA1' <= c) ||
-	   ('\_' === c))
+           ('0' <= c <= '0') ||
+           ('\uA1' <= c) ||
+           ('\_' === c))
 end 
 
 
@@ -172,16 +172,15 @@ function read_operator(io::IO, c::Char)
     #TODO: faster to preallocate this to the largest known operator
     str = Char[c]
     c   = pc
-    while !(eof(c)) && is_opchar(c)
+    while !eof(c) && is_opchar(c)
         push!(str, c)
-	newop = utf32(str)
-	opsym = symbol(newop)
-	if is_operator(opsym)
-	    str = newop
-	    c   = readchar(io)
-        else 
-	    return opsym 
-	end
+        newop = utf32(str)
+        opsym = symbol(newop)
+        if !is_operator(opsym)
+	        return opsym
+        end
+        str = newop
+        c   = readchar(io)
     end
     return symbol(utf32(str))
 end
@@ -223,16 +222,16 @@ function skip_multiline_comment(io::IO, count::Int)
     while !eof(io)
         c = readchar(io)
         if c == '='
-	    if peekchar(io) == '#'
-	        skip(io, 1) 
-	        if count > 1
-		    count -= 1
-		    continue
-	        end
-		unterminated = false
-		break
+            if peekchar(io) == '#'
+                skip(io, 1)
+                if count > 1
+                    count -= 1
+                    continue
+                end
+                unterminated = false
+                break
             end
-	    continue
+            continue
         elseif c == '#'
             count = peekchar(io) == '=' ? count + 1 : count
         end
@@ -249,7 +248,7 @@ function skipcomment(io::IO)
     if peekchar(io) == '='
         skip_multiline_comment(io, 1)
     else
-	skip_to_eol(io)
+        skip_to_eol(io)
     end
     return io
 end
@@ -257,7 +256,7 @@ end
 function skipwhitespace(io::IO)
     while !eof(io)
         c = readchar(io)
-	if !isspace(c)
+        if !isspace(c)
             break
         end 
     end
@@ -267,12 +266,12 @@ end
 function skip_ws_comments(io::IO)
     while !eof(io)
         skipwhitespace(io)
-	if peekchar(io) != '#'
-	    break
-	end
-	skipcomment(io)
+	    if peekchar(io) != '#'
+	        break
+	    end
+	    skipcomment(io)
     end
     return io
 end
-
+ 
 end

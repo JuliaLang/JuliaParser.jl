@@ -128,3 +128,4 @@ facts("test skipcomment") do
     io = IOBuffer("#=#=#")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
 end
+
