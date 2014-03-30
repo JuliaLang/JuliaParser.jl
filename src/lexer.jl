@@ -258,10 +258,9 @@ end
 function skipwhitespace(io::IO)
     while !eof(io)
         c = readchar(io)
-	if isspace(c)
-            continue
+	if !isspace(c)
+            break
         end 
-	return io
     end
     return io
 end
@@ -269,11 +268,10 @@ end
 function skip_ws_comments(io::IO)
     while !eof(io)
         skipwhitespace(io)
-	if peekchar(io) == '#'
-	    skipcomment(io)
-	    continue
+	if peekchar(io) != '#'
+	    break
 	end
-        return io
+	skipcomment(io)
     end
     return io
 end

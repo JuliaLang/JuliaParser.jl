@@ -74,6 +74,7 @@ io = IOBuffer("")
 Lexer.skipwhitespace(io)
 @test position(io) == 0
 
+
 #= test skipcomment =# 
 io = IOBuffer("#test\n")
 Lexer.skipcomment(io)
