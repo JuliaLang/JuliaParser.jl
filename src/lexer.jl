@@ -34,7 +34,7 @@ const unary_ops = Set{Symbol}([:(+), :(-), :(!), :(~), :(<:), :(>:)])
 
 const unary_and_binary = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
 
-# operators are special forms, not function names
+# Operators are special forms, not function names
 const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=), 
 				   :(/=),  :(//=), :(./=),  :(.*=), :(./=),  
 				   :(\=),  :(.\=), :(^=),   :(.^=), :(%=),
@@ -60,8 +60,8 @@ const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
 				    :do, :module, :baremodule, :using, :import,
 			            :export, :importall])
 
-#= Helper functions =#
 
+#= Helper functions =#
 is_assignment(expr) = length(expr) == 2 && first(expr) === :(=)
 
 is_assignment_like(expr) = length(expr) == 2 && in(first(expr), assignment_ops)
@@ -89,18 +89,63 @@ function is_identifier_char(c::Char)
 	   ('\_' === c))
 end 
 
-#= characters that can be in an operator =#
+
+#= Characters that can be in an operator =#
 const operator_chars = union([Set(string(op)) for op in operators]...)
 
 is_opchar(c::Char) = in(c, operator_chars)
 
-#= characters that can follow a . in an operator =#
+
+#= Characters that can follow a . in an operator =#
 const is_dot_opchar =
     let chars = Set{Char}(".*^/\\+-'<>!=%")
         is_dot_opchar(c::Char) = in(c, chars)
     end
 
 is_operator(o::Symbol) = in(o, operators)
+
+
+#= Implement peekchar for IOBuffer and IOStream =#
+
+# modified version from Base to give the same
+# semantics as the IOStream implementation
+
+function peekchar(from::IOBuffer)
+    if !from.readable || from.ptr > from.size
+        return char(-1)
+    end
+    ch = uint8(from.data[from.ptr])
+    if ch < 0x80
+        return char(ch)
+    end
+
+    # mimic utf8.next function
+    trailing = Base.utf8_trailing[ch+1]
+    c::Uint32 = 0
+    for j = 1:trailing
+        c += ch
+        c <<= 6
+        ch = read(s, Uint8)
+    end
+    c += ch
+    c -= Base.utf8_offset[trailing+1]
+    return char(c)
+end
+
+# this implementation is copied from Base
+const _chtmp = Array(Char, 1)
+function peekchar(s::IOStream)
+    if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, _chtmp) < 0
+        return char(-1)
+    end
+    return _chtmp[1]
+end
+
+eof(c::Char) = c === char(-1)
+
+readchar(io::IO) = read(io, Char)
+
+#= Lexer =#
 
 function skip_to_eol!(io::IO)
    while !(eof(io))
@@ -111,6 +156,33 @@ function skip_to_eol!(io::IO)
     end
     return io
 end
- 
+
+# reads and operator
+function read_operator(io::IO, c::Char)
+    pc = peekchar(io)
+    if (c == '*') && (pc == '*')
+        error("use \"^\" instead of \"**\"")
+    end
+    # 1 char operator
+    if eof(pc) || !(is_opchar(pc))
+        return symbol(c)
+    end
+    str = Char[c]
+    c   = pc
+    while !(eof(c)) && is_opchar(c)
+        push!(str, c)
+	newop = utf32(str)
+	opsym = symbol(newop)
+	if is_operator(opsym)
+	    str = newop
+	    c   = readchar(io)
+        else 
+	    return opsym 
+	end
+    end
+    return symbol(utf32(str))
+end
+
+
 
 end
