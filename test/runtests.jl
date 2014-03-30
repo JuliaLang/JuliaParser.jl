@@ -84,6 +84,16 @@ io = IOBuffer("# \ntest")
 Lexer.skipcomment(io)
 @test position(io) == 3
 
+io = IOBuffer("#")
+Lexer.skipcomment(io)
+@test position(io) == 1 
+
+io = IOBuffer("# ")
+Lexer.skipcomment(io)
+@test position(io) == 2 
+
+
+# must start with a comment symbol
 io = IOBuffer("test")
 @test_throws Lexer.skipcomment(io)
 
