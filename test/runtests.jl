@@ -116,11 +116,14 @@ Lexer.skip_multiline_comment(io, 0)
 
 io = IOBuffer("#= # =#")
 Lexer.skip_multiline_comment(io, 0)
-@show position(io) == 7
+@test position(io) == 7
+
+io = IOBuffer("#= #= =# =#")
+Lexer.skip_multiline_comment(io, 0)
+@test position(io) == 11
 
 io = IOBuffer("#= test")
 @test_throws Lexer.skip_multiline_comment(io, 0)
 
 io = IOBuffer("#=#=#")
 @test_throws Lexer.skip_multiline_comment(io, 0)
-
