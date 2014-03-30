@@ -219,27 +219,27 @@ is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c == '0' || c == '1'
 
 function skip_multiline_comment(io::IO, count::Int)
-    while true
+    unterminated = true
+    while !eof(io)
         c = readchar(io)
-	@show c
-        if eof(io)
-            error("incomplete: unterminated multi-line comment #= ... =#")
-        end
+	@show c, count
         if c == '='
-            c = peekchar(io)
-	    if c == '#'
-	        seek(io, 1)
+	    if peekchar(io) == '#'
+	        skip(io, 1) 
 	        if count > 1
-		    skip_multiline_comment(io, count - 1)
-                end
-	        return io 
+		    count -= 1
+		    continue
+	        end
+		unterminated = false
+		break
             end
-	    skip_multiline_comment(io, count)
+	    continue
         elseif c == '#'
             count = peekchar(io) == '=' ? count + 1 : count
-	    skip_multiline_comment(io, count)
         end
-        skip_multiline_comment(io, count) 
+    end
+    if unterminated
+        error("incomplete: unterminated multi-line comment #= ... =#")
     end
     return io
 end

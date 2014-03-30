@@ -92,8 +92,35 @@ io = IOBuffer("# ")
 Lexer.skipcomment(io)
 @test position(io) == 2 
 
-
 # must start with a comment symbol
 io = IOBuffer("test")
 @test_throws Lexer.skipcomment(io)
+
+
+#= test skipcomment =#
+io = IOBuffer("#=test=#a")
+Lexer.skip_multiline_comment(io, 0)
+@test position(io) == 8
+
+io = IOBuffer("#======#a")
+Lexer.skip_multiline_comment(io, 0)
+@test position(io) == 8
+
+io = IOBuffer("#==#a")
+Lexer.skip_multiline_comment(io, 0)
+@test position(io) == 4
+
+io = IOBuffer("#=test\ntest\n=#a")
+Lexer.skip_multiline_comment(io, 0)
+@test position(io) == 14
+
+io = IOBuffer("#= # =#")
+Lexer.skip_multiline_comment(io, 0)
+@show position(io) == 7
+
+io = IOBuffer("#= test")
+@test_throws Lexer.skip_multiline_comment(io, 0)
+
+io = IOBuffer("#=#=#")
+@test_throws Lexer.skip_multiline_comment(io, 0)
 
