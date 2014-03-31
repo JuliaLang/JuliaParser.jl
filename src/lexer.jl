@@ -2,7 +2,12 @@
 
 module Lexer
 
-const ops_by_precedent =  {[:(=),   :(:=),   :(+=),   :(-=),  :(*=),
+# we need to special case this becasue otherwise Julia's 
+# parser thinks this is a quote node
+const rsubtype = symbol(":>")
+
+const ops_by_precedent =  {
+               [:(=),   :(:=),   :(+=),   :(-=),  :(*=),
 			    :(/=),  :(//=),  :(.//=), :(.*=), :(./=),
 			    :(\=),  :(.\=),  :(^=),   :(.^=), :(%=),
 			    :(.%=), :(|=),   :(&=),   :($=),  :(=>),
@@ -15,13 +20,13 @@ const ops_by_precedent =  {[:(=),   :(:=),   :(+=),   :(-=),  :(*=),
 			   [:(>),   :(<),   :(>=),  :(<=),  :(==), 
 			    :(===), :(!=),  :(!==), :(.>),  :(.<),
 			    :(.>=), :(.<=), :(.==), :(.!=), :(.=),
-			    :(.!),  :(<:),  :(>:)],
-			   [:(|>), :(<|)],
-			   [:(:),  :(..)],
+			    :(.!),  :(<:),  rsubtype],
+			   [:(|>),  :(<|)],
+			   [:(:), :(..)],
 			   [:(+),  :(-),  :(.+),  :(.-),  :(|),   :($)],
 			   [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
 			   [:(*),  :(/),  :(./),  :(%),   :(.%),  :(&), :(.*), :(\), :(.\)],
-			   [:(/), :(./)],
+			   [:(/), :(.//)],
 			   [:(^),  :(.^)],
 			   [:(::)],
 			   [:(.)]}
@@ -36,12 +41,12 @@ const unary_and_binary = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
 
 # Operators are special forms, not function names
 const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=), 
-				   :(/=),  :(//=), :(./=),  :(.*=), :(./=),  
-				   :(\=),  :(.\=), :(^=),   :(.^=), :(%=),
-				   :(.%=), :(|=),  :(&=),   :($=),  :(=>),
-				   :(<<=), :(>>=), :(>>>=), :(->),  :(-->),
-				   :(\),   :(&&),  :(::),   :(.),   :(...),
-				   :(.+=), :(.-=)])
+                                   :(/=),  :(//=), :(./=),  :(.*=), :(./=),  
+                                   :(\=),  :(.\=), :(^=),   :(.^=), :(%=),
+                                   :(.%=), :(|=),  :(&=),   :($=),  :(=>),
+                                   :(<<=), :(>>=), :(>>>=), :(->),  :(-->),
+                                   :(\),   :(&&),  :(::),   :(.),   :(...),
+                                   :(.+=), :(.-=)])
 
 const syntactic_unary_ops = Set{Symbol}([:($), :(&)])
 
@@ -168,25 +173,21 @@ function read_operator(io::IO, c::Char)
         error("use \"^\" instead of \"**\"")
     end
     # 1 char operator
-    if eof(pc) || !(is_opchar(pc))
+    if eof(pc) || !is_opchar(pc)
         return symbol(c)
     end
-    str = Char[c, '\0', '\0', '\0']
+    str = Char[c]
     c   = pc
-    idx = 2
-    while !eof(c) && is_opchar(c) && idx <= 4
-        str[idx] = c 
+    while !eof(c) && is_opchar(c)
+        push!(str, c)
         newop = utf32(str)
         opsym = symbol(newop)
-        if !is_operator(opsym)
-	        return opsym
+        if is_operator(opsym) || opsym === :(//)
+            skip(io, 1)
+            c = peekchar(io)
+            continue
         end
-        str = newop
-        c   = readchar(io)
-        idx += 1 
-    end
-    if idx > 4
-        error("invalid operator size")
+        break
     end
     return symbol(utf32(str))
 end
@@ -213,8 +214,7 @@ function string_to_number(tok::String)
     # floating point literals
     is_float64 = false
     is_float32 = false
-    didx = 0
-    fidx = 0
+    didx, fidx = 0, 0
     for i=1:len 
         c = tok[i]
         if c == '.'
@@ -244,7 +244,7 @@ function string_to_number(tok::String)
     return uint64(tok)
 end
 
-#=
+
 function accum_digits(io::IO, pred::Function, c::Char, lz)
     if !(bool(lz)) && c == '_'
         return ('_', false)
@@ -253,24 +253,24 @@ function accum_digits(io::IO, pred::Function, c::Char, lz)
     if c == '_'
         readchar(io)
         c = peekchar(io)
-	if !eof(c) && pred(c)
-	    @goto :loop
-	else
-	    # ungetc(io, '_')
-	    seek(io, -1)
-	    return (utf32(str), false)
-	end
+	    if !eof(c) && pred(c)
+            #@goto :loop
+        else
+            # ungetc(io, '_')
+            seek(io, -1)
+            return (utf32(str), false)
+        end
     else
         if !eof(c) & pred(c)
             readchar(io)
-	    push!(str, c)
-	    @goto :loop
-	else
-	    return (utf32(str), true)
-	end
+	        push!(str, c)
+	        #@goto :loop
+	    else
+	        return (utf32(str), true)
+	    end
     end
 end
-=#
+
 
 is_char_hex(c::Char) = is_char_numeric(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
 is_char_oct(c::Char) = '0' <= c <= '7'
