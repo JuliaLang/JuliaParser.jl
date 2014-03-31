@@ -74,10 +74,10 @@ is_syntactic_unary_op(op::Symbol) = in(op, syntactic_unary_ops)
 
 is_dict_literal(l) = length(l) == 3 && first(l) === :(=>) 
 
-const is_special_char = 
-    let chars = Set{Char}("()[]{},;\"`@")
-        is_special_char(c::Char)  = in(c, chars)
-    end
+const is_special_char = let 
+    chars = Set{Char}("()[]{},;\"`@")
+    is_special_char(c::Char)  = in(c, chars)
+end
 
 is_newline(c::Char) = return c === '\n'
 
@@ -97,10 +97,10 @@ is_opchar(c::Char) = in(c, operator_chars)
 
 
 #= Characters that can follow a . in an operator =#
-const is_dot_opchar =
-    let chars = Set{Char}(".*^/\\+-'<>!=%")
-        is_dot_opchar(c::Char) = in(c, chars)
-    end
+const is_dot_opchar = let
+    chars = Set{Char}(".*^/\\+-'<>!=%")
+    is_dot_opchar(c::Char) = in(c, chars)
+end
 
 is_operator(o::Symbol) = in(o, operators)
 
@@ -133,12 +133,14 @@ function peekchar(from::IOBuffer)
 end
 
 # this implementation is copied from Base
-const _chtmp = Array(Char, 1)
-function peekchar(s::IOStream)
-    if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, _chtmp) < 0
-        return char(-1)
+const peekchar = let 
+    chtmp = Array(Char, 1)
+    peekchar(s::IOStream) = begin
+        if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, chtmp) < 0
+            return char(-1)
+        end
+        return chtmp[1]
     end
-    return _chtmp[1]
 end
 
 eof(c::Char) = c === char(-1)
@@ -185,6 +187,10 @@ function read_operator(io::IO, c::Char)
     return symbol(utf32(str))
 end
 
+
+#=============#
+# Read Number
+#=============#
 #=
 function accum_digits(io::IO, pred::Function, c::Char, lz)
     if !(bool(lz)) && c == '_'
@@ -216,6 +222,206 @@ end
 is_char_hex(c::Char) = is_char_numeric(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c == '0' || c == '1'
+
+function fix_uint_neg(neg::Bool, n::Real)
+    if neg
+        return Expr(:call, :- , n)
+    else
+        return n
+    end
+end 
+
+function sized_uint_literal(n::Real, s::String, b::Integer)
+    i = s[1] == '-' ? 3 : 2
+    l = (length(s) - i) * b
+    if l <= 8
+        return uint8(n)
+    elseif l <= 16
+        return uint16(n)
+    elseif l <= 32
+        return uint32(n)
+    elseif l <= 64
+        return uint64(n)
+    elseif l <= 128
+        return uint128(n)
+    else 
+        return BigInt(n)
+    end
+end
+
+function sizeed_uint_oct_literal(n, s)
+    if contains(s, "0o")
+        return sized_uint_literal(n, s, 3)
+    else
+        if n <= typemax(Uint8)
+            return uint8(n)
+        elseif n <= typemax(Uint16)    
+            return uint16(n)
+        elseif n <= typemax(Uint32)
+            return uint32(n)
+        elseif n <= typemax(Uint64)
+            return uint64(n)
+        elseif n <= typemax(Uint128)
+            return uint128(n)
+        else
+            return BigInt(n)
+        end
+    end
+end
+
+function strip_leading_zeros(s::String)
+    len = length(s)
+    idx = 1
+    for i in 1:len
+        if s[i] == '0'
+            idx += 1
+        else
+            break
+        end
+    end
+    return s[idx:end]
+end
+
+function compare_num_strings(s1::String, s2::String)
+    s1 = strip_leading_zeros(s1)
+    s2 = strip_leading_zeros(s2)
+    l1 = length(s1)
+    l2 = length(s2)
+    if l1 == l2 
+        return s1 <= s2
+    else
+        return l1 <= l2
+    end
+end
+   
+function is_oct_within_uint128(s::String)
+    s = s[1] == '-' ? s[2:end] : s
+    return s <= "0o3777777777777777777777777777777777777777777"
+end
+
+function is_within_int128(s::String)
+    if first(s) == '-'
+        return s >= "-170141183460469231731687303715884105728"
+    else
+        return s <= "170141183460469231731687303715884105727"
+    end 
+end
+
+function read_number(io::IO, leading_dot, neg)
+    str  = Char[] 
+    pred::Function = is_char_numeric
+    is_float32_literal  = false
+    is_hexfloat_literal = false
+    leading_zero = false
+
+    function allow(ch::Char)
+        c = peekchar(io)
+        if c == ch
+            push!(str, readchar(io))
+        end
+    end
+
+    function disallow_dot()
+        if peekchar(io) == '.'
+            skip(io, 1)
+            if is_dot_opchar(peekchar(io))
+                skip(io, -1)
+            else
+                error("invalid numeric constant \"$(utf32(str))."\"")
+            end
+        end
+    end
+
+    function read_digits(lzero::Bool)
+    end
+
+    if neg; push!(str, '-'); end 
+    if leading_dot
+        push!(str, '.')
+        if peekchar(io) == '0'
+            push!(str, readchar(io))
+            leading_zero = true
+            if allow('x')
+                leading_zero = false
+                pred = is_char_hex
+            elseif allow('o')
+                leading_zero = false
+                pred = is_char_oct
+            elseif allow('b')
+                leading_zero = false
+                pred = is_char_bin
+            end
+        else
+            allow('.')
+        end
+    end
+    read_digits(leading_zero)
+    if peekchar(io) == '.'
+        skip(io, 1)
+        if is_dot_opchar(peekchar(io))
+            skip(io, -1)
+        else
+            push!(str, '.')
+            read_digits(false)
+            disallow_dot()
+        end
+    end
+    c = peekchar(io)
+    if c == 'e' || c == 'E' || c == 'f' || c == 'p' || c == 'P'
+        skip(io, 1)
+        nc = peekchar(io)
+        if !eof(nc) && (is_char_numeric(nc) || nc == '+' || nc == '-')
+            is_float32_literal = (c == 'f')
+            is_hexfloat_literal = (c == 'p' || c == 'P')
+            push!(str, c)
+            push!(str, readchar(io))
+            read_digits(false)
+            disallow_dot()
+        else
+            skip(io, -1)
+        end
+    # disallow digits after binary or octal literals, e.g. 0b12
+    elseif ((pred == is_char_bin || pred == is_char_oct) && 
+            !eof(c) &&
+            is_char_numeric(c))
+        push!(str, c)
+        error("invalid numeric constant \"$(utf32(str))\"")
+    end
+    s = utf32(str)
+    r = pred == is_char_hex ? 16 : 
+        pred == is_char_oct ? 8  :
+        pred == is_char_bin ? 2  : 10
+    # for an unsigned literal starting with -, 
+    # remove the - and parse instead as a call to unary -
+    n = neg && !(r == 10) && !is_hexfloat_literal ? s[2:end] : s
+    n = string_to_number(n)
+    # n is false for integers > typemax(Uint64)
+    if is_hexfloat_literal
+        return float64(n)
+    elseif pred == is_char_hex
+        return fix_uint_neg(neg, sized_uint_literal(n, s, 4))
+    elseif pred == is_char_oct
+        return fix_uint_neg(neg, sized_uint_oct_literal(n, s))
+    elseif pred == is_char_bin
+        return fix_uint_neg(neg, sized_uint_literal(n, s, 1))
+    elseif is_float32_literal
+        return float32(n)
+    elseif bool(n)
+        if isinteger(n) && (n > 9223372036854775807)
+            return int128(n)
+        else
+            return n
+        end
+    elseif is_within_int128(s)
+        return int128(s)
+    else
+        return BigInt(s)
+    end
+end
+
+#============================#
+# Skip whitespace / comments
+#============================#
 
 # skip multiline comments
 # maintain a count of the number of enclosed #= =# pairs
@@ -293,5 +499,6 @@ function skip_ws_comments(io::IO)
     end
     return io
 end
- 
+
+
 end
