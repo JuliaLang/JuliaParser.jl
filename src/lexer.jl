@@ -269,22 +269,9 @@ function sizeed_uint_oct_literal(n, s)
     end
 end
 
-function strip_leading_zeros(s::String)
-    len = length(s)
-    idx = 1
-    for i in 1:len
-        if s[i] == '0'
-            idx += 1
-        else
-            break
-        end
-    end
-    return s[idx:end]
-end
-
 function compare_num_strings(s1::String, s2::String)
-    s1 = strip_leading_zeros(s1)
-    s2 = strip_leading_zeros(s2)
+    s1 = lstrip(s1, '0')
+    s2 = lstrip(s2, '0') 
     l1 = length(s1)
     l2 = length(s2)
     if l1 == l2 
@@ -419,6 +406,7 @@ function read_number(io::IO, leading_dot, neg)
     end
 end
 
+           
 #============================#
 # Skip whitespace / comments
 #============================#
@@ -489,7 +477,7 @@ end
 # upon reaching the comment, if it is a
 # single line comment skip to the end of the line
 # otherwise skip to the end of the multiline comment block
-function skip_ws_comments(io::IO)
+function skip_ws_and_comments(io::IO)
     while !eof(io)
         skipwhitespace(io)
 	    if peekchar(io) != '#'
@@ -500,5 +488,70 @@ function skip_ws_comments(io::IO)
     return io
 end
 
+function is_julia_id_char(c::Char)
+    return ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || (c >= 0xA1) ||
+            c == '!' || c == '_')
+end
+
+function accum_julia_symbol(io::IO, c::Char)
+    # preallocate to a typical size?
+    str = Char[c]
+    while is_julia_id_char(c)
+        # make sure that != is always an operator
+        c  = readchar(io)
+        nc = peekchar(io)
+        if c == '!'
+            if nc == '='
+                skip(io, -1)
+                break
+            end
+        end
+        push!(str, c)
+        eof(nc) && break
+    end
+    str = normalize_string(utf32(str), :NFC)
+    return symbol(str)
+end
+
+function next_token(io::IO, s)
+    #asert s 2 ( skip-ws port whitepace-newline
+    c = peekchar(io)
+    if eof(c) || is_newline(c)
+        return readchar(io)
+    elseif is_special_char(c)
+        return readchar(io)
+    elseif is_char_numeric(c)
+        return read_number(io, false, false)
+    elseif c == '#'
+        skipcomment(io)
+        # XXX: do we need this without recursion?
+        # seems like it would only be a problem in
+        # pathological cases
+        return next_token(io, s)
+    elseif c == '.'
+        c  = readchar(io)
+        nc = peekchar(io)
+        if eof(nc)
+            return :(.)
+        elseif is_char_numeric(nc)
+            return read_number(io, true, false)
+        elseif is_opchar(nc)
+            op = read_operator(io, c)
+            if op === :(..) && is_opchar(peekchar(io))
+                error(string("invalid operator \"", op, peekchar(io), "\""))
+            end
+            return op
+        else
+            return :(.)
+        end
+    elseif is_opchar(c)
+        return read_operator(io, readchar(io))
+    elseif is_identifier_char(c)
+        return accum_julia_symbol(io, c)\
+    else
+        error(string("invalid character \"", readchar(io), "\""))
+    end
+end
 
 end
