@@ -171,11 +171,11 @@ function read_operator(io::IO, c::Char)
     if eof(pc) || !(is_opchar(pc))
         return symbol(c)
     end
-    #TODO: faster to preallocate this to the largest known operator
-    str = Char[c]
+    str = Char[c, '\0', '\0', '\0']
     c   = pc
-    while !eof(c) && is_opchar(c)
-        push!(str, c)
+    idx = 2
+    while !eof(c) && is_opchar(c) && idx <=4
+        str[idx] = c 
         newop = utf32(str)
         opsym = symbol(newop)
         if !is_operator(opsym)
@@ -183,6 +183,10 @@ function read_operator(io::IO, c::Char)
         end
         str = newop
         c   = readchar(io)
+        idx += 1 
+    end
+    if idx > 4
+        error("invalid operator size")
     end
     return symbol(utf32(str))
 end
