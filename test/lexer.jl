@@ -31,9 +31,6 @@ facts("test read operator") do
         _ = Lexer.readchar(io)
         c = Lexer.readchar(io)
         res = Lexer.read_operator(io, c)
-        if res != op
-            @show string(res), string(op)
-        end
         @fact res => op
     end
 end
