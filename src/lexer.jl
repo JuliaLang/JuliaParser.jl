@@ -548,7 +548,7 @@ function next_token(io::IO, s)
     elseif is_opchar(c)
         return read_operator(io, readchar(io))
     elseif is_identifier_char(c)
-        return accum_julia_symbol(io, c)\
+        return accum_julia_symbol(io, c)
     else
         error(string("invalid character \"", readchar(io), "\""))
     end
