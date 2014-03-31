@@ -174,7 +174,7 @@ function read_operator(io::IO, c::Char)
     str = Char[c, '\0', '\0', '\0']
     c   = pc
     idx = 2
-    while !eof(c) && is_opchar(c) && idx <=4
+    while !eof(c) && is_opchar(c) && idx <= 4
         str[idx] = c 
         newop = utf32(str)
         opsym = symbol(newop)
@@ -195,6 +195,55 @@ end
 #=============#
 # Read Number
 #=============#
+
+# Notes:
+# expressions starting with 0x are always hexadecimal literals
+# expressiosn starting with a numeric literal followed by e or E
+# are always floating point literals
+
+function string_to_number(tok::String)
+    len = length(tok)
+    len > 0 || error("invalid number token \"$tok\"")
+   
+    # NaN and Infinity
+    (tok == "NaN" || tok == "+NaN" || tok == "-NaN") && return NaN
+    (tok == "Inf" || tok == "+Inf" || tok == "-Inf") && return Inf
+
+    # XXX: Overflow checking?
+    # floating point literals
+    is_float64 = false
+    is_float32 = false
+    didx = 0
+    fidx = 0
+    for i=1:len 
+        c = tok[i]
+        if c == '.'
+            didx = i
+            is_float64 = true
+        end
+        is_float64 = is_float64 || c == 'e' || c == 'E' || c == 'p' || c == 'P'
+        if c == 'f'
+            is_float32 = i > didx && i != len ? 
+                true : error("invalid float32 token \"$tok\"")
+            fidx = i
+        end
+    end
+    if is_float32
+        #TODO: there must be a better way to do this
+        base = float32(tok[1:fidx-1])
+        expn = int(tok[fidx+1:end])
+        return base * 10.f0 ^ expn
+    elseif is_float64
+        return float64(tok)
+    end
+
+    # parse signed / unsigned integers
+    if tok[1] == '-'
+        return int64(tok)
+    end
+    return uint64(tok)
+end
+
 #=
 function accum_digits(io::IO, pred::Function, c::Char, lz)
     if !(bool(lz)) && c == '_'
@@ -238,39 +287,24 @@ end
 function sized_uint_literal(n::Real, s::String, b::Integer)
     i = s[1] == '-' ? 3 : 2
     l = (length(s) - i) * b
-    if l <= 8
-        return uint8(n)
-    elseif l <= 16
-        return uint16(n)
-    elseif l <= 32
-        return uint32(n)
-    elseif l <= 64
-        return uint64(n)
-    elseif l <= 128
-        return uint128(n)
-    else 
-        return BigInt(n)
-    end
+    l <= 8   && return uint8(n)
+    l <= 16  && return uint16(n)
+    l <= 32  && return uint32(n)
+    l <= 64  && return uint64(n)
+    l <= 128 && return uint128(n)
+    return BigInt(n)
 end
 
 function sizeed_uint_oct_literal(n, s)
     if contains(s, "0o")
         return sized_uint_literal(n, s, 3)
-    else
-        if n <= typemax(Uint8)
-            return uint8(n)
-        elseif n <= typemax(Uint16)    
-            return uint16(n)
-        elseif n <= typemax(Uint32)
-            return uint32(n)
-        elseif n <= typemax(Uint64)
-            return uint64(n)
-        elseif n <= typemax(Uint128)
-            return uint128(n)
-        else
-            return BigInt(n)
-        end
     end
+    n <= typemax(Uint8)   && return uint8(n)
+    n <= typemax(Uint16)  && return uint16(n)
+    n <= typemax(Uint32)  && return uint32(n)
+    n <= typemax(Uint64)  && return uint64(n)
+    n <= typemax(Uint128) && return uint128(n)
+    return BigInt(n)
 end
 
 function compare_num_strings(s1::String, s2::String)

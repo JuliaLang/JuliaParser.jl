@@ -129,3 +129,176 @@ facts("test skipcomment") do
     @fact_throws Lexer.skip_multiline_comment(io, 0)
 end
 
+
+facts("test string_to_number") do
+   
+    @fact_throws Lexer.string_to_number("")
+    @fact_throws Lexer.string_to_number("1x10")
+    @fact_throws Lexer.string_to_number("x10")
+    @fact_throws Lexer.string_to_number("1.f.10")
+    @fact_throws Lexer.string_to_number("b10")
+    @fact_throws Lexer.string_to_number("0xzz")
+    @fact_throws Lexer.string_to_number("0b22")
+    
+    context("NaN") do
+        for s in ("NaN", "+NaN", "-NaN")
+            n = Lexer.string_to_number(s)
+            @fact isnan(n) => true
+        end
+    end
+
+    context("Inf") do
+        for s in ("Inf", "+Inf", "-Inf")
+            n = Lexer.string_to_number(s)
+            @fact isinf(n) => true
+        end
+    end
+
+    context("float64") do
+        s = "1.0"
+        n = Lexer.string_to_number(s)
+        @fact n => 1.0
+        @fact typeof(n) => Float64
+
+        s = "-1.0"
+        n = Lexer.string_to_number(s)
+        @fact n => -1.0
+        @fact typeof(n) => Float64
+
+        s = "1."
+        n = Lexer.string_to_number(s)
+        @fact n => 1.0
+        @fact typeof(n) => Float64
+
+        s = "1e10"
+        n = Lexer.string_to_number(s)
+        @fact n => 1.0e10
+        @fact typeof(n) => Float64
+        
+        s = "-1E10"
+        n = Lexer.string_to_number(s)
+        @fact n => -1.0e10
+        @fact typeof(n) => Float64
+
+        s = "0x1p0"
+        n = Lexer.string_to_number(s)
+        @fact n => 1.0
+        @fact typeof(n) => Float64
+
+        s = "0x1.8p3"
+        n = Lexer.string_to_number(s)
+        @fact n => 12.0
+        @fact typeof(n) => Float64
+
+        s = "0x0.4p-1"
+        n = Lexer.string_to_number(s)
+        @fact n => 0.125
+        @fact typeof(n) => Float64
+
+        for _ = 1:10
+            tn = rand()
+            s  = string(tn)
+            n  = Lexer.string_to_number(s)
+            @fact n => tn
+            @fact typeof(n) => Float64
+        end
+    end
+
+    context("float32") do 
+        s = "1.0f0"
+        n = Lexer.string_to_number(s)
+        @fact n => 1.0
+        @fact typeof(n) => Float32
+
+        s = "-1.f0"
+        n = Lexer.string_to_number(s)
+        @fact n => -1.0
+        @fact typeof(n) => Float32
+
+        s = "1f0"
+        n = Lexer.string_to_number(s)
+        @fact n => 1.0
+        @fact typeof(n) => Float32
+
+        s = "1f"
+        @fact_throws Lexer.string_to_number(n)
+
+        s = "0x1p0f0"
+        n = Lexer.string_to_number(s)
+        @fact n => 1.0
+        @fact typeof(n) => Float32 
+
+        s = "0x1.8p3f0"
+        n = Lexer.string_to_number(s)
+        @fact n => 12.0
+        @fact typeof(n) => Float32
+
+        s = "0x0.4p-1f0"
+        n = Lexer.string_to_number(s)
+        @fact n => 0.125
+        @fact typeof(n) => Float32
+
+        for _ = 1:10
+            tn = rand(Float32)
+            s  = repr(tn)
+            n  = Lexer.string_to_number(s)
+            @fact n => tn
+            @fact typeof(n) => Float32
+        end
+    end
+
+    context("integers") do
+        s = "1"
+        n = Lexer.string_to_number(s)
+        @fact n => 1
+        @fact typeof(n) => Uint64
+
+        s = "-1"
+        n = Lexer.string_to_number(s)
+        @fact n => -1
+        @fact typeof(n) => Int64
+
+        s = string(typemin(Int64))
+        n = Lexer.string_to_number(s)
+        @fact n => typemin(Int64)
+        @fact typeof(n) => Int64 
+
+        s = string(typemax(Int64))
+        n = Lexer.string_to_number(s)
+        @fact n => typemax(Int64)
+        @fact typeof(n) => Uint64
+
+        s = string(typemax(Uint64))
+        n = Lexer.string_to_number(s)
+        @fact n => typemax(Uint64)
+        @fact typeof(n) => Uint64
+
+        s = "0b010101"
+        n = Lexer.string_to_number(s)
+        @fact n => 21
+        @fact typeof(n) => Uint64
+        
+        s = "-0b010101"
+        n = Lexer.string_to_number(s)
+        @fact n => -21
+        @fact typeof(n) => Int64
+    
+        s = "0x15"
+        n = Lexer.string_to_number(s)
+        @fact n => 21
+        @fact typeof(n) => Uint64
+
+        s = "-0x15"
+        n = Lexer.string_to_number(s)
+        @fact n => -21
+        @fact typeof(n) => Int64
+    end
+end
+
+
+
+
+
+
+
+
