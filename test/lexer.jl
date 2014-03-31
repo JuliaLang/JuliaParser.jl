@@ -199,6 +199,7 @@ facts("test string_to_number") do
         @fact typeof(n) => Int64
     end
 end
+
 facts("test is char hex") do
     for i = 1:9
         @fact Lexer.is_char_hex(first("$i")) => true
@@ -227,6 +228,58 @@ facts("test is char bin") do
     @fact Lexer.is_char_bin('0') => true
     @fact Lexer.is_char_bin('1') => true
     @fact Lexer.is_char_bin('2') => false
+end
+
+facts("test uint literal") do
+    context("hexadecimal") do
+        s  = "0x0"
+        sn = int(s)
+        n  = Lexer.sized_uint_literal(sn, s, 4)
+        @fact sn => n
+        @fact typeof(n) => Uint8
+        
+        for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
+            @eval begin
+                s = repr(typemax($ty))
+                sn = uint128(s)
+                n  = Lexer.sized_uint_literal(sn, s, 4)
+                @fact sn => n
+                @fact typeof(n) => $ty
+            end
+        end
+        
+        s  = string(repr(typemax(Uint128)), "f")
+        sn = BigInt(s) 
+        n  = Lexer.sized_uint_literal(sn, s, 4)
+        @fact sn => n
+        @fact typeof(n) => BigInt
+    end
+    
+    context("binary") do
+        s  = "0b0"
+        sn = int(s)
+        n  = Lexer.sized_uint_literal(sn, s, 1)
+        @fact sn => n
+        @fact typeof(n) => Uint8
+        
+        for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
+            @eval begin
+                s = string("0b", bin(typemax($ty)))
+                sn = uint128(s)
+                n  = Lexer.sized_uint_literal(sn, s, 1)
+                @fact sn => n
+                @fact typeof(n) => $ty
+            end
+        end
+        
+        s  = string("0b", bin(typemax(Uint128)), "1")
+        sn = BigInt(s) 
+        n  = Lexer.sized_uint_literal(sn, s, 1)
+        @fact sn => n
+        @fact typeof(n) => BigInt
+    end
+
+
 end
 
 facts("test skipwhitespace") do
