@@ -13,23 +13,23 @@ const ops_by_precedent =  {
 			    :(.%=), :(|=),   :(&=),   :($=),  :(=>),
 			    :(<<=), :(>>=),  :(>>>=), :(~),   :(.+=),
 			    :(.-=)],
-			   [:(?)],
-			   [:(||)],
-			   [:(&&)],
-			   [:(--), :(-->)],
-			   [:(>),   :(<),   :(>=),  :(<=),  :(==), 
-			    :(===), :(!=),  :(!==), :(.>),  :(.<),
-			    :(.>=), :(.<=), :(.==), :(.!=), :(.=),
-			    :(.!),  :(<:),  rsubtype],
-			   [:(|>),  :(<|)],
-			   [:(:), :(..)],
-			   [:(+),  :(-),  :(.+),  :(.-),  :(|),   :($)],
-			   [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
-			   [:(*),  :(/),  :(./),  :(%),   :(.%),  :(&), :(.*), :(\), :(.\)],
-			   [:(/), :(.//)],
-			   [:(^),  :(.^)],
-			   [:(::)],
-			   [:(.)]}
+               [:(?)],
+               [:(||)],
+               [:(&&)],
+               [:(--), :(-->)],
+               [:(>),   :(<),   :(>=),  :(<=),  :(==), 
+                :(===), :(!=),  :(!==), :(.>),  :(.<),
+                :(.>=), :(.<=), :(.==), :(.!=), :(.=),
+                :(.!),  :(<:),  rsubtype],
+               [:(|>),  :(<|)],
+               [:(:), :(..)],
+               [:(+),  :(-),  :(.+),  :(.-),  :(|),   :($)],
+               [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
+               [:(*),  :(/),  :(./),  :(%),   :(.%),  :(&), :(.*), :(\), :(.\)],
+               [:(/), :(.//)],
+               [:(^),  :(.^)],
+               [:(::)],
+               [:(.)]}
 
 precedent_ops(n::Integer) = ops_by_precedent[n]::Vector{Symbol}
 
@@ -245,30 +245,32 @@ function string_to_number(tok::String)
 end
 
 
-function accum_digits(io::IO, pred::Function, c::Char, lz)
-    if !(bool(lz)) && c == '_'
-        return ('_', false)
+function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
+    if !leading_zero && c == '_'
+        return (utf32(""), false)
     end
     str = Char[]
-    if c == '_'
-        readchar(io)
-        c = peekchar(io)
-	    if !eof(c) && pred(c)
-            #@goto :loop
+    while true 
+        if c == '_'
+            seek(io, 1)
+            c = peekchar(io)
+            if !eof(c) && pred(c)
+                continue
+            else
+                seek(io, -1)
+                break 
+            end
+        elseif !eof(c) && pred(c)
+            seek(io, 1)
+            push!(str, c)
+            c = peekchar(io)
+            continue
         else
-            # ungetc(io, '_')
-            seek(io, -1)
-            return (utf32(str), false)
+            break 
         end
-    else
-        if !eof(c) & pred(c)
-            readchar(io)
-	        push!(str, c)
-	        #@goto :loop
-	    else
-	        return (utf32(str), true)
-	    end
     end
+    @assert length(str) > 0
+    return (utf32(str), true)
 end
 
 
@@ -295,8 +297,8 @@ function sized_uint_literal(n::Real, s::String, b::Integer)
     return BigInt(n)
 end
 
-function sizeed_uint_oct_literal(n, s)
-    if contains(s, "0o")
+function sized_uint_oct_literal(n::Real, s::String)
+    if contains(s, "o0")
         return sized_uint_literal(n, s, 3)
     end
     n <= typemax(Uint8)   && return uint8(n)
@@ -357,7 +359,22 @@ function read_number(io::IO, leading_dot, neg)
         end
     end
 
-    function read_digits(lzero::Bool)
+    function read_digits(leading_zero::Bool)
+        res = accum_digits(io, pred,
+                           peekchar(io), 
+                           leading_zero)
+        digits, ok = res
+        if !ok
+            error("invalid numeric constant \"$digits\"")
+        end
+        if eof(io) || isempty(digits)
+            return false
+        end
+        #XXX: HACK
+        for c in digits
+            push!(str, c)
+        end
+        return true
     end
 
     if neg; push!(str, '-'); end 
@@ -518,10 +535,10 @@ end
 function skip_ws_and_comments(io::IO)
     while !eof(io)
         skipwhitespace(io)
-	    if peekchar(io) != '#'
-	        break
-	    end
-	    skipcomment(io)
+        if peekchar(io) != '#'
+            break
+        end
+        skipcomment(io)
     end
     return io
 end

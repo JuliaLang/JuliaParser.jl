@@ -24,6 +24,7 @@ facts("test skip to end of line") do
     end
 end
 
+
 facts("test read operator") do
     for op in Lexer.operators
         str = " $(string(op)) "
@@ -34,6 +35,7 @@ facts("test read operator") do
         @fact res => op
     end
 end
+
 
 facts("test string_to_number") do
    
@@ -49,6 +51,7 @@ facts("test string_to_number") do
         for s in ("NaN", "+NaN", "-NaN")
             n = Lexer.string_to_number(s)
             @fact isnan(n) => true
+            @fact isnan(n) => isnan(eval(parse(s)))
         end
     end
 
@@ -56,6 +59,7 @@ facts("test string_to_number") do
         for s in ("Inf", "+Inf", "-Inf")
             n = Lexer.string_to_number(s)
             @fact isinf(n) => true
+            @fact isinf(n) => isinf(eval(parse(s)))
         end
     end
 
@@ -63,42 +67,58 @@ facts("test string_to_number") do
         s = "1.0"
         n = Lexer.string_to_number(s)
         @fact n => 1.0
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
 
         s = "-1.0"
         n = Lexer.string_to_number(s)
         @fact n => -1.0
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
 
         s = "1."
         n = Lexer.string_to_number(s)
         @fact n => 1.0
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
 
         s = "1e10"
         n = Lexer.string_to_number(s)
         @fact n => 1.0e10
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
         
         s = "-1E10"
         n = Lexer.string_to_number(s)
         @fact n => -1.0e10
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
 
         s = "0x1p0"
         n = Lexer.string_to_number(s)
         @fact n => 1.0
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
 
         s = "0x1.8p3"
         n = Lexer.string_to_number(s)
         @fact n => 12.0
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
 
         s = "0x0.4p-1"
         n = Lexer.string_to_number(s)
         @fact n => 0.125
+        @fact n => parse(s)
         @fact typeof(n) => Float64
+        @fact typeof(n) => typeof(parse(s))
 
         for _ = 1:10
             tn = rand()
@@ -106,6 +126,8 @@ facts("test string_to_number") do
             n  = Lexer.string_to_number(s)
             @fact n => tn
             @fact typeof(n) => Float64
+            @fact n => parse(s)
+            @fact typeof(n) => typeof(parse(s))
         end
     end
 
@@ -114,41 +136,34 @@ facts("test string_to_number") do
         n = Lexer.string_to_number(s)
         @fact n => 1.0
         @fact typeof(n) => Float32
+        @fact n => parse(s)
+        @fact typeof(n) => typeof(parse(s))
 
         s = "-1.f0"
         n = Lexer.string_to_number(s)
         @fact n => -1.0
         @fact typeof(n) => Float32
+        @fact n => parse(s)
+        @fact typeof(n) => typeof(parse(s))
 
         s = "1f0"
         n = Lexer.string_to_number(s)
         @fact n => 1.0
         @fact typeof(n) => Float32
+        @fact n => parse(s)
+        @fact typeof(n) => typeof(parse(s))
 
         s = "1f"
         @fact_throws Lexer.string_to_number(n)
-
-        s = "0x1p0f0"
-        n = Lexer.string_to_number(s)
-        @fact n => 1.0
-        @fact typeof(n) => Float32 
-
-        s = "0x1.8p3f0"
-        n = Lexer.string_to_number(s)
-        @fact n => 12.0
-        @fact typeof(n) => Float32
-
-        s = "0x0.4p-1f0"
-        n = Lexer.string_to_number(s)
-        @fact n => 0.125
-        @fact typeof(n) => Float32
-
+        
         for _ = 1:10
             tn = rand(Float32)
             s  = repr(tn)
             n  = Lexer.string_to_number(s)
             @fact n => tn
             @fact typeof(n) => Float32
+            @fact n => parse(s)
+            @fact typeof(n) => typeof(parse(s))
         end
     end
 
@@ -163,31 +178,33 @@ facts("test string_to_number") do
         @fact n => -1
         @fact typeof(n) => Int64
 
-        s = string(typemin(Int64))
+        s = repr(typemin(Int64))
         n = Lexer.string_to_number(s)
         @fact n => typemin(Int64)
         @fact typeof(n) => Int64 
 
-        s = string(typemax(Int64))
+        s = repr(typemax(Int64))
         n = Lexer.string_to_number(s)
         @fact n => typemax(Int64)
         @fact typeof(n) => Uint64
-
-        s = string(typemax(Uint64))
+        
+        #=
+        s = repr(typemax(Uint64))
         n = Lexer.string_to_number(s)
         @fact n => typemax(Uint64)
         @fact typeof(n) => Uint64
+        =# 
 
         s = "0b010101"
         n = Lexer.string_to_number(s)
         @fact n => 21
         @fact typeof(n) => Uint64
-        
+
         s = "-0b010101"
         n = Lexer.string_to_number(s)
         @fact n => -21
         @fact typeof(n) => Int64
-    
+
         s = "0x15"
         n = Lexer.string_to_number(s)
         @fact n => 21
@@ -199,6 +216,7 @@ facts("test string_to_number") do
         @fact typeof(n) => Int64
     end
 end
+
 
 facts("test is char hex") do
     for i = 1:9
@@ -214,6 +232,7 @@ facts("test is char hex") do
     @fact Lexer.is_char_hex('Z') => false
 end
 
+
 facts("test is char oct") do
     for i = 1:9
         if i < 8
@@ -224,13 +243,24 @@ facts("test is char oct") do
     end
 end
 
+
 facts("test is char bin") do
     @fact Lexer.is_char_bin('0') => true
     @fact Lexer.is_char_bin('1') => true
     @fact Lexer.is_char_bin('2') => false
 end
 
-facts("test uint literal") do
+
+facts("test uint neg") do
+    n = eval(Lexer.fix_uint_neg(true,  1))
+    p = eval(Lexer.fix_uint_neg(false, 1))
+    @fact n => -1 
+    @fact p =>  1 
+end
+
+
+facts("test sized uint literal") do
+    
     context("hexadecimal") do
         s  = "0x0"
         sn = int(s)
@@ -245,16 +275,59 @@ facts("test uint literal") do
                 n  = Lexer.sized_uint_literal(sn, s, 4)
                 @fact sn => n
                 @fact typeof(n) => $ty
+                # parse / eval output (128 bit integers and BigInts
+                # are returned as expressions
+                pn = eval(parse(s))
+                @fact pn => n
+                @fact typeof(pn) => $ty
             end
         end
         
         s  = string(repr(typemax(Uint128)), "f")
         sn = BigInt(s) 
         n  = Lexer.sized_uint_literal(sn, s, 4)
-        @fact sn => n
+        @fact sn == n => true
         @fact typeof(n) => BigInt
+
+        pn = eval(parse(s))
+        @fact pn == n => true
+        @fact typeof(pn) => BigInt
     end
     
+    context("octal") do
+        s  = "0o0"
+        sn = int(s)
+        n  = Lexer.sized_uint_oct_literal(sn, s)
+        @fact sn => n
+        @fact typeof(n) => Uint8
+        pn = parse(s)
+        @fact pn == n => true
+        @fact typeof(n) => typeof(pn)
+
+        for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
+            @eval begin
+                s = string("0o", oct(typemax($ty)))
+                sn = uint128(s)
+                n  = Lexer.sized_uint_oct_literal(sn, s)
+                @fact sn => n
+                @fact typeof(n) => $ty
+                        
+                pn = eval(parse(s))
+                @fact pn => n
+                @fact typeof(pn) => $ty
+            end
+        end
+        
+        s  = string(repr(typemax(Uint128)), "7")
+        sn = BigInt(s) 
+        n  = Lexer.sized_uint_oct_literal(sn, s)
+        @fact sn => n
+        @fact typeof(n) => BigInt
+        pn = eval(parse(s))
+        @fact n => pn
+        @fact typeof(n) => typeof(pn)
+    end
+
     context("binary") do
         s  = "0b0"
         sn = int(s)
@@ -278,9 +351,8 @@ facts("test uint literal") do
         @fact sn => n
         @fact typeof(n) => BigInt
     end
-
-
 end
+
 
 facts("test skipwhitespace") do
     io = IOBuffer("   abc")
