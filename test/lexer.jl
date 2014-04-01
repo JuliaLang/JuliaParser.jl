@@ -353,6 +353,34 @@ facts("test sized uint literal") do
     end
 end
 
+facts("test accum_digits") do
+    io = IOBuffer("1_000_000")
+    c = Lexer.readchar(io)
+    pred = Lexer.is_char_numeric
+    digits, success = Lexer.accum_digits(io, pred, c, false)
+    @fact digits => "1000000"
+    @fact success => true
+   
+    io = IOBuffer("01_000_000")
+    c = Lexer.peekchar(io)
+    pred = Lexer.is_char_numeric
+    digits, success = Lexer.accum_digits(io, pred, c, false)
+    @fact digits => "01000000"
+    @fact success => true
+
+
+    io = IOBuffer("_000_000")
+    c = Lexer.peekchar(io)
+    pred = Lexer.is_char_numeric
+    _, success = Lexer.accum_digits(io, pred, c, false)
+    @fact success => false
+
+    io = IOBuffer("_000_000")
+    c = Lexer.peekchar(io)
+    pred = Lexer.is_char_numeric
+    _, success = Lexer.accum_digits(io, pred, c, true)
+    @fact success => true
+end
 
 facts("test skipwhitespace") do
     io = IOBuffer("   abc")
@@ -371,6 +399,7 @@ facts("test skipwhitespace") do
     Lexer.skipwhitespace(io)
     @fact position(io) => 0
 end
+
 
 facts("test skipcomment") do
     io = IOBuffer("#test\n")

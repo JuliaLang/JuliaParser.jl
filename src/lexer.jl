@@ -253,16 +253,16 @@ function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
     str = Char[]
     while true 
         if c == '_'
-            seek(io, 1)
+            skip(io, 1)
             c = peekchar(io)
             if !eof(c) && pred(c)
                 continue
             else
-                seek(io, -1)
+                skip(io, -1)
                 break 
             end
         elseif !eof(c) && pred(c)
-            seek(io, 1)
+            skip(io, 1)
             push!(str, c)
             c = peekchar(io)
             continue
