@@ -5,6 +5,7 @@ module Lexer
 # we need to special case this becasue otherwise Julia's 
 # parser thinks this is a quote node
 const rsubtype = symbol(":>")
+const lsubtype = symbol("<:")
 
 const ops_by_precedent =  {
                [:(=),   :(:=),   :(+=),   :(-=),  :(*=),
@@ -20,7 +21,7 @@ const ops_by_precedent =  {
                [:(>),   :(<),   :(>=),  :(<=),  :(==), 
                 :(===), :(!=),  :(!==), :(.>),  :(.<),
                 :(.>=), :(.<=), :(.==), :(.!=), :(.=),
-                :(.!),  :(<:),  rsubtype],
+                :(.!),  lsubtype,  rsubtype],
                [:(|>),  :(<|)],
                [:(:), :(..)],
                [:(+),  :(-),  :(.+),  :(.-),  :(|),   :($)],
