@@ -382,6 +382,22 @@ facts("test accum_digits") do
     @fact success => true
 end
 
+
+facts("test compare num strings") do
+    a = "123"
+    b = "1453"
+    isless = Lexer.compare_num_strings(a, b) 
+    @fact isless => true
+
+    a = "123"
+    b = "321"
+    isless  = Lexer.compare_num_strings(a, b)
+    @fact isless => true
+    isless  = Lexer.compare_num_strings(b, a)
+    @fact isless => false
+end
+
+
 facts("test skipwhitespace") do
     io = IOBuffer("   abc")
     Lexer.skipwhitespace(io)
