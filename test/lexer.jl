@@ -397,6 +397,31 @@ facts("test compare num strings") do
     @fact isless => false
 end
 
+facts("test is oct within uint 128") do
+    m = typemax(Uint128)
+    @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) => true
+
+    m = typemax(Uint128) - 1 
+    @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) => true
+
+    m = BigInt(typemax(Uint128)) + 1
+    @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) => false
+end
+
+facts("test is within int128") do
+    m = typemax(Int128)
+    @fact Lexer.is_within_int128(repr(m)) => true 
+
+    m = BigInt(typemax(Int128)) + 1
+    @fact Lexer.is_within_int128(repr(m)) => false
+
+    m = typemin(Int128)
+    @fact Lexer.is_within_int128(repr(m)) => true 
+
+    m = BigInt(typemin(Int128)) - 1
+    @fact Lexer.is_within_int128(repr(m)) => false
+end
+
 
 facts("test skipwhitespace") do
     io = IOBuffer("   abc")

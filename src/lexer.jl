@@ -328,8 +328,8 @@ function is_oct_within_uint128(s::String)
 end
 
 function is_within_int128(s::String)
-    if first(s) == '-'
-        return s >= "-170141183460469231731687303715884105728"
+    if s[1] == '-'
+        return s <= "-170141183460469231731687303715884105728"
     else
         return s <= "170141183460469231731687303715884105727"
     end 
