@@ -443,7 +443,7 @@ facts("test readnumber") do
         @fact n => -100
         @fact typeof(n) => Int
 
-        io = IOBuffer("0100 ")
+        io = IOBuffer("00100 ")
         n = Lexer.read_number(io, false,  false)
         @fact n => 100
         @fact typeof(n) => Uint
@@ -459,6 +459,27 @@ facts("test readnumber") do
         n = Lexer.read_number(io, false, false)
         @fact n => 100.0
         @fact typeof(n) => Float32
+
+        io = IOBuffer("10.0.0 ")
+        @fact_throws Lexer.read_number(io, false, false)
+    end
+
+    context("floating point exponent") do
+        io = IOBuffer("1e10 ")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 1e10
+        @fact typeof(n) => Float64
+
+        io = IOBuffer("-10E10 ")
+        skip(io, 1)
+        n = Lexer.read_number(io, false, true)
+        @fact n => -10e10
+        @fact typeof(n) => Float64
+
+        io = IOBuffer("1e-1 ")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 1e-1
+        @fact typeof(n) => Float64
     end
 
     context("leading dot") do 
@@ -468,12 +489,64 @@ facts("test readnumber") do
         @fact n => 0.01
         @fact typeof(n) => Float64
 
+        io = IOBuffer(".000_1 ")
+        skip(io, 1)
+        n = Lexer.read_number(io, true, false)
+        @fact n => 0.0001
+        @fact typeof(n) => Float64
+
         io = IOBuffer("-.01 ")
         skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.01
         @fact typeof(n) => Float64
+
+        io = IOBuffer("-.000_1 ")
+        skip(io, 2)
+        n = Lexer.read_number(io, true, true)
+        @fact n => -0.0001
+        @fact typeof(n) => Float64
+
+        io = IOBuffer(".01f0 ")
+        skip(io, 1)
+        n = Lexer.read_number(io, true, false)
+        @fact n => 0.01f0
+        @fact typeof(n) => Float32
+
+        io = IOBuffer(".000_1f0 ")
+        skip(io, 1)
+        n = Lexer.read_number(io, true, false)
+        @fact n => 0.0001f0
+        @fact typeof(n) => Float32 
+
+        io = IOBuffer("-.01f0 ")
+        skip(io, 2)
+        n = Lexer.read_number(io, true, true)
+        @fact n => -0.01f0
+        @fact typeof(n) => Float32
+
+        io = IOBuffer("-.000_1f0 ")
+        skip(io, 2)
+        n = Lexer.read_number(io, true, true)
+        @fact n => -0.0001f0
+        @fact typeof(n) => Float32 
     end
+
+    #=
+    context("binary") do
+        io = IOBuffer(string("0b", bin(10), " "))
+        n = Lexer.read_number(io, false, false)
+        #@fact n => 10
+        #@show typeof(n)  
+    end
+
+    context("hex") do
+        io = IOBuffer(string("0x", hex(10), " "))
+        n = Lexer.read_number(io, false, false)
+        #@fact n => 10 
+        #@show typeof(n)
+    end
+    =#
 end
 
 
