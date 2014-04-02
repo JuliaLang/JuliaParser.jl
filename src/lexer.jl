@@ -270,7 +270,7 @@ function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
             break 
         end
     end
-    @assert length(str) > 0
+    #@assert length(str) > 0
     return (utf32(str), true)
 end
 
@@ -335,7 +335,7 @@ function is_within_int128(s::String)
     end 
 end
 
-function read_number(io::IO, leading_dot, neg)
+function read_number(io::IO, leading_dot::Bool, neg::Bool)
     str  = Char[] 
     pred::Function = is_char_numeric
     is_float32_literal  = false
@@ -346,7 +346,9 @@ function read_number(io::IO, leading_dot, neg)
         c = peekchar(io)
         if c == ch
             push!(str, readchar(io))
+            return true
         end
+        return false
     end
 
     function disallow_dot()
@@ -378,7 +380,7 @@ function read_number(io::IO, leading_dot, neg)
         return true
     end
 
-    if neg; push!(str, '-'); end 
+    neg && push!(str, '-')
     if leading_dot
         push!(str, '.')
         if peekchar(io) == '0'

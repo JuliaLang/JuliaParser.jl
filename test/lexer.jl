@@ -1,5 +1,6 @@
 const Lexer = JuliaParser.Lexer
 
+
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
     Lexer.skip_to_eol(io)
@@ -420,6 +421,59 @@ facts("test is within int128") do
 
     m = BigInt(typemin(Int128)) - 1
     @fact Lexer.is_within_int128(repr(m)) => false
+end
+
+
+facts("test readnumber") do
+    
+    context("signed integer") do
+        io = IOBuffer("100 ") 
+        n = Lexer.read_number(io, false, false)
+        @fact n => 100
+        @fact typeof(n) => Uint
+
+        io = IOBuffer("100_000_000 ")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 100_000_000
+        @fact typeof(n) => Uint
+
+        io = IOBuffer("-100 ")
+        skip(io, 1)
+        n = Lexer.read_number(io, false, true)
+        @fact n => -100
+        @fact typeof(n) => Int
+
+        io = IOBuffer("0100 ")
+        n = Lexer.read_number(io, false,  false)
+        @fact n => 100
+        @fact typeof(n) => Uint
+    end
+
+    context("decimal") do
+        io = IOBuffer("100.0 ")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 100.0
+        @fact typeof(n) => Float64
+     
+        io = IOBuffer("100.0f0 ")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 100.0
+        @fact typeof(n) => Float32
+    end
+
+    context("leading dot") do 
+        io = IOBuffer(".01 ")
+        skip(io, 1)
+        n = Lexer.read_number(io, true, false)
+        @fact n => 0.01
+        @fact typeof(n) => Float64
+
+        io = IOBuffer("-.01 ")
+        skip(io, 2)
+        n = Lexer.read_number(io, true, true)
+        @fact n => -0.01
+        @fact typeof(n) => Float64
+    end
 end
 
 
