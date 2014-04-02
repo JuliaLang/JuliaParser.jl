@@ -532,6 +532,18 @@ facts("test readnumber") do
         @fact typeof(n) => Float32 
     end
 
+    context("floating point hex") do
+        io = IOBuffer("0x1.8p3 ")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 12.0
+        @fact typeof(n) => Float64
+
+        io = IOBuffer("0x0.4p-1 ")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 0.125
+        @fact typeof(n) => Float64
+    end
+
     #=
     context("binary") do
         io = IOBuffer(string("0b", bin(10), " "))
