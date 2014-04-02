@@ -635,3 +635,53 @@ facts("test skipcomment") do
     io = IOBuffer("#=#=#")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
 end
+
+
+function collect_tokens(io::IO)
+    toks = {}
+    while !(eof(io))
+        tok = Lexer.next_token(io, nothing)
+        push!(toks, tok)
+    end
+    return toks
+end
+
+facts("test next_token") do
+    # throw EOF error
+    io  = IOBuffer("")
+    @fact_throws Lexer.next_token(io, nothing)
+
+    io  = IOBuffer("\n")
+    tok = Lexer.next_token(io, nothing)
+    @fact tok => '\n'
+
+    toks = collect_tokens(IOBuffer("(test,)"))
+    @fact toks => {'(', :test, ',', ')'}
+
+    toks = collect_tokens(IOBuffer("[10.0,2.0]"))
+    @fact toks => {'[', 10.0, ',', 2.0, ']'}
+
+    toks = collect_tokens(IOBuffer("#test\n{10,};"))
+    @fact toks => {'{', 10, ',', '}', ';'}
+
+    toks = collect_tokens(IOBuffer("#=test1\ntest2\n=#@test\n"))
+    @fact toks => {'@', :test, '\n'}
+
+    toks = collect_tokens(IOBuffer("1<="))
+    @fact toks => {1,:(<=),}
+
+    toks = collect_tokens(IOBuffer("1.0.+"))
+    @fact toks => {1.0, :(.+), }
+
+    toks = collect_tokens(IOBuffer("abc.+"))
+    @fact toks => {:abc, :(.+)}
+
+    toks = collect_tokens(IOBuffer("`ls`"))
+    @fact toks => {'`', :ls, '`'}
+
+    toks = collect_tokens(IOBuffer("Type Test{T<:Int32}\n\ta::T\n\tb::T\nend"))
+    sym_end = symbol("end")
+    @fact toks => {:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
+                   :a, :(::), :T, '\n', :b, :(::), :T, '\n', sym_end} 
+end
+

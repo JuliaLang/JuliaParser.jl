@@ -205,6 +205,7 @@ end
 
 function string_to_number(tok::String)
     len = length(tok)
+    @show tok
     len > 0 || error("invalid number token \"$tok\"")
    
     # NaN and Infinity
@@ -554,8 +555,9 @@ end
 
 function accum_julia_symbol(io::IO, c::Char)
     # preallocate to a typical size?
-    str = Char[c]
-    while is_julia_id_char(c)
+    str = Char[]
+    nc  = c 
+    while is_julia_id_char(nc)
         # make sure that != is always an operator
         c  = readchar(io)
         nc = peekchar(io)
@@ -574,41 +576,43 @@ end
 
 function next_token(io::IO, s)
     #asert s 2 ( skip-ws port whitepace-newline
-    c = peekchar(io)
-    if eof(c) || is_newline(c)
-        return readchar(io)
-    elseif is_special_char(c)
-        return readchar(io)
-    elseif is_char_numeric(c)
-        return read_number(io, false, false)
-    elseif c == '#'
-        skipcomment(io)
-        # XXX: do we need this without recursion?
-        # seems like it would only be a problem in
-        # pathological cases
-        return next_token(io, s)
-    elseif c == '.'
-        c  = readchar(io)
-        nc = peekchar(io)
-        if eof(nc)
-            return :(.)
-        elseif is_char_numeric(nc)
-            return read_number(io, true, false)
-        elseif is_opchar(nc)
-            op = read_operator(io, c)
-            if op === :(..) && is_opchar(peekchar(io))
-                error(string("invalid operator \"", op, peekchar(io), "\""))
+    while !eof(io)
+        c = peekchar(io)
+        if c == ' ' || c == '\t'
+            skip(io, 1)
+            continue
+        elseif c == '#'
+            skipcomment(io)
+            continue
+        elseif  eof(c) || is_newline(c)
+            return readchar(io)
+        elseif is_special_char(c)
+            return readchar(io)
+        elseif is_char_numeric(c)
+            return read_number(io, false, false)
+        elseif c == '.'
+            c  = readchar(io)
+            nc = peekchar(io)
+            if eof(nc)
+                return :(.)
+            elseif is_char_numeric(nc)
+                return read_number(io, true, false)
+            elseif is_opchar(nc)
+                op = read_operator(io, c)
+                if op === :(..) && is_opchar(peekchar(io))
+                    error(string("invalid operator \"", op, peekchar(io), "\""))
+                end
+                return op
+            else
+                return :(.)
             end
-            return op
+        elseif is_opchar(c)
+            return read_operator(io, readchar(io))
+        elseif is_identifier_char(c)
+            return accum_julia_symbol(io, c)
         else
-            return :(.)
+            error(string("invalid character \"", readchar(io), "\""))
         end
-    elseif is_opchar(c)
-        return read_operator(io, readchar(io))
-    elseif is_identifier_char(c)
-        return accum_julia_symbol(io, c)
-    else
-        error(string("invalid character \"", readchar(io), "\""))
     end
 end
 
