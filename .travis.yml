@@ -13,4 +13,5 @@ before_install:
   - sudo apt-get update -qq -y
   - sudo apt-get install libpcre3-dev julia -y
 script:
-  - julia -e 'Pkg.init(); Pkg.clone(pwd()); Pkg.test("JuliaParser")'
+  - julia -e 'Pkg.init(); Pkg.clone(pwd());'
+  - julia test/runtests.jl
