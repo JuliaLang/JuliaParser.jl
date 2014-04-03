@@ -525,7 +525,7 @@ end
 function skipwhitespace(io::IO)
     while !eof(io)
         c = readchar(io)
-        if !isspace(c)
+        if c != ' '
             skip(io, -1)
             break
         end

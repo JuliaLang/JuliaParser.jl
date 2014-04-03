@@ -571,9 +571,10 @@ facts("test skipwhitespace") do
     Lexer.skipwhitespace(io)
     @fact position(io) => 0
 
-    io = IOBuffer(" \n abc")
+    io = IOBuffer("  \n abc")
     Lexer.skipwhitespace(io)
-    @fact position(io) => 3
+    @fact position(io) => 2
+    @fact Lexer.readchar(io) => '\n'
 
     io = IOBuffer("")
     Lexer.skipwhitespace(io)
@@ -650,16 +651,20 @@ facts("test skip ws and comment") do
 
     io = IOBuffer(" \n")
     Lexer.skip_ws_and_comments(io) 
-    @fact eof(io) => true
+    @fact Lexer.readchar(io) => '\n'
 
     io = IOBuffer("  # test comment\n")
     Lexer.skip_ws_and_comments(io)
     @fact eof(io) => true
 
     io = IOBuffer("    #= test comment \n
-                  another comment =#\n")
+                  another comment =#a")
     Lexer.skip_ws_and_comments(io)
-    @fact eof(io) => true
+    @fact Lexer.readchar(io) => 'a'
+
+    io = IOBuffer(" # a comment\ntest")
+    Lexer.skip_ws_and_comments(io)
+    @fact Lexer.readchar(io) => 't'
 end
 
 function tokens(io::IO)
