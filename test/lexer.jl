@@ -1,5 +1,7 @@
-const Lexer = JuliaParser.Lexer
+using JuliaParser
+using FactCheck
 
+const Lexer = JuliaParser.Lexer
 
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
@@ -563,15 +565,15 @@ end
 facts("test skipwhitespace") do
     io = IOBuffer("   abc")
     Lexer.skipwhitespace(io)
-    @fact position(io) => 4
+    @fact position(io) => 3
 
     io = IOBuffer("abc")
     Lexer.skipwhitespace(io)
-    @fact position(io) => 1
+    @fact position(io) => 0
 
     io = IOBuffer(" \n abc")
     Lexer.skipwhitespace(io)
-    @fact position(io) => 4
+    @fact position(io) => 3
 
     io = IOBuffer("")
     Lexer.skipwhitespace(io)
@@ -579,7 +581,7 @@ facts("test skipwhitespace") do
 end
 
 
-facts("test skipcomment") do
+facts("test skip comment") do
     io = IOBuffer("#test\n")
     Lexer.skipcomment(io)
     @fact position(io) => 6
@@ -602,7 +604,7 @@ facts("test skipcomment") do
     end
 end
 
-facts("test skipcomment") do
+facts("test skip multiline comment") do
     io = IOBuffer("#=test=#a")
     Lexer.skip_multiline_comment(io, 0)
     @fact position(io) => 8
@@ -639,6 +641,25 @@ facts("test skipcomment") do
 
     io = IOBuffer("#=#")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
+end
+
+facts("test skip ws and comment") do
+    io = IOBuffer("")
+    Lexer.skip_ws_and_comments(io) 
+    @fact eof(io) => true
+
+    io = IOBuffer(" \n")
+    Lexer.skip_ws_and_comments(io) 
+    @fact eof(io) => true
+
+    io = IOBuffer("  # test comment\n")
+    Lexer.skip_ws_and_comments(io)
+    @fact eof(io) => true
+
+    io = IOBuffer("    #= test comment \n
+                  another comment =#\n")
+    Lexer.skip_ws_and_comments(io)
+    @fact eof(io) => true
 end
 
 function tokens(io::IO)
