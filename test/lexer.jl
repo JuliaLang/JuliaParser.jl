@@ -629,13 +629,16 @@ facts("test skipcomment") do
     Lexer.skip_multiline_comment(io, 0)
     @fact position(io) => 11
 
-    io = IOBuffer("#= test")
-    @fact_throws Lexer.skip_multiline_comment(io, 0)
+    io = IOBuffer("#=#==#=#")
+    Lexer.skip_multiline_comment(io, 0)
+    @fact position(io) => 8
 
     io = IOBuffer("#=#=#")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
-end
 
+    io = IOBuffer("#= test")
+    @fact_throws Lexer.skip_multiline_comment(io, 0)
+end
 
 function collect_tokens(io::IO)
     toks = {}
@@ -691,4 +694,5 @@ facts("test next_token") do
     @fact toks => {:function, '(', :x, :(::), :Int, ')', '\n',
                    :return , :x, :(^), uint(2), '\n',
                    sym_end}
+
 end
