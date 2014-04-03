@@ -427,105 +427,105 @@ end
 facts("test readnumber") do
     
     context("signed integer") do
-        io = IOBuffer("100 ") 
+        io = IOBuffer("100") 
         n = Lexer.read_number(io, false, false)
         @fact n => 100
         @fact typeof(n) => Uint
 
-        io = IOBuffer("100_000_000 ")
+        io = IOBuffer("100_000_000")
         n = Lexer.read_number(io, false, false)
         @fact n => 100_000_000
         @fact typeof(n) => Uint
 
-        io = IOBuffer("-100 ")
+        io = IOBuffer("-100")
         skip(io, 1)
         n = Lexer.read_number(io, false, true)
         @fact n => -100
         @fact typeof(n) => Int
 
-        io = IOBuffer("00100 ")
+        io = IOBuffer("00100")
         n = Lexer.read_number(io, false,  false)
         @fact n => 100
         @fact typeof(n) => Uint
     end
 
     context("decimal") do
-        io = IOBuffer("100.0 ")
+        io = IOBuffer("100.0")
         n = Lexer.read_number(io, false, false)
         @fact n => 100.0
         @fact typeof(n) => Float64
      
-        io = IOBuffer("100.0f0 ")
+        io = IOBuffer("100.0f0")
         n = Lexer.read_number(io, false, false)
         @fact n => 100.0
         @fact typeof(n) => Float32
 
-        io = IOBuffer("10.0.0 ")
+        io = IOBuffer("10.0.0")
         @fact_throws Lexer.read_number(io, false, false)
     end
 
     context("floating point exponent") do
-        io = IOBuffer("1e10 ")
+        io = IOBuffer("1e10")
         n = Lexer.read_number(io, false, false)
         @fact n => 1e10
         @fact typeof(n) => Float64
 
-        io = IOBuffer("-10E10 ")
+        io = IOBuffer("-10E10")
         skip(io, 1)
         n = Lexer.read_number(io, false, true)
         @fact n => -10e10
         @fact typeof(n) => Float64
 
-        io = IOBuffer("1e-1 ")
+        io = IOBuffer("1e-1")
         n = Lexer.read_number(io, false, false)
         @fact n => 1e-1
         @fact typeof(n) => Float64
     end
 
     context("leading dot") do 
-        io = IOBuffer(".01 ")
+        io = IOBuffer(".01")
         skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.01
         @fact typeof(n) => Float64
 
-        io = IOBuffer(".000_1 ")
+        io = IOBuffer(".000_1")
         skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.0001
         @fact typeof(n) => Float64
 
-        io = IOBuffer("-.01 ")
+        io = IOBuffer("-.01")
         skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.01
         @fact typeof(n) => Float64
 
-        io = IOBuffer("-.000_1 ")
+        io = IOBuffer("-.000_1")
         skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.0001
         @fact typeof(n) => Float64
 
-        io = IOBuffer(".01f0 ")
+        io = IOBuffer(".01f0")
         skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.01f0
         @fact typeof(n) => Float32
 
-        io = IOBuffer(".000_1f0 ")
+        io = IOBuffer(".000_1f0")
         skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.0001f0
         @fact typeof(n) => Float32 
 
-        io = IOBuffer("-.01f0 ")
+        io = IOBuffer("-.01f0")
         skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.01f0
         @fact typeof(n) => Float32
 
-        io = IOBuffer("-.000_1f0 ")
+        io = IOBuffer("-.000_1f0")
         skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.0001f0
@@ -533,12 +533,12 @@ facts("test readnumber") do
     end
 
     context("floating point hex") do
-        io = IOBuffer("0x1.8p3 ")
+        io = IOBuffer("0x1.8p3")
         n = Lexer.read_number(io, false, false)
         @fact n => 12.0
         @fact typeof(n) => Float64
 
-        io = IOBuffer("0x0.4p-1 ")
+        io = IOBuffer("0x0.4p-1")
         n = Lexer.read_number(io, false, false)
         @fact n => 0.125
         @fact typeof(n) => Float64
@@ -649,7 +649,7 @@ end
 facts("test next_token") do
     # throw EOF error
     io  = IOBuffer("")
-    @fact_throws Lexer.next_token(io, nothing)
+    @fact Lexer.next_token(io, nothing) => nothing
 
     io  = IOBuffer("\n")
     tok = Lexer.next_token(io, nothing)
@@ -667,21 +667,28 @@ facts("test next_token") do
     toks = collect_tokens(IOBuffer("#=test1\ntest2\n=#@test\n"))
     @fact toks => {'@', :test, '\n'}
 
-    toks = collect_tokens(IOBuffer("1<="))
-    @fact toks => {1,:(<=),}
+    toks = collect_tokens(IOBuffer("1<=2"))
+    @fact toks => {1,:(<=),2}
 
-    toks = collect_tokens(IOBuffer("1.0.+"))
+    toks = collect_tokens(IOBuffer("1.0 .+"))
     @fact toks => {1.0, :(.+), }
 
-    toks = collect_tokens(IOBuffer("abc.+"))
-    @fact toks => {:abc, :(.+)}
+    toks = collect_tokens(IOBuffer("abc .+ .1"))
+    @fact toks => {:abc, :(.+), 0.1}
 
     toks = collect_tokens(IOBuffer("`ls`"))
     @fact toks => {'`', :ls, '`'}
 
-    toks = collect_tokens(IOBuffer("Type Test{T<:Int32}\n\ta::T\n\tb::T\nend"))
     sym_end = symbol("end")
+    
+    toks = collect_tokens(IOBuffer("type Test{T<:Int32}\n\ta::T\n\tb::T\nend"))
     @fact toks => {:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
-                   :a, :(::), :T, '\n', :b, :(::), :T, '\n', sym_end} 
-end
+                   :a, :(::), :T, '\n', 
+                   :b, :(::), :T, '\n', 
+                   sym_end} 
 
+    toks = collect_tokens(IOBuffer("function(x::Int)\n\treturn x^2\nend"))
+    @fact toks => {:function, '(', :x, :(::), :Int, ')', '\n',
+                   :return , :x, :(^), uint(2), '\n',
+                   sym_end}
+end

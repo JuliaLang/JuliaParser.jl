@@ -205,7 +205,6 @@ end
 
 function string_to_number(tok::String)
     len = length(tok)
-    @show tok
     len > 0 || error("invalid number token \"$tok\"")
    
     # NaN and Infinity
@@ -337,7 +336,7 @@ function is_within_int128(s::String)
 end
 
 function read_number(io::IO, leading_dot::Bool, neg::Bool)
-    str  = Char[] 
+    str = Char[] 
     pred::Function = is_char_numeric
     is_float32_literal  = false
     is_hexfloat_literal = false
@@ -364,17 +363,14 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     end
 
     function read_digits(leading_zero::Bool)
-        res = accum_digits(io, pred,
-                           peekchar(io), 
-                           leading_zero)
-        digits, ok = res
+        digits, ok = accum_digits(io, pred, peekchar(io), 
+                                  leading_zero)
         if !ok
             error("invalid numeric constant \"$digits\"")
         end
-        if eof(io) || isempty(digits)
+        if isempty(digits)
             return false
         end
-        #XXX: HACK
         for c in digits
             push!(str, c)
         end
@@ -439,8 +435,8 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
         pred == is_char_bin ? 2  : 10
     # for an unsigned literal starting with -, 
     # remove the - and parse instead as a call to unary -
-    n = neg && !(r == 10) && !is_hexfloat_literal ? s[2:end] : s
-    n = string_to_number(n)
+    s = (neg && !(r == 10) && !is_hexfloat_literal) ? s[2:end] : s
+    n = string_to_number(s)
     # n is false for integers > typemax(Uint64)
     if is_hexfloat_literal
         return float64(n)
@@ -584,7 +580,7 @@ function next_token(io::IO, s)
         elseif c == '#'
             skipcomment(io)
             continue
-        elseif  eof(c) || is_newline(c)
+        elseif eof(c) || is_newline(c)
             return readchar(io)
         elseif is_special_char(c)
             return readchar(io)
@@ -614,6 +610,7 @@ function next_token(io::IO, s)
             error(string("invalid character \"", readchar(io), "\""))
         end
     end
+    return nothing
 end
 
 end
