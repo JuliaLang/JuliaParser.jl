@@ -576,6 +576,7 @@ end
 
 function next_token(io::IO, s)
     #asert s 2 ( skip-ws port whitepace-newline
+    #TODO: customize whitespace management
     while !eof(io)
         c = peekchar(io)
         if c == ' ' || c == '\t'
