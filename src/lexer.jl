@@ -483,7 +483,7 @@ function skip_multiline_comment(io::IO, count::Int)
         # if "=#" token, decement the count.
         # If count is zero, break out of the loop
         if c == '='
-            if start < 0 
+           if start < 0 
                 start = position(io)
             end
             if peekchar(io) == '#' && position(io) != start

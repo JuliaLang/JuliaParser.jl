@@ -638,6 +638,9 @@ facts("test skipcomment") do
 
     io = IOBuffer("#= test")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
+
+    io = IOBuffer("#=#")
+    @fact_throws Lexer.skip_multiline_comment(io, 0)
 end
 
 function collect_tokens(io::IO)
