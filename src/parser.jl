@@ -15,6 +15,9 @@ end
 
 TokenStream(io::IO) = TokenStream(io, {}, nothing, false, false) 
 
+Base.isspace(ts::TokenStream) = ts.isspace
+Base.eof(ts::TokenStream) = eof(ts.io)
+
 function set_token!(ts::TokenStream, t::Token)
     push!(ts.tokens, t)
     return ts
@@ -48,7 +51,7 @@ function peek_token(ts::TokenStream)
     return last_token(ts)
 end
         
-isnewline(tok::Token) = tok == '\n'
+isnewline(t::Token) = t == '\n'
 
 function take_token(ts::TokenStream)
     local t::Token 
@@ -81,33 +84,48 @@ function require_token(ts::TokenStream)
     end
     return t
 end
-     
+
+const sym_else    = symbol("else")
+const sym_elseif  = symbol("elseif")
+const sym_catch   = symbol("catch")
+const sym_finally = symbol("finally")
+
 const invalid_initial_token = let
-    invalid = Set{Any}(')', ']', '}', :else, :elseif, :catch, :finally, :(=))
+    invalid = Set({')', ']', '}', 
+                   sym_else, sym_elseif, sym_catch, sym_finally}) 
     invalid_initial_token(t) = t in invalid
 end
 
 const closing_token = let
-    closing = Set{Any}(',', ')', ']', '}', ';', :else, :elseif, :catch, :finally)
+    closing = Set({',', ')', ']', '}', ';',
+                   sym_else, sym_elseif, sym_catch, sym_finally})
     closing_token(t) = t in closing
 end
-
 
 function parse_nary(io::IO)
     invalid_initial_token(require_token(io))
 end
 
-
-function parse(io::IO)
-    Lexer.skip_ws_and_comments(io)
-    while !eof(io)
-        tok = Lexer.next_token(io, nothing)
-        if isnewline(tok)
+function parse(ts::TokenStream)
+    Lexer.skip_ws_and_comments(ts.io)
+    while !eof(ts)
+        t = Lexer.next_token(ts.io, nothing)
+        if isnewline(t)
             continue
         end
         break
     end
-    return io
+    return ts
+end
+
+function parse_range(ts::TokenStream)
+   ex = parse_expr(ts)
+   isfirst = first(ex) == true
+
+   while !eof(ts)
+       tok = peek_token(ts)
+       spc = isspace(ts)
+   end
 end
 
 end

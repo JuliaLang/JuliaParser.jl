@@ -2,6 +2,7 @@ using JuliaParser
 using FactCheck
 
 const Parser = JuliaParser.Parser
+const TokenStream = JuliaParser.Parser.TokenStream 
 
 facts("test token stream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
@@ -15,19 +16,19 @@ end
 
 facts("test special case all whitespace") do
     io = IOBuffer("")
-    Parser.parse(io)
+    Parser.parse(TokenStream(io))
     @fact eof(io) => true
 
     io = IOBuffer(" \n")
-    Parser.parse(io)
+    Parser.parse(TokenStream(io))
     @fact eof(io) => true
 
     io = IOBuffer("# test comment\n")
-    Parser.parse(io)
+    Parser.parse(TokenStream(io))
     @fact eof(io) => true
 
     io = IOBuffer("#= test comment \n
                   another comment =#\n")
-    Parser.parse(io)
+    Parser.parse(TokenStream(io))
     @fact eof(io) => true
 end
