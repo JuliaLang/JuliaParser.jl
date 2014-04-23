@@ -300,6 +300,7 @@ function maybe_negate(op, num)
     return Expr(:-, num)
 end
 
+
 const is_juxtaposed = let
     invalid_chars = Set{Char}({'(', '[', '{'})
 
@@ -327,15 +328,51 @@ end
 
 
 function parse_range(ts::TokenStream)
-   ex = parse_expr(ts)
-   isfirst = first(ex) == true
+    ex = parse_expr(ts)
+    isfirst = first(ex) == true
+    while !eof(ts)
+        t   = peek_token(ts)
+        spc = isspace(ts)
+        
+        if isfirst && t == :(..)
+           _ = take_token(ts)
+           return Expr(:call, {t, ex, parse_expr(ts)})
+        end
 
-   while !eof(ts)
-       tok = peek_token(ts)
-       spc = isspace(ts)
-   end
-end
-
+        if range_colon_enabled && t == :(:)
+            _ = take_token(ts)
+            if (space_sensitive && spc && 
+                (peek_token(ts) || true) &&
+                ts.isspace == false)
+                # "a :b" in space sensitive mode
+                put_back!(ts, :(:))
+                return ex
+            end
+            if is_closing_token(peek_token(ts))
+                error("deprecated syntax x[i:]")
+            elseif is_newline(peek_token(ts))
+                error("line break in \":\" expression")
+            end
+            arg = parse_expr(ts)
+            if ts.isspace == false && (arg === :(<) || arg === :(>))
+                error("\":$argument\" found instead of \"$argument:\"")
+            end
+            if isfirst
+                ex = {t, ex, arg}
+                isfirst = false
+            else
+                push!(arg, ex)
+                isfirst = true
+            end
+            continue
+        elseif t == :(...)
+            _ = take_token(ts)
+            return Expr(:(...), ex)
+        else
+            return ex
+        end
+    end
+end 
 
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
