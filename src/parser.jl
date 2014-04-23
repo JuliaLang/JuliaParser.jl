@@ -85,6 +85,20 @@ function require_token(ts::TokenStream)
     return t
 end
 
+filename(ts::TokenStream) = "test.jl"
+curline(ts::TokenStream)  = 0
+
+function line_number_node(ts)
+    line = curline(ts)
+    return Expr(:line, {curline})
+end
+
+function line_number_filename_node(ts::TokenStream)
+    line  = curline(ts)
+    fname = filename(ts) 
+    return Expr(:line, {line, fname}) 
+end
+
 const sym_else    = symbol("else")
 const sym_elseif  = symbol("elseif")
 const sym_catch   = symbol("catch")
@@ -373,6 +387,91 @@ function parse_range(ts::TokenStream)
         end
     end
 end 
+
+function parse_call(ts::TokenStream)
+end
+
+function parse_decl(ts::TokenStream)
+    local ex::Expr
+    if peek_token(ts) == :(::)
+        take_token(ts)
+        ex = Expr(:(::), parse_call(ts))
+    else
+        ex = parse_call(ts)
+    end
+    while !eof(ts)
+        t = peek_token(ts)
+        if t == :(::)
+            take_token(ts)
+            call = parse_call(ts)
+            ex = Expr(t, {ex, parse_call(ts)})
+        elseif t == :(->)
+            take_token(ts)
+            # -> is unusual it binds tightly on the left and loosely on the right
+            lno = line_number_filename_node(ts)
+            return Expr(:(->), {ex, Expr(:block, {lno, parse_eqs(ts)})})
+        else
+            return ex
+        end
+    end
+end
+
+function parse_factorh(ts::TokenStream, down::Function, ops)
+    ex = down(ts)
+    t  = peek_token(ts)
+    if !(t in ops)
+        return ex
+    else
+        t  = take_token(ts)
+        pf = parse_factorh(ts, parse_unary, ops)  
+        return Expr(:call, {t, ex, pf})
+    end
+end
+
+function parse_factor(ts::TokenStream)
+    return parse_factorh(ts, parse_decl, Lexer.precedent_ops[12])
+end
+
+function parse_unary(ts::TokenStream)
+    t = require_token(ts)
+    is_closing_token(t) && error("unexpected $t")
+    if !(t in Lexer.unary_ops)
+        return parse_juxtaposed(parse_factor(ts), ts)
+    end
+    op = take_token(ts)
+    nc = Lexer.peekchar(ts.io)
+    if (op == :(-) || op == :(+)) && (Lexer.isnumber(nc) || nc == '.')
+        neg = op == :(-)
+        leadingdot = nc == '.'
+        leadingdot && Lexer.readchar(ts.io)
+        n = Lexer.read_number(ts.io, leadingdot, neg) 
+        num = parse_juxtaposed(ts, n)
+        if peek_token(ts) in (:(^), :(.^))
+            # -2^x parsed as (- (^ 2 x))
+            put_back!(ts, maybe_negate(op, num))
+            return Expr(:call, {op, parse_factor(ts)})
+        else
+            return num
+        end
+    else
+        nt = peek_token(ts)
+        if is_closing_token(nt) || is_newline(nt)
+            # return operator by itself, as in (+)
+            return op
+        elseif nt == '{'
+            # this case is +{T}(x::T)
+            put_back!(ts, op)
+            return pase_factor(ts)
+        else
+            arg = parse_unary(ts)
+            if isa(arg, Expr) && arg.head === :tuple
+                return Expr(:call, {op, arg[1]})
+            else
+                return Expr(:call, {op, arg})
+            end
+        end
+    end
+end
 
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
