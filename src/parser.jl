@@ -473,6 +473,14 @@ function parse_unary(ts::TokenStream)
     end
 end
 
+function subtype_syntax(ex::Expr)
+    if ex.head == :comparison && length(ex.args) == 3 && ex.args[2] == :(<:)
+        return Expr(:(<:), {ex.args[1], ex.args[3]})
+    else 
+        return ex
+    end
+end
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
