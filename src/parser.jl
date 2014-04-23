@@ -99,10 +99,12 @@ function line_number_filename_node(ts::TokenStream)
     return Expr(:line, {line, fname}) 
 end
 
+const sym_do      = symbol("do")
 const sym_else    = symbol("else")
 const sym_elseif  = symbol("elseif")
 const sym_catch   = symbol("catch")
 const sym_finally = symbol("finally")
+const sym_squote  = symbol("'")
 
 const is_invalid_initial_token = let
     invalid = Set({')', ']', '}', sym_else, sym_elseif, sym_catch, sym_finally}) 
@@ -495,7 +497,163 @@ function parse_unary_prefix(ts::TokenStream)
         return Expr(op, {parse_atom(ts)})
     end
 end
+
+# parse function all, indexing, dot, and transpose expressions
+# also handles looking for reserved words 
+
+function parse_call(ts::TokenStream)
+    ex = parse_unary_prefix(ts)
+    if ex in Lexer.reserved_words
+        return parse_resword(ts, ex)
+    else
+        return pase_call_chain(ts, ex, false)
+    end
+end
+
+
+function separate(func::Function, collection)
+    tcoll, fcoll = {}, {}
+    for c in collection
+        func(c) ? push!(tcoll, c) : push!(fcoll, c)
+    end
+    return (tcoll, fcoll)
+end
+
+macro with_end_symbol(body)
+    quote
+        esc(let
+            space_sensitive    = false
+            inside_vector      = true
+            whitespace_newline = false
+            $body
+        end)
+    end
+end
+
+function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
+    temp = ['(', '[', '{', ''', '"']
+    while !eof(ts)
+        t = peek_token(ts)
+        if (space_sensitive && ts.isspace && (t in temp)) ||
+           ((isnumber(ex) || islargenumber(ex)) && t == '('))
+           return ex
+        end
+        if t == '('
+            take_token(ts)
+            arglist = parse_arglist(ts, ')')
+            params, args = separate((ex) -> isa(ex, Expr) && 
+                                            length(ex.args) == 1 &&
+                                            ex.head == :parameters,
+                                    arglist)
+            if peek_token(ts) == sym_do
+                take_token(ts)
+                ex = Expr(:call, {ex, params..., parse_do(ts), args...})
+            else
+                ex = Expr(:call, {ex, arglist...})
+            end
+            one_call && return ex
+            continue
         
+        elseif t == '['
+            take_token(ts)
+            # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
+            al = @with_end_symbol parse_cat(ts, ']')
+            if al == nothing
+                if is_dict_literal(ex)
+                    ex = Expr(:typed_dict, {ex})
+                else
+                    ex = Expr(:ref, {ex})
+                end
+                continue
+            end
+            if al.head == :dict
+                ex = Expr(:typed_dict, {ex, al.args...})
+            elseif al.head == :hcat
+                ex = Expr(:typed_hcat, {ex, al.args...})
+            elseif al.head == :vcat
+                fn = (ex) -> isa(ex, Expr) && length(ex.args) == 1 && ex.head == :row
+                if any(fn, al.args)
+                    ex = Expr(:typed_vcat, {ex, al.args...})
+                else
+                    ex = Expr(:ref, {ex, al.args...})
+                end
+            elseif al.head == :comprehension
+                ex = Expr(:typed_comprehension, {ex, al.args...})
+            elseif al.head == :dict_comprehension
+                ex = Expr(:typed_dict_comprehension, {ex, al.args...})
+            else
+                error("unknown parse-cat result (internal error)")
+            end
+            continue
+
+        elseif t == :(.)
+            take_token(ts)
+            nt = peek_token(ts)
+            if nt == '('
+                ex = Expr(:(.), {ex, parse_atom(ts)})
+            elseif nt == :($)
+                dollar_ex = parse_unary(ts)
+                call_ex   = Expr(:call, {Expr(:top, :Expr), 
+                                         Expr(:quote, :quote), 
+                                         dollar_ex.args[1]})
+                ex = Expr(:macrocall, {ex, Expr(:($), call_ex)})
+            else
+                name = parse_atom(ts)
+                if isa(name, Expr) && name.head == :macrocall
+                    ex = Expr(:macrocall, {:(.), 
+                                             ex, 
+                                             Expr(:quote, name.args[1]),
+                                             name.args[2:end]})
+                else
+                    ex = Expr(:(.), {ex, Expr(:quote, name)})
+                end
+            end
+            continue
+
+        elseif t == :(.') || t == sym_squote
+            take_token(ts)
+            ex = Expr(t, ex)
+            continue
+
+        elseif t == '{'
+            take_token(ts)
+            args = map(subtype_syntax, parse_arglist(ts, '}'))
+            ex = Expr(:curly, {ex, args...})
+            continue
+
+        elseif t == '"'
+            if isa(ex, Symbol) && !is_operator(ex) && !ts.isspace
+                # custom prefexed string literals x"s" => @x_str "s"
+                take_token(ts)
+                str = parse_string_literal(ts, true)
+                nt  = peek_token(ts)
+                suffix  = is_triplequote_str_literal(str) ? :(_mstr) : :(_str)
+                macname = symbol(string('@', ex, suffix))
+                macstr  = str[2:end]
+                
+                if isa(nt, Symbol) && !is_operator(nt) && !ts.isspace
+                    # string literal suffix "s"x
+                    ex = Expr(:macrocall, {macname, macstr, string(take_token(ts))})
+                else
+                    ex = Expr(:macrocall, {macrocall, macstr})
+                end
+                continue
+            else
+                return ex
+            end
+        
+        else
+            return ex
+        end
+    end
+end 
+
+
+
+
+function parse_resword(ts::TokenStream)
+end
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
