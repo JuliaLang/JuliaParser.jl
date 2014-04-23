@@ -481,6 +481,21 @@ function subtype_syntax(ex::Expr)
     end
 end
 
+function parse_unary_prefix(ts::TokenStream)
+    op = peek_token(ts)
+    if !(Lexer.is_syntactic_unary_op(op))
+        return parse_atom(ts)
+    end
+    _  = take_token(ts)
+    if is_closing_token(peek_token(ts))
+        return op
+    elseif op == :(&)
+        return Expr(op, {parse_call(ts)})
+    else
+        return Expr(op, {parse_atom(ts)})
+    end
+end
+        
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
