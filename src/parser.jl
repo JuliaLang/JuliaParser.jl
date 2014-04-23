@@ -90,14 +90,14 @@ const sym_elseif  = symbol("elseif")
 const sym_catch   = symbol("catch")
 const sym_finally = symbol("finally")
 
-const isinvalid_initial_token = let
+const is_invalid_initial_token = let
     invalid = Set({')', ']', '}', sym_else, sym_elseif, sym_catch, sym_finally}) 
-    invalid_initial_token(t) = t in invalid
+    is_invalid_initial_token(t::Token) = t in invalid
 end
 
-const isclosing_token = let
+const is_closing_token = let
     closing = Set({',', ')', ']', '}', ';', sym_else, sym_elseif, sym_catch, sym_finally})
-    is_closing_token(t) = t in closing
+    is_closing_token(t::Token) = t in closing
 end
 
 function parse_nary(io::IO)
@@ -280,6 +280,26 @@ function parse_comparison(ts::TokenStream, ops)
     error("end of file in parse_comparison")
 end
 
+is_large_number(n::Number) = false
+
+function maybe_negate(op, num)
+    if op !== :(-)
+      return num
+    end
+    if is_large_number(num)
+        if num[3] == "-170141183460469231731687303715884105728"
+            return BigInt(170141183460469231731687303715884105728)
+        else
+            # return tail of string
+            return Expr(num[1], {num[2], num[3][2:end]})
+        end
+    end
+    if num == -9223372036854775808
+        return int128(9223372036854775808)
+    end
+    return Expr(:-, num)
+end
+
 const is_juxtaposed = let
     invalid_chars = Set{Char}({'(', '[', '{'})
 
@@ -305,6 +325,7 @@ function parse_juxtaposed(ts::TokenStream, ex::Expr)
     return Expr(:call, args)
 end
 
+
 function parse_range(ts::TokenStream)
    ex = parse_expr(ts)
    isfirst = first(ex) == true
@@ -314,6 +335,7 @@ function parse_range(ts::TokenStream)
        spc = isspace(ts)
    end
 end
+
 
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
