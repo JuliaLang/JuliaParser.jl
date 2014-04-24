@@ -1338,6 +1338,46 @@ function parse_matrix(ts::TokenStream, first, closer)
     end
 end
 
+function peek_non_newline_token(ts::TokenStream)
+    t = peek_token(ts)
+    while !eof(t)
+        if isnewline(t)
+            take_token(ts)
+            t = peek_token(ts)
+            continue
+        end
+        return t
+    end
+end
+
+function parse_cat(ts::TokenStream, closer)
+    #with normal ops
+    #with inside vec
+    if require_token(ts) == closer
+        take_token(ts)
+        return {}
+    end
+    first = parse_eqs(ts)
+    if is_dict_literal(first)
+        nt = peek_non_newline_token(ts)
+        if nt == :for
+            take_token(ts)
+            return parse_dict_comprehension(ts, first, closer)
+        else
+            return parse_dict(ts, first, closer)
+        end
+    end
+    nt = peek_token(ts)
+    if nt == ','
+        return parse_vcat(ts, first, closer)
+    elseif nt == :for
+        take_token(ts)
+        return parse_comprehension(ts, first, closer)
+    else
+        return parse_matrix(ts, first, closer)
+    end
+end
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
