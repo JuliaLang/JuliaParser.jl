@@ -1212,6 +1212,74 @@ function parse_arglist(ts::TokenStream, closer)
     _parse_arglist(ts, closer)
 end
 
+# parse [] concatenation expres and {} cell expressions
+function parse_vcat(ts::TokenStream, first, closer)
+    lst = {}
+    nxt = first
+    while !eof(ts)
+        t = require_token(ts)
+        if t == closer
+            take_token(ts)
+            ex = Expr(:vcat)
+            append!(ex.args, reverse!(unshift!(nxt, lst)))
+            return ex
+        end
+        if t == ','
+            take_token(ts)
+            if require_token(ts) == closer
+                # allow ending with ,
+                take_token(ts)
+                ex = Expr(:vcat)
+                append!(ex.args, reverse!(unshift!(nxt, lst)))
+                return ex
+            end
+            lst = unshift!(lst, nxt)
+            nxt = parse_eqs(ts)
+            continue
+        elseif t == ';'
+            error("unexpected semicolon in array expression")
+        elseif t == ']' || t == '}'
+            error("unexpected \"$t\" in array expression")
+        else
+            error("missing separator in array expression")
+        end
+    end
+end
+
+function parse_dict(ts::TokenStream, first, closer)
+    v = parse_vcat(ts, first, closer)
+    if any(is_dict_literal, v.args)
+        if all(is_dict_literal, v.args)
+            ex = Expr(:dict)
+            copy!(ex.args, v.args)
+            return ex
+        else
+            error("invalid dict literal")
+        end
+    end
+end
+
+function parse_comprehension(ts::TokenStream, first, closer)
+    r = parse_comma_sep_iters(ts)
+    if require_token(ts) == closer
+        take_token(ts)
+    else
+        error("expected $closer")
+    end
+    return Expr(:comprehension, first, r)
+end
+
+function parse_dict_comprehension(ts::TokenStream, first, closer)
+    c = parse_comprehension(ts, first, closer)
+    if is_dict_literal(c.args[1])
+        ex = Expr(:dict_comprehension)
+        copy!(ex.args, c.args)
+        return ex
+    else
+        error("invalid dict comprehension")
+    end
+end
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
