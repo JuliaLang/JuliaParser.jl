@@ -90,16 +90,21 @@ curline(ts::TokenStream)  = 0
 
 function line_number_node(ts)
     line = curline(ts)
-    return Expr(:line, {curline})
+    return Expr(:line, curline)
 end
 
 function line_number_filename_node(ts::TokenStream)
     line  = curline(ts)
     fname = filename(ts) 
-    return Expr(:line, {line, fname}) 
+    return Expr(:line, line, fname) 
 end
 
 const sym_do      = symbol("do")
+const sym_quote   = symbol("quote")
+const sym_begin   = symbol("begin")
+const sym_else    = symbol("else")
+const sym_elseif  = symbol("elseif")
+const sym_end     = symbol("end")
 const sym_else    = symbol("else")
 const sym_elseif  = symbol("elseif")
 const sym_catch   = symbol("catch")
@@ -243,7 +248,7 @@ function parse_cond(ts::TokenStream)
     while !eof(ts)
         next = peek_token(ts)
         if eof(next) || is_closing_token(next) || is_newline(next)
-            return Expr(:call, {:(top), :string, args})
+            return Expr(:call, :(top), :string, args...)
         end
         push!(args, parse_or(ts))
     end
@@ -285,7 +290,7 @@ function parse_comparison(ts::TokenStream, ops)
         _ = take_token(ts)
         if first
             args = append!({ex, t}, parse_range(ts))
-            ex = Expr(:comparison, args)
+            ex = Expr(:comparison, args...)
             first = false
         else
             #TODO: fix
@@ -307,7 +312,7 @@ function maybe_negate(op, num)
             return BigInt(170141183460469231731687303715884105728)
         else
             # return tail of string
-            return Expr(num[1], {num[2], num[3][2:end]})
+            return Expr(num[1], num[2], num[3][2:end]...)
         end
     end
     if num == -9223372036854775808
@@ -339,7 +344,7 @@ function parse_juxtaposed(ts::TokenStream, ex::Expr)
         error("juxtaposition with literal \"0\"")
     end
     args = append!({:(*)}, parse_unary(ts))
-    return Expr(:call, args)
+    return Expr(:call, args...)
 end
 
 
@@ -352,7 +357,7 @@ function parse_range(ts::TokenStream)
         
         if isfirst && t == :(..)
            _ = take_token(ts)
-           return Expr(:call, {t, ex, parse_expr(ts)})
+           return Expr(:call, t, ex, parse_expr(ts))
         end
 
         if range_colon_enabled && t == :(:)
@@ -406,12 +411,12 @@ function parse_decl(ts::TokenStream)
         if t == :(::)
             take_token(ts)
             call = parse_call(ts)
-            ex = Expr(t, {ex, parse_call(ts)})
+            ex = Expr(t, ex, parse_call(ts))
         elseif t == :(->)
             take_token(ts)
             # -> is unusual it binds tightly on the left and loosely on the right
             lno = line_number_filename_node(ts)
-            return Expr(:(->), {ex, Expr(:block, {lno, parse_eqs(ts)})})
+            return Expr(:(->), ex, Expr(:block, lno, parse_eqs(ts)))
         else
             return ex
         end
@@ -426,7 +431,7 @@ function parse_factorh(ts::TokenStream, down::Function, ops)
     else
         t  = take_token(ts)
         pf = parse_factorh(ts, parse_unary, ops)  
-        return Expr(:call, {t, ex, pf})
+        return Expr(:call, t, ex, pf)
     end
 end
 
@@ -451,7 +456,7 @@ function parse_unary(ts::TokenStream)
         if peek_token(ts) in (:(^), :(.^))
             # -2^x parsed as (- (^ 2 x))
             put_back!(ts, maybe_negate(op, num))
-            return Expr(:call, {op, parse_factor(ts)})
+            return Expr(:call, op, parse_factor(ts))
         else
             return num
         end
@@ -467,9 +472,9 @@ function parse_unary(ts::TokenStream)
         else
             arg = parse_unary(ts)
             if isa(arg, Expr) && arg.head === :tuple
-                return Expr(:call, {op, arg[1]})
+                return Expr(:call, op, arg[1])
             else
-                return Expr(:call, {op, arg})
+                return Expr(:call, op, arg)
             end
         end
     end
@@ -477,7 +482,7 @@ end
 
 function subtype_syntax(ex::Expr)
     if ex.head == :comparison && length(ex.args) == 3 && ex.args[2] == :(<:)
-        return Expr(:(<:), {ex.args[1], ex.args[3]})
+        return Expr(:(<:), ex.args[1], ex.args[3])
     else 
         return ex
     end
@@ -492,9 +497,9 @@ function parse_unary_prefix(ts::TokenStream)
     if is_closing_token(peek_token(ts))
         return op
     elseif op == :(&)
-        return Expr(op, {parse_call(ts)})
+        return Expr(op, parse_call(ts))
     else
-        return Expr(op, {parse_atom(ts)})
+        return Expr(op, parse_atom(ts))
     end
 end
 
@@ -551,9 +556,9 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                                     arglist)
             if peek_token(ts) == sym_do
                 take_token(ts)
-                ex = Expr(:call, {ex, params..., parse_do(ts), args...})
+                ex = Expr(:call, ex, params..., parse_do(ts), args...)
             else
-                ex = Expr(:call, {ex, arglist...})
+                ex = Expr(:call, ex, arglist...)
             end
             one_call && return ex
             continue
@@ -564,27 +569,27 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             al = @with_end_symbol parse_cat(ts, ']')
             if al == nothing
                 if is_dict_literal(ex)
-                    ex = Expr(:typed_dict, {ex})
+                    ex = Expr(:typed_dict, ex)
                 else
-                    ex = Expr(:ref, {ex})
+                    ex = Expr(:ref, ex)
                 end
                 continue
             end
             if al.head == :dict
-                ex = Expr(:typed_dict, {ex, al.args...})
+                ex = Expr(:typed_dict, ex, al.args...)
             elseif al.head == :hcat
-                ex = Expr(:typed_hcat, {ex, al.args...})
+                ex = Expr(:typed_hcat, ex, al.args...)
             elseif al.head == :vcat
                 fn = (ex) -> isa(ex, Expr) && length(ex.args) == 1 && ex.head == :row
                 if any(fn, al.args)
-                    ex = Expr(:typed_vcat, {ex, al.args...})
+                    ex = Expr(:typed_vcat, ex, al.args...)
                 else
-                    ex = Expr(:ref, {ex, al.args...})
+                    ex = Expr(:ref, ex, al.args...)
                 end
             elseif al.head == :comprehension
-                ex = Expr(:typed_comprehension, {ex, al.args...})
+                ex = Expr(:typed_comprehension, ex, al.args...)
             elseif al.head == :dict_comprehension
-                ex = Expr(:typed_dict_comprehension, {ex, al.args...})
+                ex = Expr(:typed_dict_comprehension, ex, al.args...)
             else
                 error("unknown parse-cat result (internal error)")
             end
@@ -594,22 +599,22 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             take_token(ts)
             nt = peek_token(ts)
             if nt == '('
-                ex = Expr(:(.), {ex, parse_atom(ts)})
+                ex = Expr(:(.), ex, parse_atom(ts))
             elseif nt == :($)
                 dollar_ex = parse_unary(ts)
-                call_ex   = Expr(:call, {Expr(:top, :Expr), 
-                                         Expr(:quote, :quote), 
-                                         dollar_ex.args[1]})
-                ex = Expr(:macrocall, {ex, Expr(:($), call_ex)})
+                call_ex   = Expr(:call, Expr(:top, :Expr), 
+                                        Expr(:quote, :quote), 
+                                        dollar_ex.args[1])
+                ex = Expr(:macrocall, ex, Expr(:($), call_ex))
             else
                 name = parse_atom(ts)
                 if isa(name, Expr) && name.head == :macrocall
-                    ex = Expr(:macrocall, {:(.), 
-                                             ex, 
-                                             Expr(:quote, name.args[1]),
-                                             name.args[2:end]})
+                    ex = Expr(:macrocall, :(.), 
+                                          ex, 
+                                          Expr(:quote, name.args[1]),
+                                          name.args[2:end])
                 else
-                    ex = Expr(:(.), {ex, Expr(:quote, name)})
+                    ex = Expr(:(.), ex, Expr(:quote, name))
                 end
             end
             continue
@@ -622,7 +627,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
         elseif t == '{'
             take_token(ts)
             args = map(subtype_syntax, parse_arglist(ts, '}'))
-            ex = Expr(:curly, {ex, args...})
+            ex = Expr(:curly, ex, args...)
             continue
 
         elseif t == '"'
@@ -637,9 +642,9 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 
                 if isa(nt, Symbol) && !is_operator(nt) && !ts.isspace
                     # string literal suffix "s"x
-                    ex = Expr(:macrocall, {macname, macstr, string(take_token(ts))})
+                    ex = Expr(:macrocall, macname, macstr, string(take_token(ts)))
                 else
-                    ex = Expr(:macrocall, {macrocall, macstr})
+                    ex = Expr(:macrocall, macrocall, macstr)
                 end
                 continue
             else
@@ -652,6 +657,330 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
 end 
 
 function parse_resword(ts::TokenStream)
+end
+
+const expect_end_current_line = 0
+
+function _expect_end(ts::TokenStream, word)
+    t = peek_token(ts)
+    if t == sym_end
+        take_token(ts)
+    elseif eof(t)
+        err_msg = "incomplete: \"$word\" at {current_filename} : {expected} requires end"
+        error(err_msg)
+    else
+        err_msg = "incomplete: \"$word\" at {current filename} : {expected} \"end\", got \"$t\""
+        error(err_msg)
+    end
+end
+
+macro with_normal_ops(body)
+    body  
+end
+
+macro without_newspace_newline(body)
+    body
+end
+
+short_form_function_loc(ex, lno) = nothing
+add_filename_to_block(body, loc) = body
+
+parse_subtype_spec(ts::TokenStream) = subtype_syntax(parse_ineq(ts))
+
+# parse expressions or blocks introduced by syntatic reserved words
+function parse_resword(ts::TokenStream, word)
+    #XXX: with bindings
+    expect_end_current_line = curline(ts)
+    
+    expect_end(ts::TokenStream) = _expect_end(ts, word) 
+
+   # @with_normal_ops begin
+   #     @without_newspace_newline begin
+
+            if word == :quote || word == :begin
+                Lexer.skip_ws_and_comments(ts.io)
+                loc = line_number_filename_node(ts)
+                blk = parse_block(ts)
+                expect_end(ts)
+                if length(blk.args) > 1
+                    blk = Expr(:block, loc, blk.args...)
+                end
+                if word == :quote
+                    return Expr(sym_quote, blk)
+                else
+                    return blk
+                end
+
+            elseif word == :while
+                ex = Expr(:while, parse_cond(ts), parse_block(ts))
+                expect_end(ts)
+                return ex
+
+            elseif word == :for
+                ranges = parse_comma_sep_iters(ts)
+                body   = parse_block(ts)
+                expect_end(ts)
+                r = nothing #TODO: 
+                if r != nothing
+                    return body
+                else
+                    return Expr(:for, r.head, nest(r.args))
+                end
+
+            elseif word == :if
+                test = parse_cond(ts)
+                t = require_token(ts)
+                local then::Expr
+                if t == sym_else || t == sym_elseif
+                    then = Expr(:block)
+                else
+                    then = parse_block(ts) 
+                end
+                nxt = require_token(ts)
+                if nxt == sym_end
+                    return Expr(:if, test, then)
+                elseif nxt == sym_elseif
+                    if isnewline(peek_token(ts))
+                        error("missing condition in elseif at {filename} : {line}")
+                    end
+                    blk = Expr(:block, line_number_node(ts), parse_resword(ts, :if))
+                    return Expr(:if, test, then, blk)
+                elseif nxt == sym_else
+                    if peek_token(ts) == :if
+                        error("use elseif instead of else if")
+                    end
+                    ex = Expr(:if, test, then, parse_block(ts))
+                    expect_end(ts)
+                    return ex
+                else
+                    error("unexpected $nxt")
+                end
+
+            elseif word == :let
+                nt = peek_token(ts)
+                local binds
+                if Lexer.isnewline(nt) || nt == ';'
+                    binds = {}
+                else
+                    binds = parse_comma_sep_assigns(ts)
+                end
+                nt = peek_token(ts)
+                if !(eof(nt) || (nt in ('\n', ';', sym_end)))
+                    error("let variables should end in \";\" or newline")
+                end
+                ex = parse_block(ts)
+                expect_end(ts)
+                return Expr(:let, ex, binds...)
+
+            elseif word == :global || word == :local
+                lno  = curline(ts)
+                isconst = false
+                if peek_token(ts) == :const
+                    take_token(ts)
+                    isconst = true
+                end
+                head = word
+                args = map((ex) -> short_form_function_loc(ex, lno), 
+                           parse_comma_sep_assigns(ts))
+                if isconst
+                    return Expr(:const, Expr(head, args))
+                else
+                    return Expr(head, args)
+                end
+
+            elseif word == :function || word == :macro
+                paren = require_token(ts) == '('
+                sig   = parse_call(ts)
+                local def::Expr
+                if isa(sig, Symbol) ||
+                   (isa(sig, Expr) && sig.head == :(::) && isa(first(sig.args), Symbol))
+                   if paren
+                       # in function(x) the (x) is a tuple
+                       def = Expr(:tuple, sig)
+                    else
+                       # function foo => syntax error
+                       error("expected \"(\" in $word definition")
+                    end
+                else
+                    if (isa(sig, Expr) && (sig.head == :call || sig.head == :tuple))
+                        def = sig
+                    else
+                        error("expected \"(\" in $word definition")
+                    end
+                end
+                if peek_token(ts) != sym_end
+                    Lexer.skip_ws_and_comments(ts.io)
+                end
+                loc = line_number_filename_node(ts)
+                body = parse_block(ts)
+                expect_end(ts)
+                add_filename_to_block!(body, loc)
+                return Expr(word, def, body)
+
+            elseif word == :abstract
+                return Expr(:abstract, parse_subtype_spec(ts))
+
+            elseif word == :type || word == :immutable
+                istype = word == :type
+                isimmutable = word == :immutable
+                if isimmutable && peek_token == :type
+                    # allow "immutable type"
+                    take_token(ts)
+                end
+                sig = parse_subtype_spec(ts)
+                ex  = Expr(:type, istype, sig, parse_block(ts))
+                expect_end(ts)
+                return ex
+
+            elseif word == :bitstype
+                stmnt = let space_sensitive = true
+                    parse_cond(ts)
+                end
+                return Expr(:bitstype, stmnt, parse_subtype_spec(ts))
+
+            elseif word == :typealias
+                lhs = pase_call(ts)
+                if isa(lhs, Expr) && lhs.head == :call 
+                    # typealias X (...) is a tuple type alias, not call
+                    return Expr(:typealias, lhs.args[1], 
+                                            Expr(:tuple, lhs.args[2:end]))
+                else
+                    return Expr(:typealias, lhs, parse_arrow(ts))
+                end
+
+            elseif word == :try
+                local try_block::Expr
+                if require_token(ts) in (sym_catch, sym_finally)
+                    try_block = Expr(:block)
+                else
+                    try_block = parse_block(ts)
+                end
+                nxt = require_token(ts)
+                catchb = nothing
+                catchv = false
+                finalb = nothing
+                while true
+                    take_token(ts)
+                    if nxt == sym_end
+                        if finalb != nothing
+                            return Expr(:try, try_block, catchv, catchb, finalb)
+                        else
+                            return Expr(:try, try_block, catchv, catchb)
+                        end
+                    elseif nxt == sym_catch && catchb == nothing
+                        nl = isnewline(peek_token(ts))
+                        if require_token(ts) in (sym_end, sym_finally)
+                            nxt    = require_token(ts)
+                            catchb = Expr(:block)
+                            catchv = false 
+                            continue
+                        else
+                            var   = parse_eqs(ts)
+                            isvar = nl == false && isa(var, Symbol)
+                            local catch_block::Expr
+                            if require_token(ts) == sym_finally
+                                catch_block = Expr(:block)
+                            else
+                                catch_block = parse_block(ts)
+                            end
+                            nxt = require_token(ts)
+                            catchb = isvar ? catch_block : Expr(:block, var, catch_block.args...)
+                            catchv = isvar && var != nothing
+                            continue
+                        end
+                    elseif nxt == sym_finally && finalb != nothing
+                        local fb::Expr
+                        if require_token(ts) == sym_catch
+                            finalb = Expr(:block)
+                        else
+                            finalb = parse_block(ts)
+                        end
+                        nxt = require_token(ts)
+                        continue 
+                    else
+                        error("unexpected \"$nxt\"")
+                    end
+                end
+
+            elseif word == :return
+                t = peek_token(ts)
+                if isnewline(t) || is_closing_token(t)
+                    return Expr(:return, nothing)
+                else
+                    return Expr(:return, parse_eq(ts))
+                end
+
+            elseif word == :break || word == :continue
+                return Expr(word)
+
+            elseif word == :const
+                assgn = parse_eq(ts)
+                if !(isa(assgn, Expr) && 
+                     (assgn.head == :(=) ||
+                      assgn.head == :global ||
+                      assgn.head == :local))
+                    error("expected assignment after \"const\"")
+                end
+                return Expr(:const, assgn)
+
+            elseif word == :module || word == :baremodule
+                isbare = word == :baremodule
+                name = parse_atom(ts)
+                body = parse_block(ts)
+                expect_end(ts)
+                if !isbare
+                    # add definitions for module_local eval
+                    block = Expr(:block)
+                    x = name == :x ? :y : :x
+                    push!(block.args, 
+                        Expr(:(=), Expr(:call, :eval, x),
+                                   Expr(:call, Expr(:(.), Expr(:top, :Core), :eval), name, x)))
+                    push!(block.args,
+                        Expr(:(=), Expr(:call, :eval, :m, :x),
+                                   Expr(:call, Expr(:(.), Expr(:top, :Core), :eval), :m, :x)))
+                    append!(block.ags, body.args)
+                    body = block
+                end
+                return Expr(:module, !isbare, name, body) 
+
+            elseif word == :export
+                es = map(macrocall_to_atsym, parse_comma_sep(ts, parse_atom))
+                if !all(x -> isa(x, Symbol), es)
+                    error("invalid \"export\" statement")
+                end
+                ex = Expr(:export)
+                append!(ex.args, es)
+                return ex
+
+            elseif word == :import || word == :using || word == :importall
+                imports = parse_imports(ts)
+                if isempty(imports.args)
+                    return Expr(:imports)
+                else
+                    return Expr(:toplevel, imports)
+                end
+
+            elseif word == :ccall
+                if peek_token(ts) != '('
+                    error("invalid \"ccall\" syntax")
+                end
+                take_token(ts)
+                al = parse_arglist(ts, ')')
+                if length(al) > 1 && al[2] in (:cdecl, :stdcall, :fastcall, :thiscall)
+                    # place calling convenction at end of arglist
+                    return Expr(:ccall, al[1], al[3:end]..., al[2])
+                else
+                    return Expr(:ccall, al)
+                end
+
+            elseif word == :do
+                error("invalid \"do\" syntax")
+
+            else
+                error("unhandled reserved word $word")
+            end 
+        #end
+    #end
 end
 
 function parse(ts::TokenStream)
