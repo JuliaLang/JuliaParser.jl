@@ -519,6 +519,7 @@ function separate(func::Function, collection)
     return (tcoll, fcoll)
 end
 
+
 macro with_end_symbol(body)
     quote
         esc(let
@@ -530,12 +531,15 @@ macro with_end_symbol(body)
     end
 end
 
+
+
 function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
-    temp = ['(', '[', '{', ''', '"']
+    temp = ['(', '[', '{', '\'', '"']
+
     while !eof(ts)
         t = peek_token(ts)
         if (space_sensitive && ts.isspace && (t in temp)) ||
-           ((isnumber(ex) || islargenumber(ex)) && t == '('))
+           ((isnumber(ex) || islargenumber(ex)) && t == '(')
            return ex
         end
         if t == '('
@@ -641,15 +645,11 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             else
                 return ex
             end
-        
         else
             return ex
         end
     end
 end 
-
-
-
 
 function parse_resword(ts::TokenStream)
 end
