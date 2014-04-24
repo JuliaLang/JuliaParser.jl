@@ -1378,9 +1378,11 @@ function parse_cat(ts::TokenStream, closer)
     end
 end
 
+
 function parse_stmts_within_expr(ts::TokenStream)
     parse_Nary(ts, parse_eqs, [';'], :block, [',', ')'], true)
 end
+
 
 function parse_tuple(ts::TokenStream, first)
     lst = {}
@@ -1409,6 +1411,39 @@ function parse_tuple(ts::TokenStream, first)
         end
     end
 end
+
+
+function not_eof_2(c)
+    if eof(c)
+        error("incomplete: invalid \"`\" syntax")
+    end
+    return c
+end
+
+
+function parse_backquote(ts::TokenStream)
+    buf = IOBuffer()
+    io  = ts.io
+    c   = Lexer.readchar(io)
+    while !eof(io)
+        c == '`' && return true
+        if c == '\'
+            nextch = Lexer.readchar(io)
+            if nexch == '`'
+                write(buf, nextch)
+            else
+                write(buf, '\')
+                write(buf, not_eof_2(nextch))
+            end
+        else
+            write(buf, not_eof_2(nextch))
+        end
+        c = Lexer.readchar(io)
+        continue
+    end
+    return Expr(:macrocall, :(@cmd), bytestring(buf))
+end
+
 
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
