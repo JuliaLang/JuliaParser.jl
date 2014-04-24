@@ -683,7 +683,6 @@ macro without_newspace_newline(body)
 end
 
 short_form_function_loc(ex, lno) = nothing
-add_filename_to_block(body, loc) = body
 
 parse_subtype_spec(ts::TokenStream) = subtype_syntax(parse_ineq(ts))
 
@@ -983,6 +982,156 @@ function parse_resword(ts::TokenStream, word)
     #end
 end
 
+function add_filename_to_block(body::Expr, loc)
+    if !isempty(body.args) && 
+        isa(body.args[1], Expr) && 
+        body.args[1].head == :line
+        unshift!(body.args, loc)
+    end
+    return body
+end
+
+function parse_do(ts::TokenStream)
+    # TODO: bindings
+    local doargs
+    if isnewline(peek_token(ts))
+        doargs = {}
+    else
+        doargs = parse_comma_sep(ts, parse_range)
+    end
+    loc = line_number_filename_node(ts)
+    blk = add_filename_to_block!(parse_block(ts), loc)
+    expect_end(ts, :do)
+    return Expr(:(->), Expr(:tuple, doargs...), blk)
+end
+
+function macrocall_to_atsym(ex)
+    if isa(ex, Expr) && ex.head == :macrocall
+        return first(ex.args)
+    else
+        return ex
+    end
+end
+
+function parse_imports(ts::TokenStream, word)
+    frst = parse_import(ts, word)
+    nt   = peek_token(ts)
+    from = nt == :(:) && ts.isspace
+    done = false
+    if from || nt == ','
+        take_token(ts)
+        done = false
+    elseif nt in ('\n', ';')
+        done = true
+    elseif eof(nt)
+        done = true
+    else
+        done = false
+    end
+    rest = done ? {} : parse_comma_sep(ts, (ts) -> parse_import(ts, word))
+    if from
+        #TODO: this is a mess
+        fn = x -> begin
+            ret = {x[1]}
+            append!(ret, frst[2:end])
+            append!(ret, x[2:end])
+        end
+        return map(fn, rest)
+    else
+        return append!(first, rest)
+    end
+end
+
+function parse_import_dots(ts::TokenStream)
+    l = {}
+    t = peek_token(ts)
+    while !eof(ts)
+        if t == :(.)
+            take_token(ts)
+            l = append!({:(.)}, l)
+            t = peek_token(ts)
+            continue
+        elseif t == :(..)
+            take_token(ts)
+            l = append!({:(.), :(.)}, l)
+            t = peek_token(ts)
+            continue
+        elseif t == :(...)
+            take_token(ts)
+            l = append!({:(.), :(.), :(.)}, l)
+            t = peek_token(ts)
+            continue
+        elseif t == :(....)
+            take_token(ts)
+            l = append!({:(.), :(.), :(.), :(.)}, l)
+            t = peek_token(ts)
+            continue
+        else
+            ex = macrocall_to_atsym(parse_atom(ts))
+            return append!(ex.args, l)
+        end
+    end
+end
+
+
+function parse_import(ts::TokenStream, word)
+    path = parse_import_dots(ts)
+    while !eof(ts)
+        nxt = peek_token(ts)
+        if nxt == :(.)
+            take_token(ts)
+            ex = macrocall_to_atsym(parse_atom(ts))
+            append!(ex.args, path)
+            continue
+        elseif (nxt in ('\n', ';', ',', :(:))) || eof(nxt)
+            # reverse path
+            return Expr(word, path)
+        elseif #string sub
+            #TODO:
+        else
+            error("invalid \"$word\" statement")
+        end
+    end
+end
+
+function parse_comma_sep(ts::TokenStream, what)
+    exprs = {}
+    while !eof(ts)
+        r = what(ts)
+        if peek_token(ts) == ','
+            take_token(ts)
+            push!(exprs, r)
+            continue
+        end 
+        push!(exprs, r)
+        return exprs
+    end
+end
+
+parse_comma_sep_assigns(ts::TokenStream) = parse_comma_sep(ts, parse_eqs) 
+
+# as above, but allows both "i=r" and "i in r"
+function parse_comma_sep_iters(ts::TokenStream)
+    ranges = {}
+    while !eof(ts)
+        r = parse_eqs(ts)
+        if r == :(:)
+        elseif isa(r, Expr) && r.head == :(=)
+        elseif isa(r, Expr) && r.head == :in
+            r = Expr(:(=), r.args[1], r.args[2])
+        else
+            error("invalid iteration spec")
+        end
+        if peek_token(ts) == ','
+            take_token(ts)
+            push!(ranges, r)
+            continue
+        end
+        push!(ranges, r)
+        return ranges
+    end
+end
+        
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
