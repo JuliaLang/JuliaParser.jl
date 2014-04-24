@@ -1246,6 +1246,7 @@ function parse_vcat(ts::TokenStream, first, closer)
     end
 end
 
+
 function parse_dict(ts::TokenStream, first, closer)
     v = parse_vcat(ts, first, closer)
     if any(is_dict_literal, v.args)
@@ -1277,6 +1278,63 @@ function parse_dict_comprehension(ts::TokenStream, first, closer)
         return ex
     else
         error("invalid dict comprehension")
+    end
+end
+
+
+function parse_matrix(ts::TokenStream, first, closer) 
+    
+    function fix(head, v)
+        unshift!(reverse(v), head)
+    end
+
+    function update_outer(v, outer)
+        if v == nothing
+            return outer
+        elseif isempty(v.args)
+            return unshift!(outer, v.head)
+        else
+            return unshift!(outer, fix(:row, v))
+        end
+    end
+
+    semicolon = peek_token(ts) == ';'
+    vec   = {first}
+    outer = {}
+    while !eof(ts)
+        t::Token = peek_token(ts) == '\n' ? '\n' : require_token(ts)
+        if t == closer
+            take_token(ts)
+            if length(outer.args) == 1
+                return fix(:vcat, update_outer(vec, outer))
+            elseif isempty(vec) || isempty(vec.args)
+                # [x] => (vcat x)
+                return fix(:vcat, vec)
+            else
+                # [x y] => (hcat x y)
+                return fix(:hcat, vec)
+            end
+        end
+        if t == ';' || t == '\n'
+            take_token(ts)
+            outer = update_outer(vec, outer)
+            vec   = {}
+            continue
+        elseif t == ','
+            error("unexpected comma in matrix expression")
+        elseif t == ']' || t == '}'
+            error("unexpected \"$t\"")
+        elseif t == :for
+            if !semicolon && length(outer) == 1 && isempty(vec)
+                take_token(ts)
+                return parse_comprehension(ts, first(outer), closer)
+            else
+                error("invalid comprehension syntax")
+            end
+        else
+            unshift!(vec, parse_eqs(ts))
+            continue
+        end
     end
 end
 
