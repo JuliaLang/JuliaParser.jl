@@ -1042,26 +1042,31 @@ function parse_imports(ts::TokenStream, word)
     end
 end
 
+const sym_1dot  = symbol(".")
+const sym_2dots = symbol("..")
+const sym_3dots = symbol("...")
+const sym_4dots = symbol("....")
+
 function parse_import_dots(ts::TokenStream)
     l = {}
     t = peek_token(ts)
     while !eof(ts)
-        if t == :(.)
+        if t == sym_1dot
             take_token(ts)
             l = append!({:(.)}, l)
             t = peek_token(ts)
             continue
-        elseif t == :(..)
+        elseif t == sym_2dots
             take_token(ts)
             l = append!({:(.), :(.)}, l)
             t = peek_token(ts)
             continue
-        elseif t == :(...)
+        elseif t == sym_3dots
             take_token(ts)
             l = append!({:(.), :(.), :(.)}, l)
             t = peek_token(ts)
             continue
-        elseif t == :(....)
+        elseif t == sym_4dots
             take_token(ts)
             l = append!({:(.), :(.), :(.), :(.)}, l)
             t = peek_token(ts)
@@ -1086,7 +1091,7 @@ function parse_import(ts::TokenStream, word)
         elseif (nxt in ('\n', ';', ',', :(:))) || eof(nxt)
             # reverse path
             return Expr(word, path)
-        elseif #string sub
+        elseif false #string sub
             #TODO:
         else
             error("invalid \"$word\" statement")
@@ -1131,7 +1136,82 @@ function parse_comma_sep_iters(ts::TokenStream)
         return ranges
     end
 end
-        
+       
+function parse_space_separated_exprs(ts::TokenStream)
+    # with_space_sensitive
+    exprs = {}
+    while !eof(ts)
+        nt = peek_token(ts)
+        if (is_closing_token(nt) ||
+            isnewline(nt) ||
+            (inside_vector && nt == :for))
+            return exprs
+        end
+        ex = parse_eq(ts)
+        if isnewline(peek_token(ts))
+            push!(exprs, ex)
+            return exprs
+        end
+        push!(exprs, ex)
+    end
+end
+
+has_parameters(lst) = length(lst) == 2 && length(first(lst)) == 2 && first(first(lst)) == :params
+
+to_kws(lst) = map((x) -> is_assignment(x) ? Expr(:kw, x[2:end]...) : x, lst)
+
+# handle function call argument list, or any comma-delimited list
+# * an extra comma at the end is allowed
+# * expressions after a ; are enclosed in (parameters ....)
+# * an expression followed by ... becomes (.... x)
+function _parse_arglist(ts::TokenStream, closer::Token)
+    lst = {} 
+    while !eof(ts)
+        t = require_token(ts)
+        if t == closer
+            take_token(ts)
+            if closer == ')'
+                # (= x y) inside a function call is a keyword argument
+                return to_kws(lst)
+            else
+                return lst
+            end
+        elseif t == ';'
+            take_token(ts)
+            # allow f(a, b; )
+            peek_token(ts) == closer && continue
+            params = parse_arglist(ts, closer)
+            if closer == ')'
+                lst = to_kws(lst)
+            end
+            return append!(unshift!(params, :parameters), lst)
+        end
+        nxt = parse_eqs(ts)
+        nt  = require_token(ts)
+        if nt == ','
+            take_token(ts)
+            push!(lst, nxt)
+            continue
+        elseif nt == ';'
+            push!(lst, nxt)
+            continue
+        elseif c == closer
+            push!(lst, nxt)
+            continue
+        elseif c in (']', '}')
+            error("unexpected \"$c\" in argument list")
+        else
+            error("missing comma or \"$closer\" in argument list")
+        end
+    end
+end
+
+function parse_arglist(ts::TokenStream, closer)
+    # with normal ops
+    # with whitespace newline
+    _parse_arglist(ts, closer)
+end
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
