@@ -1378,6 +1378,38 @@ function parse_cat(ts::TokenStream, closer)
     end
 end
 
+function parse_stmts_within_expr(ts::TokenStream)
+    parse_Nary(ts, parse_eqs, [';'], :block, [',', ')'], true)
+end
+
+function parse_tuple(ts::TokenStream, first)
+    lst = {}
+    nxt = first
+    while !eof(ts)
+        t = require_token(ts)
+        if t == ')'
+            take_token(ts)
+            return Expr(:tuple, reverse(unshift!(lst, nxt)))
+        elseif t == ','
+            take_token(ts)
+            if require_token(ts) == ')'
+                # allow ending with ,
+                take_token(ts)
+                return Expr(:tuple, reverse(unshift!(lst, nxt)))
+            end
+            lst = unshift!(lst, nxt)
+            nxt = parse_eqs(ts)
+            continue
+        elseif t == ';'
+            error("unexpected semicolon in tuple")
+        elseif t == ']' || t == '}'
+            error(unexpected \"$(peek_token(ts))\" in tuple")
+        else
+            error("missing separator in tuple")
+        end
+    end
+end
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
