@@ -1382,8 +1382,6 @@ end
 function parse_stmts_within_expr(ts::TokenStream)
     parse_Nary(ts, parse_eqs, [';'], :block, [',', ')'], true)
 end
-
-
 function parse_tuple(ts::TokenStream, first)
     lst = {}
     nxt = first
@@ -1412,6 +1410,14 @@ function parse_tuple(ts::TokenStream, first)
     end
 end
 
+# TODO: these are unnecessary and the fact that base/client.jl code
+# relies on parsing the exact string is troubling
+function not_eof_1(c)
+    if eof(c)
+        error("incomplete: invalid character literal")
+    end
+    return c
+end
 
 function not_eof_2(c)
     if eof(c)
@@ -1420,30 +1426,127 @@ function not_eof_2(c)
     return c
 end
 
+function not_eof_3(c)
+    if eof(c)
+        error("incomplete: invalid string syntax")
+    end
+    return c
+end 
 
 function parse_backquote(ts::TokenStream)
     buf = IOBuffer()
-    io  = ts.io
-    c   = Lexer.readchar(io)
-    while !eof(io)
+    c   = Lexer.readchar(ts.io)
+    while !eof(ts)
         c == '`' && return true
-        if c == '\'
-            nextch = Lexer.readchar(io)
+        if c == '\\'
+            nextch = Lexer.readchar(ts.io)
             if nexch == '`'
                 write(buf, nextch)
             else
-                write(buf, '\')
+                write(buf, '\\')
                 write(buf, not_eof_2(nextch))
             end
         else
             write(buf, not_eof_2(nextch))
         end
-        c = Lexer.readchar(io)
+        c = Lexer.readchar(ts.io)
         continue
     end
     return Expr(:macrocall, :(@cmd), bytestring(buf))
 end
 
+function parse_interpolate(ts::TokenStream)
+    c = Lexer.peekchar(ts.io)
+    if Lexer.is_identifier_char(c)
+        return parse_atom(ts)
+    elseif c == '('
+        Lexer.readchar(ts.io)
+        ex = parse_eqs(ts)
+        t  = require_token(ts)
+        if t == ')'
+            take_token(ts)
+            return ex
+        else
+            error("invalid interpolation syntax")
+        end
+    else
+        error("invalid interpolation syntax: \"$c\"")
+    end
+end
+
+function _parse_string_literal(ex::Expr, n::Integer, ts::TokenStream, custom::Bool)
+    c  = Lexer.readchar(ts.io)
+    b  = IOBuffer()
+    ex = copy(ex)
+    quotes = 0
+
+    while !eof(ts)
+        if c == '"'
+            if quotes < n
+                c = Lexer.readchar(ts.io)
+                quotes += 1
+                continue
+            else
+                push!(ex.args, bytestring(b))
+                return ex
+            end
+        elseif qs == 1
+            custom || write(b, '\\')
+            write(b, '"')
+            quotes = 0
+            continue
+        elseif eq == 2
+            custom || write(b, '\\')
+            write(b, '"')
+            custom || write(b, '\\')
+            write(b, '"')
+            quotes = 0
+            continue
+        elseif c == '\\'
+            nxch = not_eof_3(Lexer.readchar(ts.io))
+            if !custom || !(nxch == '"' || nxch == '\\')
+                write(b, '\\')
+            end
+            write(b, nxch)
+            c = readchar(ts.io)
+            quotes = 0
+            continue
+        elseif c == '$' && !custom
+            nex = parse_interpolate(ts)
+            push!(nex.args, bytestring(b), ex)
+            c  = Lexer.readchar(ts.io)
+            b  = IOBuffer()
+            ex = nex
+            quotes = 0
+            continue
+        else
+            write(b, not_eof_3(c))
+            c = Lexer.readchar(ts.io)
+            quotes = 0
+            continue
+        end
+    end
+end
+
+interpolate_string_literal(ex) = length(ex.args) > 1
+triplequote_string_literal(ex) = ex.head === :triplequote_string_literal
+
+function unescape_string(str)
+    return bytestring(str)
+end
+
+function parse_string_literal(ts::TokenStream, custom)
+    if Lexer.peekchar(ts.io)
+        if Lexer.peekchar(Lexer.takechar(ts.io)) == '"'
+            Lexer.takechar(io)
+            return  _parse_string_literal(:triple_quoted_string, 2, ts, custom)
+        else
+            return Expr(:single_quoted_string, "")
+        end
+    else
+        return _parse_string_literal(:single_quoted_string, 0, ts, custom)
+    end
+end
 
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
