@@ -155,7 +155,7 @@ eof(io::IO ) = Base.eof(io)
 readchar(io::IO) = read(io, Char)
 takechar(io::IO) = begin
     readchar(io)
-    return
+    return io
 end
 
 is_char_numeric(c::Char) = '0' <= c <= '9'
