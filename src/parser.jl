@@ -1499,8 +1499,13 @@ function parse_cat(ts::TokenStream, closer)
     end
 end
 
-
+# for sequenced eval inside expressions, e.g. (a;b, c;d)
 function parse_stmts_within_expr(ts::TokenStream)
+    return parse_Nary(ts, parse_eqs, (';',), :block, (',', ')'), true)
+end
+
+#; at the top level produces a sequence of top level expressions
+function parse_stmts(ts::TokenStream)
     ex = parse_Nary(ts, parse_eqs, (';',), :block, (',', ')'), true)
     # check for unparsed junk after an expression
     t = peek_token(ts)
@@ -1927,6 +1932,7 @@ function macroify_name(ex)
     end
 end
 
+
 #========================#
 # Parser Entry Method
 #========================#
@@ -1941,7 +1947,7 @@ function parse(ts::TokenStream)
         break
     end
     eof(ts) && return nothing
-    return ts
+    return parse_stmts(ts)
 end
 
 parse(io::IO) = parse(TokenStream(io))
