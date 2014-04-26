@@ -313,9 +313,67 @@ function parse_cond(ts::TokenStream)
     error("end of file in parse_cond")
 end
 
-
 const expr_ops = Lexer.precedent_ops(9)
 const term_ops = Lexer.precedent_ops(11)
+
+function parse_Nary(ts::TokenStream, down::Function, 
+                    ops, head::Symbol, 
+                    closers, allow_empty::Bool)
+    if is_invalid_initial_token(require_token(ts))
+        error("unexpected \"$(peek_token(ts))\"")
+    end
+    if require_token(ts) in closers
+        # empty block
+        return Expr(head)
+    end
+    # in allow empty mode, skip leading runs of operator
+    if allow_empty && (require_token(ts) in ops)
+        ex = {}
+    elseif '\n' in ops
+        loc = line_number_node(ts)
+        # nore line-number must happend before (down s)
+        ex = {down(ts), loc}
+    else
+        ex = {down(ts)}
+    end
+    first = true
+    t = peek_token(ts)
+    while !eof(ts)
+        if !(t in ops)
+            if !(eof(t) || t == '\n' || (',' in ops) || (t in closers))
+                error("extra token \"$t\" after end of expression")
+            end
+            if isempty(ex) || length(ex[2:end]) == 2 || !first
+                # () => (head)
+                # (ex2 ex1) => (head ex1 ex2)
+                # (ex1) if operator appeared => (head ex1) (handles "x;")
+                return unshift!(reverse(ex), head)
+            else
+                # (ex1) => ex1
+                return first(ex)
+            end
+        end
+        first = false
+        take_token(ts)
+        nt = peek_token(ts)
+        # allow input to end with the operator, as in a;b;
+        if (eof(nt) || nt in closers || 
+            (allow_empty && nt == :(=)) ||
+            (length(ops) == 1 && first(ops) == ',' && nt == :(=)))
+            t = nt
+            continue
+        end
+        if '\n' in ops
+            loc = line_number_node(ts)
+            ex  = prepend!(ex, {down(ts), loc})
+            t = nt
+            continue
+        else
+            ex = unshift!(ex, down(ts))
+            continue
+        end
+    end
+end 
 
 parse_expr(ts::TokenStream) = parse_with_chains(ts, parse_shift, expr_ops, :(+))
 parse_term(ts::TokenStream) = parse_with_chains(ts, parse_rational, term_ops, :(*))
@@ -1443,7 +1501,13 @@ end
 
 
 function parse_stmts_within_expr(ts::TokenStream)
-    parse_Nary(ts, parse_eqs, [';'], :block, [',', ')'], true)
+    ex = parse_Nary(ts, parse_eqs, (';',), :block, (',', ')'), true)
+    # check for unparsed junk after an expression
+    t = peek_token(ts)
+    if !(eof(t) || t == '\n' || t == false)
+        error("extra token \"$t\" after end of expression")
+    end
+    return ex
 end
 
 function parse_tuple(ts::TokenStream, first)
