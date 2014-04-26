@@ -20,16 +20,11 @@ Base.isspace(ts::TokenStream) = ts.isspace
 Base.eof(ts::TokenStream) = eof(ts.io)
 
 function set_token!(ts::TokenStream, t::Token)
-    push!(ts.tokens, t)
+    ts.lasttoken = t
     return ts
 end
 
-function last_token(ts::TokenStream)
-    if isempty(ts.tokens)
-        return nothing
-    end
-    return ts.tokens[end]
-end 
+last_token(ts::TokenStream) = ts.lasttoken
 
 function put_back!(ts::TokenStream, t::Token)
     if ts.putback !== nothing
@@ -234,11 +229,9 @@ function parse_with_chains(ts::TokenStream, down, ops, chain_op;
             put_back!(ts, t)
             return chain
         elseif t == chain_op
-            args = append!({t, ex}, parse_chain(ts, down, t))
-            ex = Expr(:call, args)
+            ex = Expr(:call, t, ex, parse_chain(ts, down, t))
         else
-            args = {t, ex, down(ts)}
-            ex = Expr(:call, args)
+            ex = Expr(:call, t, ex, down(ts))
         end
     end
     error("end of file in parse_with_chains")
@@ -301,13 +294,15 @@ function parse_cond(ts::TokenStream)
         take_token(ts)
         then = @without_range_colon parse_eq(ts)
         take_token(ts) == ':' || error("colon expected in \"?\" expression")
-        #return Expr(:if, {ex, then, parse_cond(ts)})
+        return Expr(:if, ex, then, parse_cond(ts))
     end
     args = ex.args
     while !eof(ts)
         next = peek_token(ts)
         if eof(next) || is_closing_token(next) || is_newline(next)
-            return Expr(:call, :(top), :string, args...)
+            ex = Expr(:call, :(top), :string)
+            append!(ex.args, args)
+            return ex
         end
         push!(args, parse_or(ts))
     end
@@ -317,9 +312,12 @@ end
 const expr_ops = Lexer.precedent_ops(9)
 const term_ops = Lexer.precedent_ops(11)
 
-function parse_Nary(ts::TokenStream, down::Function, 
-                    ops, head::Symbol, 
-                    closers, allow_empty::Bool)
+function parse_Nary(ts::TokenStream, 
+                    down::Function, 
+                    ops, 
+                    head::Symbol, 
+                    closers, 
+                    allow_empty::Bool)
     if is_invalid_initial_token(require_token(ts))
         error("unexpected \"$(peek_token(ts))\"")
     end
@@ -339,6 +337,7 @@ function parse_Nary(ts::TokenStream, down::Function,
     end
     first = true
     t = peek_token(ts)
+    @show ex, first, t 
     while !eof(ts)
         if !(t in ops)
             if !(eof(t) || t == '\n' || (',' in ops) || (t in closers))
@@ -555,14 +554,15 @@ function parse_factorh(ts::TokenStream, down::Function, ops)
 end
 
 function parse_factor(ts::TokenStream)
-    return parse_factorh(ts, parse_decl, Lexer.precedent_ops[12])
+    return parse_factorh(ts, parse_decl, Lexer.precedent_ops(12))
 end
 
 function parse_unary(ts::TokenStream)
     t = require_token(ts)
     is_closing_token(t) && error("unexpected $t")
     if !(t in Lexer.unary_ops)
-        return parse_juxtaposed(parse_factor(ts), ts)
+        pf = parse_factor(ts)
+        return parse_juxtaposed(ts, pf) 
     end
     op = take_token(ts)
     nc = Lexer.peekchar(ts.io)
@@ -591,7 +591,7 @@ function parse_unary(ts::TokenStream)
         else
             arg = parse_unary(ts)
             if isa(arg, Expr) && arg.head === :tuple
-                return Expr(:call, op, arg[1])
+                return Expr(:call, op, arg.args[1])
             else
                 return Expr(:call, op, arg)
             end
@@ -1510,7 +1510,7 @@ function parse_stmts(ts::TokenStream)
     ex = parse_Nary(ts, parse_eqs, (';',), :block, (',', ')'), true)
     # check for unparsed junk after an expression
     t = peek_token(ts)
-    if !(Lexer.eof(t) || t === '\n' || t === false)
+    if !(Lexer.eof(t) || t === '\n' || t === nothing)
         error("extra token \"$t\" after end of expression")
     end
     return ex

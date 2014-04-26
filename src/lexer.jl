@@ -74,9 +74,9 @@ is_assignment_like(expr) = length(expr) == 2 && in(first(expr), assignment_ops)
 
 is_kwarg(l) = length(expr) == 2 && first(l) == :(kw)
 
-is_syntactic_op(op::Symbol) = in(op, syntactic_ops)
+is_syntactic_op(op) = in(op, syntactic_ops)
 
-is_syntactic_unary_op(op::Symbol) = in(op, syntactic_unary_ops)
+is_syntactic_unary_op(op) = in(op, syntactic_unary_ops)
 
 is_dict_literal(l) = length(l) == 3 && first(l) === :(=>) 
 

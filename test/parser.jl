@@ -36,11 +36,9 @@ facts("test set_token! / last_token") do
     @fact Parser.last_token(ts) => nothing
     
     Parser.set_token!(ts, tks[1])
-    @fact ts.tokens[1] => tks[1]
     @fact Parser.last_token(ts) => tks[1]
 
     Parser.set_token!(ts, tks[2])
-    @fact ts.tokens[2] => tks[2] 
     @fact Parser.last_token(ts) => tks[2]
 end
 
@@ -69,6 +67,7 @@ end
 facts("test take_token") do
     code = "1 + 1"
     ts   = TokenStream(code)
+    @fact Parser.take_token(ts) => nothing
     for t in tokens(code)
         tk = Parser.peek_token(ts)
         @fact tk => t
@@ -77,11 +76,12 @@ facts("test take_token") do
 end
 
 facts("test require_token") do
-    code = "1 + 1"
+    code = "1 +\n1"
     ts   = TokenStream(code)
-    for t in tokens(code)
+    for t in (1, :+, 1)
         tk = Parser.require_token(ts)
         @fact tk => t
+        Parser.take_token(ts)
     end
 end
 
