@@ -359,6 +359,8 @@ function parse_comparison(ts::TokenStream, ops)
     error("end of file in parse_comparison")
 end
 
+is_large_number(n::BigInt) = true
+is_large_number(n::Int128) = true
 is_large_number(n::Number) = false
 
 function maybe_negate(op, num)
@@ -1443,6 +1445,7 @@ end
 function parse_stmts_within_expr(ts::TokenStream)
     parse_Nary(ts, parse_eqs, [';'], :block, [',', ')'], true)
 end
+
 function parse_tuple(ts::TokenStream, first)
     lst = {}
     nxt = first
