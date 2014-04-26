@@ -1927,6 +1927,10 @@ function macroify_name(ex)
     end
 end
 
+#========================#
+# Parser Entry Method
+#========================#
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
@@ -1936,6 +1940,7 @@ function parse(ts::TokenStream)
         end
         break
     end
+    eof(ts) && return nothing
     return ts
 end
 

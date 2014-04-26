@@ -15,20 +15,24 @@ facts("test token stream constructor") do
 end
 
 facts("test special case all whitespace") do
-    io = IOBuffer("")
-    Parser.parse(io)
+    io  = IOBuffer("")
+    res = Parser.parse(io)
     @fact eof(io) => true
+    @fact res => nothing
 
     io = IOBuffer(" \n")
-    Parser.parse(io)
+    res = Parser.parse(io)
     @fact eof(io) => true
+    @fact res => nothing
 
     io = IOBuffer("# test comment\n")
-    Parser.parse(io)
+    res = Parser.parse(io)
     @fact eof(io) => true
+    @fact res => nothing
 
     io = IOBuffer("#= test comment \n
                   another comment =#\n")
-    Parser.parse(io)
+    res = Parser.parse(io)
     @fact eof(io) => true
+    @fact res => nothing
 end
