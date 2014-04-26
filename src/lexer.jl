@@ -150,7 +150,8 @@ const peekchar = let
 end
 
 eof(c::Char) = c === char(-1)
-eof(io::IO ) = Base.eof(io)
+eof(io::IO)  = Base.eof(io)
+eof(c) = false
 
 readchar(io::IO) = read(io, Char)
 takechar(io::IO) = begin

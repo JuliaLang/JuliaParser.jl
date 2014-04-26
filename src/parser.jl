@@ -13,7 +13,8 @@ type TokenStream
     isspace::Bool
 end
 
-TokenStream(io::IO) = TokenStream(io, {}, nothing, false, false) 
+TokenStream(io::IO) = TokenStream(io, {}, nothing, nothing, false) 
+TokenStream(str::String) = TokenStream(IOBuffer(str))
 
 Base.isspace(ts::TokenStream) = ts.isspace
 Base.eof(ts::TokenStream) = eof(ts.io)
@@ -31,7 +32,7 @@ function last_token(ts::TokenStream)
 end 
 
 function put_back!(ts::TokenStream, t::Token)
-    if ts.putback != nothing
+    if ts.putback !== nothing
         error("too many pushed back tokens (internal error)")
     end
     ts.putback = t
@@ -40,23 +41,23 @@ end
 
 function peek_token(ts::TokenStream)
     local t::Token
-    if ts.putback != nothing
+    if ts.putback !== nothing
         return ts.putback
     end
     lt = last_token(ts)
-    if lt != nothing
+    if lt !== nothing
         return lt
     end
-    set_token!(ts, next_token(ts))
+    set_token!(ts, Lexer.next_token(ts.io, nothing))
     return last_token(ts)
 end
         
-isnewline(t::Token) = t == '\n'
+isnewline(t::Token) = t === '\n'
 
 function take_token(ts::TokenStream)
     local t::Token 
-    if ts.putback != nothing
-        t = putback
+    if ts.putback !== nothing
+        t = ts.putback
         ts.putback = nothing
     else
         t = last_token(ts)
@@ -67,19 +68,19 @@ end
 
 function require_token(ts::TokenStream)
     local t::Token
-    if ts.putback != nothing
+    if ts.putback !== nothing
         t = ts.putback
-    elseif last_token(ts) != nothing
+    elseif ts.lasttoken !== nothing
         t = ts.lasttoken
     else
-        t = next_token(ts)
+        t = Lexer.next_token(ts.io, nothing)
     end
-    eof(t) && error("incomplete: premature end of input")
+    Lexer.eof(t) && error("incomplete: premature end of input")
     if isnewline(t)
         take_token(ts)
         return require_token(ts)
     end 
-    if ts.putback == nothing
+    if ts.putback === nothing
         set_token!(ts, t)
     end
     return t
@@ -1509,7 +1510,7 @@ function parse_stmts(ts::TokenStream)
     ex = parse_Nary(ts, parse_eqs, (';',), :block, (',', ')'), true)
     # check for unparsed junk after an expression
     t = peek_token(ts)
-    if !(eof(t) || t == '\n' || t == false)
+    if !(Lexer.eof(t) || t === '\n' || t === false)
         error("extra token \"$t\" after end of expression")
     end
     return ex

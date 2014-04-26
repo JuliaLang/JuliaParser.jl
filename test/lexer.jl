@@ -709,8 +709,8 @@ facts("test next_token") do
     toks = collect(tokens(IOBuffer("@testmacro")))
     @fact toks => {'@', :testmacro}
 
-    toks = collect(tokens(IOBuffer("func(2) |> end!")))
-    @fact toks => {:func, '(', 2, ')', :(|>), :(end!)}
+    toks = collect(tokens(IOBuffer("func(2) |> send!")))
+    @fact toks => {:func, '(', 2, ')', :(|>), :(send!)}
 
     sym_end = symbol("end")
     
