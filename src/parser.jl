@@ -1945,5 +1945,6 @@ function parse(ts::TokenStream)
 end
 
 parse(io::IO) = parse(TokenStream(io))
+parse(str::String) = parse(TokenStream(IOBuffer(str)))
 
 end
