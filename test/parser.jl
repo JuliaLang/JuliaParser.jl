@@ -16,19 +16,19 @@ end
 
 facts("test special case all whitespace") do
     io = IOBuffer("")
-    Parser.parse(TokenStream(io))
+    Parser.parse(io)
     @fact eof(io) => true
 
     io = IOBuffer(" \n")
-    Parser.parse(TokenStream(io))
+    Parser.parse(io)
     @fact eof(io) => true
 
     io = IOBuffer("# test comment\n")
-    Parser.parse(TokenStream(io))
+    Parser.parse(io)
     @fact eof(io) => true
 
     io = IOBuffer("#= test comment \n
                   another comment =#\n")
-    Parser.parse(TokenStream(io))
+    Parser.parse(io)
     @fact eof(io) => true
 end

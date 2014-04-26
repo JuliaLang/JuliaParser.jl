@@ -1926,7 +1926,7 @@ function macroify_name(ex)
         error("invalid macro use \"@($ex)")
     end
 end
-       
+
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
@@ -1938,5 +1938,7 @@ function parse(ts::TokenStream)
     end
     return ts
 end
+
+parse(io::IO) = parse(TokenStream(io))
 
 end
