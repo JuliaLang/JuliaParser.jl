@@ -85,6 +85,74 @@ function require_token(ts::TokenStream)
     return t
 end
 
+current_filename = ""
+
+# disable range colon for parsing ternary cond op
+const range_colon_enabled = true
+
+# in space sensitvie mode "x -y" is 2 exprs, not subtraction
+const space_sensitive = false
+
+# treat "end" like a normal symbol, instead of a reserved word 
+const inside_vec = false
+
+# treat newline like ordinary whitespace instead of a reserved word
+const end_symbol = false
+
+# treat newline like ordinary whitespace instead of as a potential separator 
+const whitespace_newline = false
+
+macro with_normal_ops(body)
+    esc(quote
+            let range_colon_enabled = false,
+                space_sensitive = true
+                $body
+            end
+        end)
+end
+
+macro without_range_colon(body)
+    esc(quote
+            let range_colon_enabled = false
+                $body
+            end
+        end)
+end
+
+macro with_inside_vec(body)
+    esc(quote
+            let space_sensitive = true, 
+                inside_vec = true, 
+                whitespace_newline = false
+                $body
+            end
+        end)
+end
+
+macro with_end_symbol(body)
+    esc(quote
+            let end_symbol = true
+                $body
+            end
+        end)
+end
+
+macro with_whitespace_newline(body)
+    esc(quote
+            let whitespace_newline = true
+                $body
+            end
+        end)
+end
+
+macro without_whitespace_newline(body)
+    esc(quote
+            let whitespace_newline = false
+                $body
+            end
+        end)
+end
+
 filename(ts::TokenStream) = "test.jl"
 curline(ts::TokenStream)  = 0
 
@@ -223,16 +291,6 @@ function parse_RtoL(ts::TokenStream, down, ops;
         else
             return {:call, t, ex, parse_RtoL(ts, down, ops)}
         end
-    end
-end
-
-macro without_range_colon(body)
-    quote
-        let
-            range_colon_enabled = false
-            ret = esc($body)
-        end
-        ret
     end
 end
 
@@ -678,10 +736,6 @@ macro with_space_sensitive(body)
     body
 end
 
-macro with_normal_ops(body)
-    body  
-end
-
 macro without_newspace_newline(body)
     body
 end
@@ -697,9 +751,8 @@ function parse_resword(ts::TokenStream, word)
     
     expect_end(ts::TokenStream) = _expect_end(ts, word) 
 
-   # @with_normal_ops begin
-   #     @without_newspace_newline begin
-
+    @with_normal_ops begin
+        @without_whitespace_newline begin
             if word == :quote || word == :begin
                 Lexer.skip_ws_and_comments(ts.io)
                 loc = line_number_filename_node(ts)
@@ -982,8 +1035,8 @@ function parse_resword(ts::TokenStream, word)
             else
                 error("unhandled reserved word $word")
             end 
-        #end
-    #end
+        end
+    end
 end
 
 function add_filename_to_block(body::Expr, loc)
@@ -1211,9 +1264,11 @@ function _parse_arglist(ts::TokenStream, closer::Token)
 end
 
 function parse_arglist(ts::TokenStream, closer)
-    # with normal ops
-    # with whitespace newline
-    _parse_arglist(ts, closer)
+    @with_normal_ops begin
+        @with_whitespace_newline begin
+            return _parse_arglist(ts, closer)
+        end
+    end
 end
 
 # parse [] concatenation expres and {} cell expressions
@@ -1355,30 +1410,32 @@ function peek_non_newline_token(ts::TokenStream)
 end
 
 function parse_cat(ts::TokenStream, closer)
-    #with normal ops
-    #with inside vec
-    if require_token(ts) == closer
-        take_token(ts)
-        return {}
-    end
-    first = parse_eqs(ts)
-    if is_dict_literal(first)
-        nt = peek_non_newline_token(ts)
-        if nt == :for
-            take_token(ts)
-            return parse_dict_comprehension(ts, first, closer)
-        else
-            return parse_dict(ts, first, closer)
+    @with_normal_ops begin
+        @with_inside_vec begin
+            if require_token(ts) == closer
+                take_token(ts)
+                return {}
+            end
+            first = parse_eqs(ts)
+            if is_dict_literal(first)
+                nt = peek_non_newline_token(ts)
+                if nt == :for
+                    take_token(ts)
+                    return parse_dict_comprehension(ts, first, closer)
+                else
+                    return parse_dict(ts, first, closer)
+                end
+            end
+            nt = peek_token(ts)
+            if nt == ','
+                return parse_vcat(ts, first, closer)
+            elseif nt == :for
+                take_token(ts)
+                return parse_comprehension(ts, first, closer)
+            else
+                return parse_matrix(ts, first, closer)
+            end
         end
-    end
-    nt = peek_token(ts)
-    if nt == ','
-        return parse_vcat(ts, first, closer)
-    elseif nt == :for
-        take_token(ts)
-        return parse_comprehension(ts, first, closer)
-    else
-        return parse_matrix(ts, first, closer)
     end
 end
 
@@ -1606,60 +1663,62 @@ function _parse_atom(ts::TokenStream)
     # parens or tuple
     elseif t == '('
         take_token(ts)
-        # @with_normal_ops begin
-        # @with_whitespace_newline begin
-        if require_token(ts, ')')
-            # empty tuple
-            take_token(ts)
-            return Expr(:tuple)
-        elseif peek_token(ts) in Lexer.syntactic_ops
-            # allow (=) etc.
-            tok = take_token(ts)
-            if require_token(ts) != ')'
-                error("invalid identifier name \"$tok\"")
-            end
-            take_token(ts)
-            return tok
-        else
-            # here we parse the first subexpression separately,
-            # so we can look for a comma to see if it is a tuple
-            # this lets us distinguish (x) from (x,)
-            ex  = parse_eqs(ts)
-            tok = require_token(ts)
-            if t == ')'
-                take_token(ts)
-                if length(ex.args) == 1 && ex.head == :(...)
-                    # (ex...)
-                    return Expr(:tuple, ex)
-                else
-                    # value in parens (x)
-                    return ex
-                end
-            elseif t == ','
-                # tuple (x,) (x,y) (x...) etc
-                return parse_tuple(ts)
-            elseif t == ';'
-                #parenthesized block (a;b;c)
-                take_token(ts)
-                if require_token(ts) == ')'
-                    # (ex;)
+        @with_normal_ops begin
+            @with_whitespace_newline begin
+                if require_token(ts, ')')
+                    # empty tuple
                     take_token(ts)
-                    return Expr(:block, ex)
-                else
-                    blk = parse_stmts_within_expr(ts)
-                    tok = require_token(ts)
-                    if tok == ','
-                        error("unexpected comma in statment block")
-                    elseif tok != ')'
-                        error("missing separator in statement block")
+                    return Expr(:tuple)
+                elseif peek_token(ts) in Lexer.syntactic_ops
+                    # allow (=) etc.
+                    tok = take_token(ts)
+                    if require_token(ts) != ')'
+                        error("invalid identifier name \"$tok\"")
                     end
                     take_token(ts)
-                    return Expr(:block, ex, blk)
+                    return tok
+                else
+                    # here we parse the first subexpression separately,
+                    # so we can look for a comma to see if it is a tuple
+                    # this lets us distinguish (x) from (x,)
+                    ex  = parse_eqs(ts)
+                    tok = require_token(ts)
+                    if t == ')'
+                        take_token(ts)
+                        if length(ex.args) == 1 && ex.head == :(...)
+                            # (ex...)
+                            return Expr(:tuple, ex)
+                        else
+                            # value in parens (x)
+                            return ex
+                        end
+                    elseif t == ','
+                        # tuple (x,) (x,y) (x...) etc
+                        return parse_tuple(ts)
+                    elseif t == ';'
+                        #parenthesized block (a;b;c)
+                        take_token(ts)
+                        if require_token(ts) == ')'
+                            # (ex;)
+                            take_token(ts)
+                            return Expr(:block, ex)
+                        else
+                            blk = parse_stmts_within_expr(ts)
+                            tok = require_token(ts)
+                            if tok == ','
+                                error("unexpected comma in statment block")
+                            elseif tok != ')'
+                                error("missing separator in statement block")
+                            end
+                            take_token(ts)
+                            return Expr(:block, ex, blk)
+                        end
+                    elseif t == ']' || t == '}'
+                        error("unexpected \"$t\" in tuple")
+                    else
+                        error("missing separator in tuple")
+                    end
                 end
-            elseif t == ']' || t == '}'
-                error("unexpected \"$t\" in tuple")
-            else
-                error("missing separator in tuple")
             end
         end
     
