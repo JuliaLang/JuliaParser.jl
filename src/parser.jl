@@ -674,6 +674,10 @@ function _expect_end(ts::TokenStream, word)
     end
 end
 
+macro with_space_sensitive(body)
+    body
+end
+
 macro with_normal_ops(body)
     body  
 end
@@ -1531,10 +1535,6 @@ end
 interpolate_string_literal(ex) = length(ex.args) > 1
 triplequote_string_literal(ex) = ex.head === :triplequote_string_literal
 
-function unescape_string(str)
-    return bytestring(str)
-end
-
 function parse_string_literal(ts::TokenStream, custom)
     if Lexer.peekchar(ts.io)
         if Lexer.peekchar(Lexer.takechar(ts.io)) == '"'
@@ -1548,6 +1548,259 @@ function parse_string_literal(ts::TokenStream, custom)
     end
 end
 
+
+function _parse_atom(ts::TokenStream)
+    t = require_token(ts)
+    
+    if isa(t, String) || isa(t, Number)
+        return take_token(ts)
+    
+    # char literal
+    elseif t == '\'' 
+        take_token(ts)
+        fch = Lexer.readchar(ts.io)
+        fch == '\'' && error("invalid character literal")
+        if fch != '\\' && !eof(fch) && Lexer.peekchar('\'')
+            # easy case 1 char no \
+            readchar(ts.io)
+            return fch
+        else
+            b = IOBuffer()
+            c = fch
+            while true
+                c == '\'' && break
+                write(b, not_eof_1(c))
+                c == '\\' && write(b, not_eof_1(Lexer.readchar(ts.io)))
+                c = Lexer.readchar(ts.io)
+                continue
+            end
+            str = unescape_string(bytestring(b))
+            if length(str) == 1
+                # one byte e.g. '\xff' maybe not valid UTF-8
+                # but we watn to use the raw value as a codepoint in this case
+                #wchar str[0] #this would throw an error during the conversion above
+                if length(str) != 1  || is_valid_utf8(str)
+                    error("invalid character literal")
+                end
+                return str[0]
+            end
+        end
+
+    # symbol / expression quote
+    elseif t == :(:)
+        take_token(ts)
+        if is_closing_token(peek_token(ts))
+            return :(:)
+        else
+            return Expr(:quote, _parse_atom(ts))
+        end
+    
+    # misplaced =
+    elseif t == :(=)
+        error("unexpected \"=\"")
+
+    # identifier
+    elseif isa(t, Symbol)
+        return take_token(ts)
+
+    # parens or tuple
+    elseif t == '('
+        take_token(ts)
+        # @with_normal_ops begin
+        # @with_whitespace_newline begin
+        if require_token(ts, ')')
+            # empty tuple
+            take_token(ts)
+            return Expr(:tuple)
+        elseif peek_token(ts) in Lexer.syntactic_ops
+            # allow (=) etc.
+            tok = take_token(ts)
+            if require_token(ts) != ')'
+                error("invalid identifier name \"$tok\"")
+            end
+            take_token(ts)
+            return tok
+        else
+            # here we parse the first subexpression separately,
+            # so we can look for a comma to see if it is a tuple
+            # this lets us distinguish (x) from (x,)
+            ex  = parse_eqs(ts)
+            tok = require_token(ts)
+            if t == ')'
+                take_token(ts)
+                if length(ex.args) == 1 && ex.head == :(...)
+                    # (ex...)
+                    return Expr(:tuple, ex)
+                else
+                    # value in parens (x)
+                    return ex
+                end
+            elseif t == ','
+                # tuple (x,) (x,y) (x...) etc
+                return parse_tuple(ts)
+            elseif t == ';'
+                #parenthesized block (a;b;c)
+                take_token(ts)
+                if require_token(ts) == ')'
+                    # (ex;)
+                    take_token(ts)
+                    return Expr(:block, ex)
+                else
+                    blk = parse_stmts_within_expr(ts)
+                    tok = require_token(ts)
+                    if tok == ','
+                        error("unexpected comma in statment block")
+                    elseif tok != ')'
+                        error("missing separator in statement block")
+                    end
+                    take_token(ts)
+                    return Expr(:block, ex, blk)
+                end
+            elseif t == ']' || t == '}'
+                error("unexpected \"$t\" in tuple")
+            else
+                error("missing separator in tuple")
+            end
+        end
+    
+    # cell expression
+    elseif t == '{'
+        take_token(ts)
+        if require_token(ts) == '}'
+            take_token(ts)
+            return Expr(:cell1d)
+        end
+        vex = parse_cat(ts, '}')
+        if isempty(vex.args)
+            return Expr(:cell1d)
+        end
+        if vex.head === :comprehension
+            ex = Expr(:typed_comprehension, Expr(:top, :Any))
+            append!(ex.args, vex.args)
+            return ex
+        elseif vex.head == :dict_comprehension
+            ex = Expr(:typed_comprehension, Expr(:(=>), Expr(:top, :Any), Expr(:top, Any)))
+            append!(ex.args, vex.args)
+            return ex
+        elseif vex.head == :dict
+            ex = Expr(:typed_dict, Expr(:(=>), Expr(:top, :Any), Expr(:top, :Any)))
+            append!(ex.args, vex.args)
+            return ex
+        elseif vex.head == :hcat
+            ex = Expr(:cell2d, 1, length(vex.args))
+            append!(ex.args, vex.args)
+            return ex
+        else # vcat(...)
+            if length(vcat.args) == 1 && vcat.args[1].head == :row
+                nr = length(vex.args)
+                nc = length(vex.args[1].args)
+                # make sure all rows are the same length
+                fn = (x::Expr) -> length(x.args) == 1 && 
+                                  x.head === :row && 
+                                  length(x.args) == nc
+                if !(all(fn, vex.args[1].args))
+                    error("inconsistent shape in cell expression")
+                end
+                ex = Expr(:cell2d, nr, nc)
+                #XXX transpose to storage order
+                return ex
+             end
+             if any(x -> length(x.args) == 1 && x.args[1].head == :row)
+                error("inconsistent shape in cell expression")
+             end
+             ex = Expr(:cell1d)
+             append!(ex.args, vex.args)
+             return ex
+        end
+
+    # cat expression
+    elseif t == '['
+        take_token(ts)
+        vex = parse_cat(ts, ']')
+        if isempty(vex.args)
+            return Expr(:vcat)
+        else
+            return vex
+        end
+
+    # string literal
+    elseif t == '"'
+        take_token(ts)
+        ps = parse_string_literal(ts, false)
+        if is_triplequote_str_literal(ps)
+            ex = Expr(:macrocall, :(@mstr))
+            append!(ex.args, ps.args)
+            return ex
+        elseif interpolate_string_literal(ps)
+            ex = Expr(:string)
+            append!(ex.args, filter((s) -> isa(s, String) && length(s) != 0, ps.args))
+            return ex
+        else
+            return ex.args[1]
+        end
+
+    # macrocall
+    elseif t == '@'
+        take_token(ts)
+        @with_space_sensitive begin
+            head = parse_unary_prefix(ts)
+            t = peek_token(ts)
+            if ts.isspace
+                ex = Expr(:macrocall, macroify_name(head))
+                append!(ex.args, parse_space_separated_exprs(ts))
+                return ex
+            else
+                call = parse_call_chain(ts, head, true)
+                if length(call.args) == 1 && call.head == :call
+                    ex = Expr(:macrocall, macroify_name(call.args[1].head))
+                    append!(ex.args, call.args[1].args)
+                    return ex
+                else
+                    ex = Expr(:macrocall, macroify_name(call))
+                    append!(ex.args, parse_space_separated_exprs(ts))
+                    return ex
+                end
+            end
+        end
+    
+    # command syntax
+    elseif t == '`'
+        take_token(s)
+        return parse_backquote(ts)
+
+    else
+        error("invalid syntax: \"$(take_token(ts))\"")
+    end
+end
+
+function parse_atom(ts::TokenStream)
+    ex = _parse_atom(ts)
+    if (ex in Lexer.syntactic_ops) || ex == :(...)
+        error("invalid identifier name \"$name\"")
+    end
+    return ex
+end
+
+function is_valid_modref(ex::Expr)
+    return length(ex.args) == 2 &&
+           ex.head === :(.) &&
+           length(ex.args[2]) == 1 && 
+           isa(ex.args[2], Expr) &&
+           ex.args[2].head == :quote &&
+           (isa(ex.args[1], Expr) || valid_modref(ex.args[1]))
+end
+
+function macroify_name(ex)
+    if isa(ex, Symbol)
+        return symbol(string('@', ex))
+    elseif is_valid_modref(ex)
+        return Expr(:(.), ex.args[1], 
+                    Expr(:quote, macroify_name(ex.args[2].args[1])))
+    else
+        error("invalid macro use \"@($ex)")
+    end
+end
+       
 function parse(ts::TokenStream)
     Lexer.skip_ws_and_comments(ts.io)
     while !eof(ts)
