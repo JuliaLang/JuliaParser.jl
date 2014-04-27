@@ -85,7 +85,8 @@ const is_special_char = let
     is_special_char(c::Char)  = in(c, chars)
 end
 
-is_newline(c::Char) = return c === '\n'
+isnewline(c::Char) = c === '\n'
+isnewline(c) = false
 
 function is_identifier_char(c::Char)
    return (('A' <= c <= 'Z') ||
@@ -101,15 +102,14 @@ const operator_chars = union([Set(string(op)) for op in operators]...)
 
 is_opchar(c::Char) = in(c, operator_chars)
 
-
 #= Characters that can follow a . in an operator =#
 const is_dot_opchar = let
     chars = Set{Char}(".*^/\\+-'<>!=%")
     is_dot_opchar(c::Char) = in(c, chars)
 end
 
-is_operator(o::Symbol) = in(o, operators)
-
+is_operator(op::Symbol) = in(op, operators)
+is_operator(op) = false
 
 #= Implement peekchar for IOBuffer and IOStream =#
 
@@ -581,7 +581,6 @@ function accum_julia_symbol(io::IO, c::Char)
 end
 
 function next_token(io::IO, s)
-    #asert s 2 ( skip-ws port whitepace-newline
     #TODO: customize whitespace management
     while !eof(io)
         c = peekchar(io)
@@ -591,7 +590,7 @@ function next_token(io::IO, s)
         elseif c == '#'
             skipcomment(io)
             continue
-        elseif eof(c) || is_newline(c)
+        elseif eof(c) || isnewline(c)
             return readchar(io)
         elseif is_special_char(c)
             return readchar(io)

@@ -189,8 +189,7 @@ function parse_nary(io::IO)
     invalid_initial_token(require_token(io))
 end
 
-function parse_chain(ts::TokenStream, down, op; 
-                     space_sensitive::Bool=true)
+function parse_chain(ts::TokenStream, down, op) 
     chain = Token[down(ts)]
     while !eof(ts)
         t = peek_token(ts)
@@ -237,8 +236,7 @@ function parse_with_chains(ts::TokenStream, down, ops, chain_op;
     error("end of file in parse_with_chains")
 end
 
-function parse_LtoR(ts::TokenStream, down, ops;
-                    space_sensitive=false)
+function parse_LtoR(ts::TokenStream, down, ops)
     ex = down(ts)
     t  = peek_token(ts)
     while !eof(ts)
@@ -257,8 +255,7 @@ function parse_LtoR(ts::TokenStream, down, ops;
     error("end of file in parse_LtoR")
 end
 
-function parse_RtoL(ts::TokenStream, down, ops;
-                    space_sensitive::Bool=false)
+function parse_RtoL(ts::TokenStream, down, ops)
     while !eof(ts)
         ex = down(ts)
         t  = peek_token(ts)
@@ -299,7 +296,7 @@ function parse_cond(ts::TokenStream)
     args = ex.args
     while !eof(ts)
         next = peek_token(ts)
-        if eof(next) || is_closing_token(next) || is_newline(next)
+        if eof(next) || is_closing_token(next) || Lexer.isnewline(next)
             ex = Expr(:call, :(top), :string)
             append!(ex.args, args)
             return ex
@@ -312,12 +309,8 @@ end
 const expr_ops = Lexer.precedent_ops(9)
 const term_ops = Lexer.precedent_ops(11)
 
-function parse_Nary(ts::TokenStream, 
-                    down::Function, 
-                    ops, 
-                    head::Symbol, 
-                    closers, 
-                    allow_empty::Bool)
+function parse_Nary(ts::TokenStream, down::Function, ops, 
+                    head::Symbol, closers, allow_empty::Bool)
     if is_invalid_initial_token(require_token(ts))
         error("unexpected \"$(peek_token(ts))\"")
     end
@@ -439,23 +432,25 @@ function maybe_negate(op, num)
     return Expr(:-, num)
 end
 
+isnumber(n::Number) = true
+isnumber(n) = false
 
 const is_juxtaposed = let
     invalid_chars = Set{Char}({'(', '[', '{'})
 
-    is_juxtaposed(ex::Expr, t::Token) = begin
+    is_juxtaposed(ex, t::Token) = begin
         return !(Lexer.is_operator(t)) &&
                !(Lexer.is_operator(ex)) &&
                !(t in Lexer.reserved_words) &&
                !(is_closing_token(t)) &&
-               !(is_newline(t)) &&
-               !(ex.head === :(...)) &&
-               (isnumber(ex) || islargenumber(ex) || !(t in invalid_chars))
+               !(Lexer.isnewline(t)) &&
+               !(isa(ex, Expr) && ex.head === :(...)) &&
+               (isnumber(ex) || !(t in invalid_chars))
     end
 end
 
 
-function parse_juxtaposed(ts::TokenStream, ex::Expr) 
+function parse_juxtaposed(ts::TokenStream, ex) 
     next = peek_token(ts)
     # numeric literal juxtaposition is a unary operator
     if is_juxtaposed(ex, next) && !isspace(ts)
@@ -513,11 +508,8 @@ function parse_range(ts::TokenStream)
     end
 end 
 
-function parse_call(ts::TokenStream)
-end
-
 function parse_decl(ts::TokenStream)
-    local ex::Expr
+    local ex
     if peek_token(ts) == :(::)
         take_token(ts)
         ex = Expr(:(::), parse_call(ts))
@@ -566,7 +558,7 @@ function parse_unary(ts::TokenStream)
     end
     op = take_token(ts)
     nc = Lexer.peekchar(ts.io)
-    if (op == :(-) || op == :(+)) && (Lexer.isnumber(nc) || nc == '.')
+    if (op == :(-) || op == :(+)) && (isdigit(nc) || nc == '.')
         neg = op == :(-)
         leadingdot = nc == '.'
         leadingdot && Lexer.readchar(ts.io)
@@ -581,7 +573,7 @@ function parse_unary(ts::TokenStream)
         end
     else
         nt = peek_token(ts)
-        if is_closing_token(nt) || is_newline(nt)
+        if is_closing_token(nt) || Lexer.isnewline(nt)
             # return operator by itself, as in (+)
             return op
         elseif nt == '{'
@@ -628,12 +620,12 @@ end
 function parse_call(ts::TokenStream)
     ex = parse_unary_prefix(ts)
     if ex in Lexer.reserved_words
-        return parse_resword(ts, ex)
+        ex = parse_resword(ts, ex)
     else
-        return pase_call_chain(ts, ex, false)
+        ex = parse_call_chain(ts, ex, false)
     end
+    return ex
 end
-
 
 function separate(func::Function, collection)
     tcoll, fcoll = {}, {}
@@ -750,7 +742,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             continue
 
         elseif t == '"'
-            if isa(ex, Symbol) && !is_operator(ex) && !ts.isspace
+            if isa(ex, Symbol) && !Lexer.is_operator(ex) && !ts.isspace
                 # custom prefexed string literals x"s" => @x_str "s"
                 take_token(ts)
                 str = parse_string_literal(ts, true)
@@ -759,7 +751,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 macname = symbol(string('@', ex, suffix))
                 macstr  = str[2:end]
                 
-                if isa(nt, Symbol) && !is_operator(nt) && !ts.isspace
+                if isa(nt, Symbol) && !Lexer.is_operator(nt) && !ts.isspace
                     # string literal suffix "s"x
                     ex = Expr(:macrocall, macname, macstr, string(take_token(ts)))
                 else
@@ -950,7 +942,7 @@ function parse_resword(ts::TokenStream, word)
                 return ex
 
             elseif word == :bitstype
-                stmnt = let space_sensitive = true
+                stmnt = let space_sensitive=true
                     parse_cond(ts)
                 end
                 return Expr(:bitstype, stmnt, parse_subtype_spec(ts))
@@ -1256,21 +1248,22 @@ function parse_comma_sep_iters(ts::TokenStream)
 end
        
 function parse_space_separated_exprs(ts::TokenStream)
-    # with_space_sensitive
-    exprs = {}
-    while !eof(ts)
-        nt = peek_token(ts)
-        if (is_closing_token(nt) ||
-            isnewline(nt) ||
-            (inside_vector && nt == :for))
-            return exprs
-        end
-        ex = parse_eq(ts)
-        if isnewline(peek_token(ts))
+    @with_space_sensitive begin
+        exprs = {}
+        while !eof(ts)
+            nt = peek_token(ts)
+            if (is_closing_token(nt) ||
+                isnewline(nt) ||
+                (inside_vector && nt == :for))
+                return exprs
+            end
+            ex = parse_eq(ts)
+            if isnewline(peek_token(ts))
+                push!(exprs, ex)
+                return exprs
+            end
             push!(exprs, ex)
-            return exprs
         end
-        push!(exprs, ex)
     end
 end
 

@@ -121,7 +121,7 @@ facts("test special case all whitespace") do
 end
 
 facts("test simple expressions") do
-    code = "1 + 1"
+    code = ";1 + 1"
     @fact Parser.parse(code) => Base.parse(code)
 end
 
