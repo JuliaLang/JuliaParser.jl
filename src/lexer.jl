@@ -51,7 +51,6 @@ const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
 
 const syntactic_unary_ops = Set{Symbol}([:($), :(&)])
 
-
 const transpose_op  = symbol(".'")
 const ctranspose_op = symbol("'")
 const vararg_op     = :(...)
@@ -85,7 +84,7 @@ const is_special_char = let
     is_special_char(c::Char)  = in(c, chars)
 end
 
-isnewline(c::Char) = c === '\n'
+isnewline(c::Char) = c === '\n''
 isnewline(c) = false
 
 function is_identifier_char(c::Char)
@@ -113,18 +112,19 @@ is_operator(op) = false
 
 #= Implement peekchar for IOBuffer and IOStream =#
 
+const EOF = char(-1)
+
 # modified version from Base to give the same
 # semantics as the IOStream implementation
 
 function peekchar(from::IOBuffer)
     if !from.readable || from.ptr > from.size
-        return char(-1)
+        return EOF
     end
     ch = uint8(from.data[from.ptr])
     if ch < 0x80
         return char(ch)
     end
-
     # mimic utf8.next function
     trailing = Base.utf8_trailing[ch+1]
     c::Uint32 = 0
@@ -138,19 +138,20 @@ function peekchar(from::IOBuffer)
     return char(c)
 end
 
+
 # this implementation is copied from Base
 const peekchar = let 
     chtmp = Array(Char, 1)
     peekchar(s::IOStream) = begin
         if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, chtmp) < 0
-            return char(-1)
+            return EOF
         end
         return chtmp[1]
     end
 end
 
-eof(c::Char) = c === char(-1)
 eof(io::IO)  = Base.eof(io)
+eof(c::Char) = is(c, EOF)
 eof(c) = false
 
 readchar(io::IO) = read(io, Char)
@@ -158,8 +159,6 @@ takechar(io::IO) = begin
     readchar(io)
     return io
 end
-
-is_char_numeric(c::Char) = '0' <= c <= '9'
 
 #= Lexer =#
 
@@ -211,11 +210,9 @@ end
 function string_to_number(tok::String)
     len = length(tok)
     len > 0 || error("invalid number token \"$tok\"")
-   
     # NaN and Infinity
     (tok == "NaN" || tok == "+NaN" || tok == "-NaN") && return NaN
     (tok == "Inf" || tok == "+Inf" || tok == "-Inf") && return Inf
-
     # XXX: Overflow checking?
     # floating point literals
     is_float64 = false
@@ -242,14 +239,12 @@ function string_to_number(tok::String)
     elseif is_float64
         return float64(tok)
     end
-
     # parse signed / unsigned integers
     if tok[1] == '-'
         return int64(tok)
     end
     return uint64(tok)
 end
-
 
 function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
     if !leading_zero && c == '_'
@@ -279,8 +274,7 @@ function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
     return (utf32(str), true)
 end
 
-
-is_char_hex(c::Char) = is_char_numeric(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
+is_char_hex(c::Char) = isdigit(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c == '0' || c == '1'
 
@@ -304,9 +298,7 @@ function sized_uint_literal(n::Real, s::String, b::Integer)
 end
 
 function sized_uint_oct_literal(n::Real, s::String)
-    if contains(s, "o0")
-        return sized_uint_literal(n, s, 3)
-    end
+    contains(s, "o0") && return sized_uint_literal(n, s, 3)
     n <= typemax(Uint8)   && return uint8(n)
     n <= typemax(Uint16)  && return uint16(n)
     n <= typemax(Uint32)  && return uint32(n)
@@ -320,29 +312,22 @@ function compare_num_strings(s1::String, s2::String)
     s2 = lstrip(s2, '0') 
     l1 = length(s1)
     l2 = length(s2)
-    if l1 == l2 
-        return s1 <= s2
-    else
-        return l1 <= l2
-    end
+    return l1 == l2 ? s1 <= s2 : l1 <= l2
 end
    
 function is_oct_within_uint128(s::String)
-    s = s[1] == '-' ? s[2:end] : s
+    s = s[1] === '-' ? s[2:end] : s[1:end]
     return s <= "0o3777777777777777777777777777777777777777777"
 end
 
 function is_within_int128(s::String)
-    if s[1] == '-'
-        return s <= "-170141183460469231731687303715884105728"
-    else
-        return s <= "170141183460469231731687303715884105727"
-    end 
+    return s[1] === '-' ? s <= "-170141183460469231731687303715884105728" :
+                          s <= "170141183460469231731687303715884105727"
 end
 
 function read_number(io::IO, leading_dot::Bool, neg::Bool)
     str = Char[] 
-    pred::Function = is_char_numeric
+    pred::Function = isdigit 
     is_float32_literal  = false
     is_hexfloat_literal = false
     leading_zero = false
@@ -417,7 +402,7 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     if c == 'e' || c == 'E' || c == 'f' || c == 'p' || c == 'P'
         skip(io, 1)
         nc = peekchar(io)
-        if !eof(nc) && (is_char_numeric(nc) || nc == '+' || nc == '-')
+        if !eof(nc) && (isdigit(nc) || nc == '+' || nc == '-')
             is_float32_literal = (c == 'f')
             is_hexfloat_literal = (c == 'p' || c == 'P')
             push!(str, c)
@@ -429,8 +414,7 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
         end
     # disallow digits after binary or octal literals, e.g. 0b12
     elseif ((pred == is_char_bin || pred == is_char_oct) && 
-            !eof(c) &&
-            is_char_numeric(c))
+            !eof(c) && isdigit(c))
         push!(str, c)
         error("invalid numeric constant \"$(utf32(str))\"")
     end
@@ -594,14 +578,14 @@ function next_token(io::IO, s)
             return readchar(io)
         elseif is_special_char(c)
             return readchar(io)
-        elseif is_char_numeric(c)
+        elseif isdigit(c)
             return read_number(io, false, false)
         elseif c == '.'
             c  = readchar(io)
             nc = peekchar(io)
             if eof(nc)
                 return :(.)
-            elseif is_char_numeric(nc)
+            elseif isdigit(nc)
                 return read_number(io, true, false)
             elseif is_opchar(nc)
                 op = read_operator(io, c)
