@@ -379,6 +379,12 @@ parse_in(ts::TokenStream)       = parse_LtoR(ts, parse_pipes, :(in))
 # parse-equal is used where commas are special for example in an argument list 
 parse_eqs(ts::TokenStream) =  parse_RtoL(ts, parse_cond, Lexer.precedent_ops(1))
 
+parse_eq(ts::TokenStream) = begin 
+    lno = curline(ts)
+    ex  = parse_RtoL(ts, parse_comma, Lexer.precedent_ops(1))
+    return short_form_function_loc(ex, lno)
+end
+
 # parse-comma is neeed for commas outside parens, for example a = b, c
 parse_comma(ts::TokenStream) = parse_Nary(ts, parse_cond, ',', :tuple, {}, false)
 
@@ -646,8 +652,6 @@ macro with_end_symbol(body)
         end)
     end
 end
-
-
 
 function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
     temp = ['(', '[', '{', '\'', '"']
@@ -1500,7 +1504,7 @@ end
 
 #; at the top level produces a sequence of top level expressions
 function parse_stmts(ts::TokenStream)
-    ex = parse_Nary(ts, parse_eqs, (';',), :block, (',', ')'), true)
+    ex = parse_Nary(ts, parse_eq, (';',), :block, (',', ')'), true)
     # check for unparsed junk after an expression
     t = peek_token(ts)
     if !(Lexer.eof(t) || t === '\n' || t === nothing)
