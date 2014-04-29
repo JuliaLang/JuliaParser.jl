@@ -674,7 +674,7 @@ end
 facts("test next_token") do
     # throw EOF error
     io  = IOBuffer("")
-    @fact Lexer.next_token(io, nothing) => nothing
+    @fact Lexer.next_token(io, nothing) => Lexer.EOF
 
     io  = IOBuffer("\n")
     tok = Lexer.next_token(io, nothing)

@@ -403,7 +403,7 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
         skip(io, 1)
         nc = peekchar(io)
         if !eof(nc) && (isdigit(nc) || nc == '+' || nc == '-')
-            is_float32_literal = (c == 'f')
+            is_float32_literal  = (c == 'f')
             is_hexfloat_literal = (c == 'p' || c == 'P')
             push!(str, c)
             push!(str, readchar(io))
@@ -413,8 +413,7 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
             skip(io, -1)
         end
     # disallow digits after binary or octal literals, e.g. 0b12
-    elseif ((pred == is_char_bin || pred == is_char_oct) && 
-            !eof(c) && isdigit(c))
+    elseif (pred == is_char_bin || pred == is_char_oct) && !eof(c) && isdigit(c)
         push!(str, c)
         error("invalid numeric constant \"$(utf32(str))\"")
     end
@@ -564,8 +563,28 @@ function accum_julia_symbol(io::IO, c::Char)
     return symbol(str)
 end
 
-function next_token(io::IO, s)
+#= Token Stream =#
+export Token, TokenStream, next_token, set_token!, last_token, 
+       put_back!, peek_token, take_token, require_token
+
+typealias Token Union(Symbol, Char, Number, Nothing)
+
+type TokenStream
+    io::IO
+    #tokens::Vector{Token}
+    lasttoken::Token
+    putback::Token
+    isspace::Bool
+    ateof::Bool
+end
+
+TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io)) 
+TokenStream(str::String) = TokenStream(IOBuffer(str))
+
+function next_token(ts::TokenStream)
+    ts.ateof && return EOF
     #TODO: customize whitespace management
+    io = ts.io
     while !eof(io)
         c = peekchar(io)
         if c == ' ' || c == '\t'
@@ -604,7 +623,69 @@ function next_token(io::IO, s)
             error(string("invalid character \"", readchar(io), "\""))
         end
     end
-    return nothing
+    ts.ateof = true
+    return EOF
+end
+
+set_token!(ts::TokenStream, t::Token) = begin
+    ts.lasttoken = t
+    return ts
+end
+last_token(ts::TokenStream) = ts.lasttoken
+
+function put_back!(ts::TokenStream, t::Token)
+    if ts.putback !== nothing
+        error("too many pushed back tokens (internal error)")
+    end
+    ts.putback = t
+    return ts
+end
+
+function peek_token(ts::TokenStream)
+    ts.ateof && return EOF
+    local t::Token
+    if ts.putback !== nothing
+        return ts.putback
+    end
+    lt = last_token(ts)
+    if lt !== nothing
+        return lt
+    end
+    set_token!(ts, next_token(ts))
+    return last_token(ts)
+end
+        
+function take_token(ts::TokenStream)
+    ts.ateof && return EOF
+    local t::Token 
+    if ts.putback !== nothing
+        t = ts.putback
+        ts.putback = nothing
+    else
+        t = last_token(ts)
+        set_token!(ts, nothing)
+    end
+    return t
+end
+
+function require_token(ts::TokenStream)
+    local t::Token
+    if ts.putback !== nothing
+        t = ts.putback
+    elseif ts.lasttoken !== nothing
+        t = ts.lasttoken
+    else
+        t = next_token(ts)
+    end
+    eof(t) && error("incomplete: premature end of input")
+    if isnewline(t)
+        take_token(ts)
+        return require_token(ts)
+    end 
+    if ts.putback === nothing
+        set_token!(ts, t)
+    end
+    return t
 end
 
 end

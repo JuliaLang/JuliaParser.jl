@@ -15,7 +15,7 @@ tokens(io::IO) = begin
 end
 
 tokens(str::String) = tokens(IOBuffer(str))
-
+#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -120,8 +120,21 @@ facts("test special case all whitespace") do
     @fact res => nothing
 end
 
+facts("test is_juxtaposed") do 
+    ex = Expr(:call, :+, 1)
+    @fact Parser.is_juxtaposed(ex, :+) => false
+    @fact Parser.is_juxtaposed(:+, 1)  => false
+    @fact Parser.is_juxtaposed(ex, :if) => false
+    @fact Parser.is_juxtaposed(ex, '\n') => false
+    @fact Parser.is_juxtaposed(Expr(:..., 1), 1) => false
+    @fact Parser.is_juxtaposed(ex, '(') => false
+    @fact Parser.is_juxtaposed(ex, 1) => true
+    @fact Parser.is_juxtaposed(1, 1) => true
+end
+=#
 facts("test simple expressions") do
     code = ";1 + 1"
     @fact Parser.parse(code) => Base.parse(code)
+    code = "1 + 1 + 1"
+    @fact Parser.parse(code) => Base.parse(code)
 end
-
