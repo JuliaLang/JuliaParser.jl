@@ -132,20 +132,28 @@ facts("test is_juxtaposed") do
     @fact Parser.is_juxtaposed(1, 1) => true
 end
 
-facts("test simple expressions") do
-    exprs = [";1 + 1",
+facts("test simple numeric expressions") do
+    exprs = ["1 + 1",
              "1 + 1 + 1",
              "1 * 1 * 1",
              "1 / 2",
+             "1 // 2",
              "1 < 2",
+             "1 <= 2",
              "1 > 2",
+             "1 >= 2",
              "1 == 2",
              "1 === 2",
              "1 != 2",
              "1 !== 2",
+             "1 | 2",
+             "1 << 2",
+             "1 >> 2",
+             "1 >>> 2",
+             "1 % 2",
+             "1 & 2",
              ]
     for ex in exprs
-        @show ex
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end

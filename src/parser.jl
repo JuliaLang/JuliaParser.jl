@@ -181,7 +181,7 @@ end
 function parse_LtoR(ts::TokenStream, down::Function, ops)
     ex = down(ts)
     t  = peek_token(ts)
-    while true #!eof(ts)
+    while true 
         if !(t in ops)
             return ex
         end
@@ -190,7 +190,7 @@ function parse_LtoR(ts::TokenStream, down::Function, ops)
             ex = Expr(t, ex, down(ts))
             t  = peek_token(ts)
         else
-            ex = Expr(:call, t, ex, down(s))
+            ex = Expr(:call, t, ex, down(ts))
             t  = peek_token(ts)
         end
     end
@@ -419,11 +419,7 @@ function parse_juxtaposed(ts::TokenStream, ex)
     nxt = peek_token(ts)
     # numeric literal juxtaposition is a unary operator
     if is_juxtaposed(ex, nxt) && !ts.isspace
-        if isa(ex, Number) && n == 0
-            error("juxtaposition with literal \"0\"")
-        end
-        #return Expr(:call, :(*), parse_unary(ts))
-        return ex
+        return Expr(:call, :(*), parse_unary(ts))
     end
     return ex
 end
@@ -604,7 +600,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
     while true 
         t = peek_token(ts)
         if (space_sensitive && ts.isspace && (t in temp)) ||
-           ((isnumber(ex) || islargenumber(ex)) && t == '(')
+           (isa(ex, Number) && t == '(')
            return ex
         end
         if t == '('

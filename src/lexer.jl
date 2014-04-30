@@ -27,7 +27,7 @@ const ops_by_precedent =  {
                [:(+),  :(-),  :(.+),  :(.-),  :(|),   :($)],
                [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
                [:(*),  :(/),  :(./),  :(%),   :(.%),  :(&), :(.*), :(\), :(.\)],
-               [:(/), :(.//)],
+               [:(//), :(.//)],
                [:(^),  :(.^)],
                [:(::)],
                [:(.)]}
@@ -184,7 +184,7 @@ function read_operator(io::IO, c::Char)
         push!(str, c)
         newop = utf32(str)
         opsym = symbol(newop)
-        if is_operator(opsym) || opsym === :(//)
+        if is_operator(opsym) #|| opsym === :(//)
             skip(io, 1)
             c = peekchar(io)
             continue
