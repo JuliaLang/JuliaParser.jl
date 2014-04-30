@@ -133,19 +133,12 @@ facts("test is_juxtaposed") do
 end
 
 facts("test simple expressions") do
-    code = ";1 + 1"
-    ex = Parser.parse(code)
-    @fact ex => Base.parse(code)
-
-    code = "1 + 1 + 1"
-    ex = Parser.parse(code) 
-    @fact ex => Base.parse(code)
-
-    code = "1 < 2"
-    ex = Parser.parse(code)
-    @fact ex => Base.parse(code)
-
-    code = "1 == 2"
-    ex = Parser.parse(code)
-    @fact ex => Base.parse(code)
+    exprs = [";1 + 1",
+             "1 + 1 + 1",
+             "1 < 2",
+             "1 == 2",
+             "1 != 2"]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
 end
