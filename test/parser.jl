@@ -157,3 +157,11 @@ facts("test simple numeric expressions") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
+
+facts("test assignment expressions") do
+    code = "a = 1"
+    @fact Parser.parse(code) => Base.parse(code) 
+
+    code = "a = 1;b = 2"
+    @fact Parser.parse(code) => Base.parse(code)
+end
