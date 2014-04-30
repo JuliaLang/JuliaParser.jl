@@ -564,7 +564,7 @@ function parse_unary_prefix(ts::TokenStream)
     if !(Lexer.is_syntactic_unary_op(op))
         return parse_atom(ts)
     end
-    _  = take_token(ts)
+    take_token(ts)
     if is_closing_token(peek_token(ts))
         return op
     elseif op == :(&)
@@ -587,10 +587,10 @@ function parse_call(ts::TokenStream)
     return ex
 end
 
-function separate(func::Function, collection)
+function separate(f::Function, collection)
     tcoll, fcoll = {}, {}
     for c in collection
-        func(c) ? push!(tcoll, c) : push!(fcoll, c)
+        f(c) ? push!(tcoll, c) : push!(fcoll, c)
     end
     return (tcoll, fcoll)
 end
@@ -1815,7 +1815,7 @@ end
 function parse_atom(ts::TokenStream)
     ex = _parse_atom(ts)
     if (ex in Lexer.syntactic_ops) || ex == :(...)
-        error("invalid identifier name \"$name\"")
+        error("invalid identifier name \"$ex\"")
     end
     return ex
 end

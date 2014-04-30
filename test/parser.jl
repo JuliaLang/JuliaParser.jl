@@ -130,6 +130,7 @@ facts("test is_juxtaposed") do
     @fact Parser.is_juxtaposed(ex, '(') => false
     @fact Parser.is_juxtaposed(ex, 1) => true
     @fact Parser.is_juxtaposed(1, 1) => true
+    @fact Parser.is_juxtaposed(1, '(') => true
 end
 
 facts("test simple numeric expressions") do
@@ -165,3 +166,32 @@ facts("test assignment expressions") do
     code = "a = 1;b = 2"
     @fact Parser.parse(code) => Base.parse(code)
 end
+
+facts("test parse single operator") do
+    for op in Lexer.operators
+        if op === symbol(":>") || op == symbol("'") || 
+           op == symbol("\\")  || op == symbol("::")
+            continue
+        end
+        code = string(op) 
+        try
+            ex   = Base.parse(code)
+            @fact Parser.parse(code) => ex
+        catch
+            # do nothing if base cannot parse operator
+        end
+    end
+end
+
+#=
+facts("test tuple expressions") do
+    code = "1,2"
+    @fact Parser.parse(code) => Base.parse(code)
+
+    code = "1,2,3"
+    @fact Parser.parse(code) => Base.parse(code)
+
+    code = "(1,2)"
+    @fact Parser.parse(code) => Base.parse(code)
+end
+=#
