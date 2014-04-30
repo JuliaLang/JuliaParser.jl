@@ -144,4 +144,8 @@ facts("test simple expressions") do
     code = "1 < 2"
     ex = Parser.parse(code)
     @fact ex => Base.parse(code)
+
+    code = "1 == 2"
+    ex = Parser.parse(code)
+    @fact ex => Base.parse(code)
 end
