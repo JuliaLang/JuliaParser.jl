@@ -6,15 +6,15 @@ const Lexer  = JuliaParser.Lexer
 
 const TokenStream = JuliaParser.Parser.TokenStream 
 
-tokens(io::IO) = begin
+tokens(ts::TokenStream) = begin
     toks = {}
-    while !eof(io)
-        push!(toks, Lexer.next_token(io, nothing))
+    while !eof(ts.io)
+        push!(toks, Lexer.next_token(ts))
     end
     return toks
 end
 
-tokens(str::String) = tokens(IOBuffer(str))
+tokens(str::String) = tokens(TokenStream(str))
 
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
