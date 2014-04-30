@@ -169,8 +169,9 @@ end
 
 facts("test parse single operator") do
     for op in Lexer.operators
-        if op === symbol(":>") || op == symbol("'") || 
-           op == symbol("\\")  || op == symbol("::")
+        if op === symbol("'")  || 
+           op === symbol("::") ||
+           op === symbol(":>")
             continue
         end
         code = string(op) 
@@ -181,6 +182,8 @@ facts("test parse single operator") do
             # do nothing if base cannot parse operator
         end
     end
+    @fact_throws Parser.parse("'")
+    @fact_throws Parser.parse("::")
 end
 
 #=
