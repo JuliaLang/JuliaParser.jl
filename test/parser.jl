@@ -15,7 +15,7 @@ tokens(io::IO) = begin
 end
 
 tokens(str::String) = tokens(IOBuffer(str))
-#=
+
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -131,10 +131,22 @@ facts("test is_juxtaposed") do
     @fact Parser.is_juxtaposed(ex, 1) => true
     @fact Parser.is_juxtaposed(1, 1) => true
 end
-=#
+
 facts("test simple expressions") do
     code = ";1 + 1"
-    @fact Parser.parse(code) => Base.parse(code)
+    @time ex = Parser.parse(code)
+    @fact ex => Base.parse(code)
+
     code = "1 + 1 + 1"
-    @fact Parser.parse(code) => Base.parse(code)
+    @time ex = Parser.parse(code) 
+    @fact ex => Base.parse(code)
+
+    code = "1 < 2"
+    ex = Parser.parse(code)
+    @fact ex => Base.parse(code)
+
+    code = ";1 > 2"
+    @time ex = Parser.parse(code)
+    @time bex = Base.parse(code)
+    @fact ex => bex
 end

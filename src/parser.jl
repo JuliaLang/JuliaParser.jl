@@ -94,6 +94,19 @@ function line_number_filename_node(ts::TokenStream)
     return Expr(:line, line, fname) 
 end
 
+# insert line/file for short form function defs,
+# otherwise leave alone
+short_form_function_loc(ex, lno) = begin
+    if (isa(ex, Expr) && ex.head === :(=) &&
+        isa(ex.args[1], Expr) && ex.args[1].head === :call)
+       block = Expr(:block, Expr(:line, lno, current_filename))
+       append!(bl.args, ex.args[2:end])
+       return Expr(:(=), ex.args[1], block) 
+    else
+        return ex
+    end
+end
+
 const sym_do      = symbol("do")
 const sym_quote   = symbol("quote")
 const sym_begin   = symbol("begin")
@@ -107,6 +120,7 @@ const sym_finally = symbol("finally")
 const sym_squote  = symbol("'")
 
 const EOF = char(-1)
+
 const is_invalid_initial_token = let
     invalid = Set({')', ']', '}', sym_else, sym_elseif, sym_catch, sym_finally}) 
     is_invalid_initial_token(t::Token) = t in invalid
@@ -165,7 +179,6 @@ function parse_with_chains(ts::TokenStream, down, ops, chain_op;
 end
 
 function parse_LtoR(ts::TokenStream, down::Function, ops)
-    #@show parse_LtoR, down, ops
     ex = down(ts)
     t  = peek_token(ts)
     while true #!eof(ts)
@@ -185,7 +198,6 @@ function parse_LtoR(ts::TokenStream, down::Function, ops)
 end
 
 function parse_RtoL(ts::TokenStream, down::Function, ops)
-    #@show parse_RtoL, down
     while true #!eof(ts)
         ex = down(ts)
         t  = peek_token(ts)
@@ -246,39 +258,32 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
     # empty block
     t in closers  && return Expr(head)
     # in allow empty mode, skip leading runs of operator
-    @show down, ops, head, closers, t
     if allow_empty && t in ops 
         args = {}
     elseif '\n' in ops
-        loc = line_number_node(ts)
         # nore line-number must happend before (down s)
+        loc = line_number_node(ts)
         args = {loc, down(ts)}
     else
         args = {down(ts)}
     end
-    t = peek_token(ts)
     isfirst = true
-    while true #!eof(ts)
+    t = peek_token(ts)
+    while true 
         if !(t in ops)
             if !(Lexer.eof(t) || t == '\n' || (',' in ops) || (t in closers))
                 error("extra token \"$t\" after end of expression")
             end
-            @show args
             if isempty(args) || length(args[2:end]) == 2 || !isfirst
-                # () => (head)
-                # (ex2 ex1) => (head ex1 ex2)
-                # (ex1) if operator appeared => (head ex1) (handles "x;")
+                # {} => Expr(:head)
+                # {ex1, ex2} => Expr(head, ex1, ex2)
+                # (ex1) if operator appeared => Expr(head,ex1) (handles "x;")
                 ex = Expr(head)
                 append!(ex.args, args)
                 return ex 
             else
-                @show :first
-                if first(args) == nothing 
-                    error()
-                end
-                # (ex1) => ex1
+                # {ex1} => ex1
                 return first(args)
-                #return ex #first(ex)
             end
         end
         take_token(ts)
@@ -295,17 +300,10 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
         if '\n' in ops
             loc = line_number_node(ts)
             append!(args, (loc, down(ts)))
-            #ex  = prepend!(ex, {down(ts), loc})
             t = nt
             continue
         else
-            @show down 
-            tmp = down(ts)
-            #@show tmp, peek_token(ts)
-            if tmp != nothing
-                append!(args, tmp)#down(ts))
-            end
-            #ex = unshift!(ex, down(ts))
+            push!(args, down(ts))
             continue
         end
     end
@@ -333,7 +331,6 @@ function parse_stmts(ts::TokenStream)
     return ex
 end
 
-# prec 1
 parse_eq(ts::TokenStream) = begin 
     lno = curline(ts)
     ex  = parse_RtoL(ts, parse_comma, Lexer.precedent_ops(1))
@@ -364,23 +361,19 @@ parse_in(ts::TokenStream)       = parse_LtoR(ts, parse_pipes, (:(in),))
 function parse_comparison(ts::TokenStream, ops)
     ex = parse_in(ts)
     isfirst = true
-    while true #!eof(ts)
+    while true 
         t = peek_token(ts)
         if !(t in ops)
             return ex
         end
-        _ = take_token(ts)
+        take_token(ts)
         if isfirst
-            args = append!({ex, t}, parse_range(ts))
-            ex = Expr(:comparison, args...)
             isfirst = false
+            ex = Expr(:comparison, ex, t, parse_range(ts))
         else
-            #TODO: fix
-            args = append!({t}, parse_range(ts)) 
-            append!(ex.args, args) 
+            append!(ex.args, (t, parse_range(ts))) 
         end
     end
-    error("end of file in parse_comparison")
 end
 
 is_large_number(n::BigInt) = true
@@ -425,7 +418,6 @@ end
 function parse_juxtaposed(ts::TokenStream, ex) 
     nxt = peek_token(ts)
     # numeric literal juxtaposition is a unary operator
-    #@show ex, nxt
     if is_juxtaposed(ex, nxt) && !ts.isspace
         if isa(ex, Number) && n == 0
             error("juxtaposition with literal \"0\"")
@@ -440,7 +432,7 @@ end
 function parse_range(ts::TokenStream)
     ex = parse_expr(ts)
     isfirst = true
-    while true#!eof(ts)
+    while true
         t = peek_token(ts)
         spc = ts.isspace
         if isfirst && t == :(..)
@@ -488,7 +480,7 @@ function parse_decl(ts::TokenStream)
     else
         ex = parse_call(ts)
     end
-    while true #!eof(ts)
+    while true 
         t = peek_token(ts)
         if t == :(::)
             take_token(ts)
@@ -523,7 +515,6 @@ end
 
 function parse_unary(ts::TokenStream)
     t = require_token(ts)
-    #@show parse_unary, t
     is_closing_token(t) && error("unexpected $t")
     if !(t in Lexer.unary_ops)
         pf = parse_factor(ts)
@@ -610,8 +601,7 @@ end
 
 function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
     temp = ['(', '[', '{', '\'', '"']
-
-    while true #!eof(ts)
+    while true 
         t = peek_token(ts)
         if (space_sensitive && ts.isspace && (t in temp)) ||
            ((isnumber(ex) || islargenumber(ex)) && t == '(')
@@ -741,7 +731,6 @@ function _expect_end(ts::TokenStream, word)
     end
 end
 
-short_form_function_loc(ex, lno) = nothing
 
 parse_subtype_spec(ts::TokenStream) = subtype_syntax(parse_ineq(ts))
 
@@ -1604,7 +1593,6 @@ end
 
 function _parse_atom(ts::TokenStream)
     t = require_token(ts)
-    
     if isa(t, String) || isa(t, Number)
         return take_token(ts)
     
