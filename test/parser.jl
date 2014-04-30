@@ -134,19 +134,14 @@ end
 
 facts("test simple expressions") do
     code = ";1 + 1"
-    @time ex = Parser.parse(code)
+    ex = Parser.parse(code)
     @fact ex => Base.parse(code)
 
     code = "1 + 1 + 1"
-    @time ex = Parser.parse(code) 
+    ex = Parser.parse(code) 
     @fact ex => Base.parse(code)
 
     code = "1 < 2"
     ex = Parser.parse(code)
     @fact ex => Base.parse(code)
-
-    code = ";1 > 2"
-    @time ex = Parser.parse(code)
-    @time bex = Base.parse(code)
-    @fact ex => bex
 end
