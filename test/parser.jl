@@ -186,7 +186,7 @@ facts("test parse single operator") do
     @fact_throws Parser.parse("::")
 end
 
-#=
+
 facts("test tuple expressions") do
     code = "1,2"
     @fact Parser.parse(code) => Base.parse(code)
@@ -197,4 +197,3 @@ facts("test tuple expressions") do
     code = "(1,2)"
     @fact Parser.parse(code) => Base.parse(code)
 end
-=#

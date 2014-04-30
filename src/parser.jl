@@ -1426,22 +1426,28 @@ function parse_cat(ts::TokenStream, closer)
 end
 
 function parse_tuple(ts::TokenStream, frst)
-    lst = {}
+    args = {}
     nxt = frst
-    while !eof(ts)
+    while true #!eof(ts)
         t = require_token(ts)
         if t == ')'
             take_token(ts)
-            return Expr(:tuple, reverse(unshift!(lst, nxt)))
+            push!(args, nxt)
+            ex = Expr(:tuple)
+            ex.args = args
+            return ex
         elseif t == ','
             take_token(ts)
             if require_token(ts) == ')'
                 # allow ending with ,
                 take_token(ts)
-                return Expr(:tuple, reverse(unshift!(lst, nxt)))
+                push!(args, nxt)
+                ex = Expr(:tuple)
+                ex.args = args
+                return ex
             end
-            lst = unshift!(lst, nxt)
-            nxt = parse_eqs(ts)
+            args = push!(args, nxt) 
+            nxt  = parse_eqs(ts)
             continue
         elseif t == ';'
             error("unexpected semicolon in tuple")
