@@ -164,10 +164,7 @@ end
 
 function skip_to_eol(io::IO)
    while !eof(io)
-       c = readchar(io) 
-       if c == '\n'
-           break
-       end
+       readchar(io) == '\n' && break
     end
     return io
 end
@@ -243,7 +240,8 @@ function string_to_number(tok::String)
     if tok[1] == '-'
         return int64(tok)
     end
-    return uint64(tok)
+    #TODO: return uint64(tok)
+    return int64(tok)
 end
 
 function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
@@ -278,13 +276,7 @@ is_char_hex(c::Char) = isdigit(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c == '0' || c == '1'
 
-function fix_uint_neg(neg::Bool, n::Real)
-    if neg
-        return Expr(:call, :- , n)
-    else
-        return n
-    end
-end 
+fix_uint_neg(neg::Bool, n::Real) = neg ? Expr(:call, :- , n) : n
 
 function sized_uint_literal(n::Real, s::String, b::Integer)
     i = s[1] == '-' ? 3 : 2
@@ -498,8 +490,7 @@ end
 # if this is a mulitiline comment skip to the end
 # otherwise skip to end of line
 function skipcomment(io::IO)
-    c = readchar(io)
-    @assert c == '#'
+    @assert readchar(io) == '#'
     if peekchar(io) == '='
         skip_multiline_comment(io, 1)
     else
@@ -512,8 +503,7 @@ end
 # as defined by isspace()
 function skipwhitespace(io::IO)
     while !eof(io)
-        c = readchar(io)
-        if c != ' '
+        if readchar(io) != ' '
             skip(io, -1)
             break
         end
@@ -528,9 +518,7 @@ end
 function skip_ws_and_comments(io::IO)
     while !eof(io)
         skipwhitespace(io)
-        if peekchar(io) != '#'
-            break
-        end
+        peekchar(io) != '#' && break
         skipcomment(io)
     end
     return io
@@ -550,11 +538,9 @@ function accum_julia_symbol(io::IO, c::Char)
         # make sure that != is always an operator
         c  = readchar(io)
         nc = peekchar(io)
-        if c == '!'
-            if nc == '='
-                skip(io, -1)
-                break
-            end
+        if c == '!' && nc == '='
+            skip(io, -1)
+            break
         end
         push!(str, c)
         eof(nc) && break
