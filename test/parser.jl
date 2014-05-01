@@ -186,14 +186,23 @@ facts("test parse single operator") do
     @fact_throws Parser.parse("::")
 end
 
-
 facts("test tuple expressions") do
-    code = "1,2"
-    @fact Parser.parse(code) => Base.parse(code)
-
-    code = "1,2,3"
-    @fact Parser.parse(code) => Base.parse(code)
-
-    code = "(1,2)"
-    @fact Parser.parse(code) => Base.parse(code)
+    exprs = [
+        "1,2",
+        "1,2,3",
+        "()",
+        "(==)",
+        "(1,)",
+        "(1,2)",
+        "(a,b,c)"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+    code = "(1,]"
+    @fact_throws Parser.parse(code) 
+    code = "(1,}"
+    @fact_throws Parer.parse(code)
+    code = "(1,2 3)"
+    @fact_throws Parser.parse(code)
 end
