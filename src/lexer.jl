@@ -117,11 +117,11 @@ const EOF = char(-1)
 # modified version from Base to give the same
 # semantics as the IOStream implementation
 
-function peekchar(from::IOBuffer)
-    if !from.readable || from.ptr > from.size
+function peekchar(io::IOBuffer)
+    if !io.readable || io.ptr > io.size
         return EOF
     end
-    ch = uint8(from.data[from.ptr])
+    ch = uint8(io.data[io.ptr])
     if ch < 0x80
         return char(ch)
     end
@@ -131,7 +131,7 @@ function peekchar(from::IOBuffer)
     for j = 1:trailing
         c += ch
         c <<= 6
-        ch = read(s, Uint8)
+        ch = uint8(io.data[io.ptr+j])
     end
     c += ch
     c -= Base.utf8_offset[trailing+1]
@@ -154,7 +154,7 @@ eof(io::IO)  = Base.eof(io)
 eof(c::Char) = is(c, EOF)
 eof(c) = false
 
-readchar(io::IO) = read(io, Char)
+readchar(io::IO) = eof(io) ? EOF : read(io, Char)
 takechar(io::IO) = begin
     readchar(io)
     return io
