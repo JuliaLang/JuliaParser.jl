@@ -328,5 +328,7 @@ facts("test backquote (cmd) expression") do
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
     end
+
+    # premature end of file
     @fact_throws Parser.parse("`pwd()")
 end
