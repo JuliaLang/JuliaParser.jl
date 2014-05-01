@@ -371,7 +371,7 @@ function parse_comparison(ts::TokenStream, ops)
             isfirst = false
             ex = Expr(:comparison, ex, t, parse_range(ts))
         else
-            append!(ex.args, (t, parse_range(ts))) 
+            append!(ex.args, {t, parse_range(ts)}) 
         end
     end
 end

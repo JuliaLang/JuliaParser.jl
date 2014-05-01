@@ -157,6 +157,13 @@ facts("test simple numeric expressions") do
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
     end
+
+    for i = 1:length(exprs)
+        for j = i:length(exprs)
+            ex = "$(exprs[i]) + $(exprs[j])"
+            @fact Parser.parse(ex) => Base.parse(ex)
+        end
+    end
 end
 
 facts("test assignment expressions") do
