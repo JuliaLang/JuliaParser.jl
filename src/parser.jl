@@ -1730,15 +1730,15 @@ function _parse_atom(ts::TokenStream)
             return Expr(:cell1d)
         end
         if vex.head === :comprehension
-            ex = Expr(:typed_comprehension, Expr(:top, :Any))
+            ex = Expr(:typed_comprehension, TopNode(:Any))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head == :dict_comprehension
-            ex = Expr(:typed_comprehension, Expr(:(=>), Expr(:top, :Any), Expr(:top, Any)))
+            ex = Expr(:typed_comprehension, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head == :dict
-            ex = Expr(:typed_dict, Expr(:(=>), Expr(:top, :Any), Expr(:top, :Any)))
+            ex = Expr(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head == :hcat
