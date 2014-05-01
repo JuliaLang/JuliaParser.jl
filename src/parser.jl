@@ -1414,7 +1414,13 @@ function parse_cat(ts::TokenStream, closer)
         @with_inside_vec begin
             if require_token(ts) == closer
                 take_token(ts)
-                return {}
+                if closer == '}'
+                    return Expr(:cell1d)
+                elseif closer == ']'
+                    return Expr(:vcat)
+                else
+                    error("unknown closer $closer")
+                end
             end
             frst = parse_eqs(ts)
             if is_dict_literal(frst)
@@ -1783,11 +1789,7 @@ function _parse_atom(ts::TokenStream)
     elseif t == '['
         take_token(ts)
         vex = parse_cat(ts, ']')
-        if isempty(vex.args)
-            return Expr(:vcat)
-        else
-            return vex
-        end
+        return vex
 
     # string literal
     elseif t == '"'

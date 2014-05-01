@@ -257,6 +257,10 @@ facts("parse symbol / expression quote") do
     end
 end
 
+facts("parse misplaced (=)") do
+    @fact_throws Parser.parse("(=)")
+end
+
 facts("test char literal expression") do
     exprs = [
         "'a'",
@@ -276,6 +280,19 @@ facts("test cell expressions") do
         #"{1 2 3}",
         "{:a => 1,:b => 2}",
         "{i for i=1:10}",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
+facts("test cat expressions") do
+    exprs = [
+        "[]",
+        "[1,2]",
+        "[1,2,3,]",
+        "[:a => 1, :b => 2]",
+        "[i for i=1:10]"
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
