@@ -1667,12 +1667,12 @@ function _parse_atom(ts::TokenStream)
                     return Expr(:tuple)
                 elseif peek_token(ts) in Lexer.syntactic_ops
                     # allow (=) etc.
-                    tok = take_token(ts)
+                    t = take_token(ts)
                     if require_token(ts) != ')'
-                        error("invalid identifier name \"$tok\"")
+                        error("invalid identifier name \"$t\"")
                     end
                     take_token(ts)
-                    return tok
+                    return t
                 else
                     # here we parse the first subexpression separately,
                     # so we can look for a comma to see if it is a tuple
