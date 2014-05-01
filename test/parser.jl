@@ -247,6 +247,18 @@ facts("test range expressions") do
     @fact_throws Parser.parse("1:2:end")
 end
 
+facts("test char literal expression") do
+    exprs = [
+        "'a'",
+        "'1'",
+        "'\n'",
+        "'$(char(256))'",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
 facts("test cell expressions") do
     exprs = [
         "{}",
@@ -259,4 +271,3 @@ facts("test cell expressions") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-

@@ -610,7 +610,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
     temp = ['(', '[', '{', '\'', '"']
     while true 
         t = peek_token(ts)
-        if (space_sensitive && ts.isspace && (t in temp)) ||
+        if (space_sensitive && ts.isspace && (t in temp)) || 
            (isa(ex, Number) && t == '(')
            return ex
         end
@@ -1611,19 +1611,18 @@ end
 
 function _parse_atom(ts::TokenStream)
     t = require_token(ts)
-    
     #Note: typeof(t) == Char, isa(t, Number) == true
     if !isa(t, Char) && isa(t, Number)
         return take_token(ts)
     
     # char literal
-    elseif t == '\'' 
+    elseif t == '\''  || t == symbol("'")
         take_token(ts)
         fch = Lexer.readchar(ts.io)
         fch == '\'' && error("invalid character literal")
-        if fch != '\\' && !eof(fch) && Lexer.peekchar('\'')
+        if fch != '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts.io) == '\''
             # easy case 1 char no \
-            readchar(ts.io)
+            Lexer.takechar(ts.io)
             return fch
         else
             b = IOBuffer()
