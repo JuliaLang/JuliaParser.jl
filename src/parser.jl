@@ -236,6 +236,8 @@ function parse_cond(ts::TokenStream)
         then = @without_range_colon parse_eq(ts)
         take_token(ts) == ':' || error("colon expected in \"?\" expression")
         return Expr(:if, ex, then, parse_cond(ts))
+    end
+    #=
     elseif isa(ex, String)
         args = ex.args
         while true #!eof(ts)
@@ -247,7 +249,7 @@ function parse_cond(ts::TokenStream)
             end
             push!(args, parse_or(ts))
         end
-    end
+    =#
     return ex
 end
 
@@ -703,7 +705,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 take_token(ts)
                 str = parse_string_literal(ts, true)
                 nt  = peek_token(ts)
-                suffix  = is_triplequote_str_literal(str) ? :(_mstr) : :(_str)
+                suffix  = triplequote_strng_literal(str) ? :(_mstr) : :(_str)
                 macname = symbol(string('@', ex, suffix))
                 macstr  = str[2:end]
                 
@@ -1484,21 +1486,21 @@ end
 # TODO: these are unnecessary and the fact that base/client.jl code
 # relies on parsing the exact string is troubling
 function not_eof_1(c)
-    if eof(c)
+    if Lexer.eof(c)
         error("incomplete: invalid character literal")
     end
     return c
 end
 
 function not_eof_2(c)
-    if eof(c)
+    if Lexer.eof(c)
         error("incomplete: invalid \"`\" syntax")
     end
     return c
 end
 
 function not_eof_3(c)
-    if eof(c)
+    if Lexer.eof(c)
         error("incomplete: invalid string syntax")
     end
     return c
@@ -1545,13 +1547,13 @@ function parse_interpolate(ts::TokenStream)
     end
 end
 
-function _parse_string_literal(ex::Expr, n::Integer, ts::TokenStream, custom::Bool)
+function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom::Bool)
     c  = Lexer.readchar(ts.io)
     b  = IOBuffer()
-    ex = copy(ex)
+    ex = Expr(head)
     quotes = 0
 
-    while !eof(ts)
+    while true #!eof(ts)
         if c == '"'
             if quotes < n
                 c = Lexer.readchar(ts.io)
@@ -1561,12 +1563,12 @@ function _parse_string_literal(ex::Expr, n::Integer, ts::TokenStream, custom::Bo
                 push!(ex.args, bytestring(b))
                 return ex
             end
-        elseif qs == 1
+        elseif quotes == 1
             custom || write(b, '\\')
             write(b, '"')
             quotes = 0
             continue
-        elseif eq == 2
+        elseif quotes == 2
             custom || write(b, '\\')
             write(b, '"')
             custom || write(b, '\\')
@@ -1599,13 +1601,14 @@ function _parse_string_literal(ex::Expr, n::Integer, ts::TokenStream, custom::Bo
     end
 end
 
-interpolate_string_literal(ex) = length(ex.args) > 1
-triplequote_string_literal(ex) = ex.head === :triplequote_string_literal
+interpolate_string_literal(ex) = isa(ex, Expr) && length(ex.args) > 1
+triplequote_string_literal(ex) = isa(ex, Expr) && ex.head === :triple_quoted_string
 
 function parse_string_literal(ts::TokenStream, custom)
-    if Lexer.peekchar(ts.io)
-        if Lexer.peekchar(Lexer.takechar(ts.io)) == '"'
-            Lexer.takechar(io)
+    pc = Lexer.peekchar(ts.io)
+    if pc == '"'
+        Lexer.takechar(io)
+        if Lexer.peekchar(io) == '"'
             return  _parse_string_literal(:triple_quoted_string, 2, ts, custom)
         else
             return Expr(:single_quoted_string, "")
@@ -1795,7 +1798,7 @@ function _parse_atom(ts::TokenStream)
     elseif t == '"'
         take_token(ts)
         ps = parse_string_literal(ts, false)
-        if is_triplequote_str_literal(ps)
+        if triplequote_string_literal(ps)
             ex = Expr(:macrocall, :(@mstr))
             append!(ex.args, ps.args)
             return ex
@@ -1804,7 +1807,7 @@ function _parse_atom(ts::TokenStream)
             append!(ex.args, filter((s) -> isa(s, String) && length(s) != 0, ps.args))
             return ex
         else
-            return ex.args[1]
+            return ps.args[1]
         end
 
     # macrocall

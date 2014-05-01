@@ -273,6 +273,15 @@ facts("test char literal expression") do
     end
 end
 
+facts("test string literal expression") do
+    exprs = [
+        "\"test\""
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
 facts("test cell expressions") do
     exprs = [
         "{}",
