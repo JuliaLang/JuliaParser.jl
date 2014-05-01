@@ -1652,9 +1652,7 @@ function _parse_atom(ts::TokenStream)
         if is_closing_token(peek_token(ts))
             return :(:)
         else
-            ex = _parse_atom(ts)
-            #return QuoteNode(ex)
-            return isa(ex, Symbol) ? QuoteNode(ex) : Expr(:quote, ex)
+            return QuoteNode(_parse_atom(ts))
         end
     
     # misplaced =

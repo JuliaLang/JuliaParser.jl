@@ -247,6 +247,16 @@ facts("test range expressions") do
     @fact_throws Parser.parse("1:2:end")
 end
 
+facts("parse symbol / expression quote") do 
+    exprs = [
+        ":a",
+        ":(a + 1)"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
 facts("test char literal expression") do
     exprs = [
         "'a'",
