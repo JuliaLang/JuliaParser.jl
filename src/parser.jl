@@ -1434,7 +1434,7 @@ function parse_tuple(ts::TokenStream, frst)
     #@show :parse_tuple, frst
     args = {}
     nxt = frst
-    while true #!eof(ts)
+    while true
         t = require_token(ts)
         if t == ')'
             take_token(ts)
@@ -1442,7 +1442,8 @@ function parse_tuple(ts::TokenStream, frst)
             ex = Expr(:tuple)
             ex.args = args
             return ex
-        elseif t == ','
+        end
+        if t == ','
             take_token(ts)
             if require_token(ts) == ')'
                 # allow ending with ,
@@ -1458,7 +1459,7 @@ function parse_tuple(ts::TokenStream, frst)
         elseif t == ';'
             error("unexpected semicolon in tuple")
         elseif t == ']' || t == '}'
-            error(unexpected \"$(peek_token(ts))\" in tuple")
+            error("unexpected \"$(peek_token(ts))\" in tuple")
         else
             error("missing separator in tuple")
         end

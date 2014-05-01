@@ -192,17 +192,37 @@ facts("test tuple expressions") do
         "1,2,3",
         "()",
         "(==)",
+        "(1)",
         "(1,)",
         "(1,2)",
-        "(a,b,c)"
+        "(a,b,c)",
+        "(a...)",
+        "((a,b)...)",
+        "((a,b);)",
+        "((a,b);(c,d))"
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
     end
+    # unexpected closing token
     code = "(1,]"
     @fact_throws Parser.parse(code) 
     code = "(1,}"
     @fact_throws Parer.parse(code)
+    
+    # unexpected ; in tuple constructor
+    code = "(1,2;3)"
+    @fact_throws Parser.parse(code)
+    
+    # unexpected , in statement block 
+    code = "((a,b);(c,d),(e,f))"
+    @fact_throws Parser.parse(code)
+
+    # missing separator in statement block
+    code = "((a,b) (c,d))"
+    @fact_throws Parser.parse(code)
+
+    # missing separator in tuple constructor
     code = "(1,2 3)"
     @fact_throws Parser.parse(code)
 end
