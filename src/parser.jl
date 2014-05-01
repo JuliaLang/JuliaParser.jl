@@ -447,7 +447,7 @@ function parse_range(ts::TokenStream)
             end
             if is_closing_token(peek_token(ts))
                 error("deprecated syntax x[i:]")
-            elseif is_newline(peek_token(ts))
+            elseif Lexer.isnewline(peek_token(ts))
                 error("line break in \":\" expression")
             end
             arg = parse_expr(ts)
@@ -455,7 +455,7 @@ function parse_range(ts::TokenStream)
                 error("\":$argument\" found instead of \"$argument:\"")
             end
             if isfirst
-                ex = {t, ex, arg}
+                ex = Expr(t, ex, arg)
                 isfirst = false
             else
                 push!(arg, ex)
@@ -1167,9 +1167,10 @@ end
 parse_comma_sep_assigns(ts::TokenStream) = parse_comma_sep(ts, parse_eqs) 
 
 # as above, but allows both "i=r" and "i in r"
+# return a list of range expressions
 function parse_comma_sep_iters(ts::TokenStream)
     ranges = {}
-    while !eof(ts)
+    while true #!eof(ts)
         r = parse_eqs(ts)
         if r == :(:)
         elseif isa(r, Expr) && r.head == :(=)
@@ -1315,13 +1316,15 @@ function parse_dict(ts::TokenStream, frst, closer)
 end
 
 function parse_comprehension(ts::TokenStream, frst, closer)
-    r = parse_comma_sep_iters(ts)
+    rs = parse_comma_sep_iters(ts)
     if require_token(ts) == closer
         take_token(ts)
     else
         error("expected $closer")
     end
-    return Expr(:comprehension, frst, r)
+    ex = Expr(:comprehension, frst)
+    append!(ex.args, rs)
+    return ex
 end
 
 function parse_dict_comprehension(ts::TokenStream, frst, closer)
@@ -1352,15 +1355,15 @@ function parse_matrix(ts::TokenStream, frst, closer)
     end
 
     semicolon = peek_token(ts) == ';'
-    vec   = {frst}
+    vec   = Expr(frst)
     outer = {}
-    while !eof(ts)
+    while true #!eof(ts)
         t::Token = peek_token(ts) == '\n' ? '\n' : require_token(ts)
         if t == closer
             take_token(ts)
-            if length(outer.args) == 1
+            if isa(outer, Expr) && length(outer.args) == 1
                 return fix(:vcat, update_outer(vec, outer))
-            elseif isempty(vec) || isempty(vec.args)
+            elseif isempty(vec) || (isa(vec, Expr) && isempty(vec.args))
                 # [x] => (vcat x)
                 return fix(:vcat, vec)
             else

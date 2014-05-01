@@ -238,7 +238,9 @@ facts("test cell expressions") do
     exprs = [
         "{}",
         "{1,2}",
-        "{:a => 1,:b => 2}" 
+        #"{1 2 3}",
+        "{:a => 1,:b => 2}",
+        "{i for i=1:10}",
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
