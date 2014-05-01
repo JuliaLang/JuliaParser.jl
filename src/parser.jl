@@ -123,12 +123,12 @@ const EOF = char(-1)
 
 const is_invalid_initial_token = let
     invalid = Set({')', ']', '}', sym_else, sym_elseif, sym_catch, sym_finally}) 
-    is_invalid_initial_token(t::Token) = t in invalid
+    is_invalid_initial_token(t::Token) = isa(t, Union(Char, Symbol)) && t in invalid
 end
 
 const is_closing_token = let
     closing = Set({',', ')', ']', '}', ';', sym_else, sym_elseif, sym_catch, sym_finally, EOF})
-    is_closing_token(t::Token) = t in closing
+    is_closing_token(t::Token) = isa(t, Union(Char, Symbol)) && t in closing
 end
 
 is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
@@ -156,8 +156,7 @@ end
 
 # parse left to right chains of certain binary operator
 # ex. a + b + c => (call + a b c)
-function parse_with_chains(ts::TokenStream, down, ops, chain_op; 
-                           space_sensitive::Bool=true) 
+function parse_with_chains(ts::TokenStream, down, ops, chain_op) 
     ex = down(ts)
     while true #!eof(ts)
         t = peek_token(ts)
@@ -259,7 +258,10 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
     end
     t = require_token(ts)
     # empty block
-    t in closers  && return Expr(head)
+    # Note: "\n" has a int value of 10 so we need a typecheck here
+    if isa(t, Char) && t in closers
+        return return Expr(head)
+    end
     # in allow empty mode, skip leading runs of operator
     if allow_empty && t in ops 
         args = {}
@@ -328,7 +330,7 @@ function parse_stmts(ts::TokenStream)
     ex = parse_Nary(ts, parse_eq, (';',), :toplevel, ('\n',), true)
     # check for unparsed junk after an expression
     t = peek_token(ts)
-    if !(Lexer.eof(t) || t === '\n' || t === nothing)
+    if !(Lexer.eof(t) || t === '\n')
         error("extra token \"$t\" after end of expression")
     end
     return ex
@@ -359,6 +361,7 @@ const term_ops = Lexer.precedent_ops(11)
 parse_term(ts::TokenStream)     = parse_with_chains(ts, parse_rational, term_ops, :(*))
 parse_rational(ts::TokenStream) = parse_LtoR(ts, parse_unary, Lexer.precedent_ops(12))
 parse_pipes(ts::TokenStream)    = parse_LtoR(ts, parse_range, Lexer.precedent_ops(7))
+
 parse_in(ts::TokenStream)       = parse_LtoR(ts, parse_pipes, (:(in),))
 
 function parse_comparison(ts::TokenStream, ops)
@@ -413,7 +416,7 @@ const is_juxtaposed = let
                !(is_closing_token(t)) &&
                !(Lexer.isnewline(t)) &&
                !(isa(ex, Expr) && ex.head === :(...)) &&
-               (isnumber(ex) || !(t in invalid_chars))
+               (isnumber(ex) || !(isa(t, Char) && t in invalid_chars))
     end
 end
 
@@ -458,7 +461,7 @@ function parse_range(ts::TokenStream)
                 ex = Expr(t, ex, arg)
                 isfirst = false
             else
-                push!(arg, ex)
+                push!(ex.args, arg)
                 isfirst = true
             end
             continue
@@ -1747,8 +1750,6 @@ function _parse_atom(ts::TokenStream)
             return ex
         elseif vex.head == :dict
             ex = Expr(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
-            #@show :typed_dict, vex.args, length(vex.args)
-            #error() 
             append!(ex.args, vex.args)
             return ex
         elseif vex.head == :hcat

@@ -234,6 +234,19 @@ facts("test tuple expressions") do
     @fact_throws Parser.parse(code)
 end
 
+facts("test range expressions") do
+    exprs = [
+        "1:2", 
+        "1:2:3", 
+        "10:-1:1"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+    @fact_throws Parser.parse("1:end")
+    @fact_throws Parser.parse("1:2:end")
+end
+
 facts("test cell expressions") do
     exprs = [
         "{}",
@@ -246,3 +259,4 @@ facts("test cell expressions") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
+
