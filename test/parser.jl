@@ -319,3 +319,14 @@ facts("test macrocall expression") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
+
+facts("test backquote (cmd) expression") do 
+    exprs = [
+        "``",
+        "`pwd()`",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+    @fact_throws Parser.parse("`pwd()")
+end

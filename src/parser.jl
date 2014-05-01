@@ -1506,26 +1506,27 @@ function not_eof_3(c)
     return c
 end 
 
+#TODO; clean up eof handling
 function parse_backquote(ts::TokenStream)
     buf = IOBuffer()
     c   = Lexer.readchar(ts.io)
-    while !eof(ts)
-        c == '`' && return true
+    while true 
+        c == '`' && break
         if c == '\\'
-            nextch = Lexer.readchar(ts.io)
-            if nexch == '`'
-                write(buf, nextch)
+            nc = Lexer.readchar(ts.io)
+            if nc == '`'
+                write(buf, nc)
             else
                 write(buf, '\\')
-                write(buf, not_eof_2(nextch))
+                write(buf, not_eof_2(nc))
             end
         else
-            write(buf, not_eof_2(nextch))
+            write(buf, not_eof_2(c))
         end
         c = Lexer.readchar(ts.io)
         continue
     end
-    return Expr(:macrocall, :(@cmd), bytestring(buf))
+    return Expr(:macrocall, symbol("@cmd"), bytestring(buf))
 end
 
 function parse_interpolate(ts::TokenStream)
@@ -1836,7 +1837,7 @@ function _parse_atom(ts::TokenStream)
     
     # command syntax
     elseif t == '`'
-        take_token(s)
+        take_token(ts)
         return parse_backquote(ts)
 
     else
