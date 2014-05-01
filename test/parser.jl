@@ -233,3 +233,14 @@ facts("test tuple expressions") do
     code = "(1,2 3)"
     @fact_throws Parser.parse(code)
 end
+
+facts("test cell expressions") do
+    exprs = [
+        "{}",
+        "{1,2}",
+        "{:a => 1,:b => 2}" 
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end

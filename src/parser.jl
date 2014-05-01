@@ -131,6 +131,9 @@ const is_closing_token = let
     is_closing_token(t::Token) = t in closing
 end
 
+is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
+is_dict_literal(ex) = false
+
 function parse_chain(ts::TokenStream, down, op) 
     chain = {down(ts)}
     while true #!eof(ts)
@@ -1267,12 +1270,12 @@ end
 function parse_vcat(ts::TokenStream, frst, closer)
     lst = {}
     nxt = frst
-    while !eof(ts)
+    while true #!eof(ts)
         t = require_token(ts)
         if t == closer
             take_token(ts)
             ex = Expr(:vcat)
-            append!(ex.args, reverse!(unshift!(nxt, lst)))
+            append!(ex.args, reverse!(unshift!(lst, nxt)))
             return ex
         end
         if t == ','
@@ -1281,7 +1284,7 @@ function parse_vcat(ts::TokenStream, frst, closer)
                 # allow ending with ,
                 take_token(ts)
                 ex = Expr(:vcat)
-                append!(ex.args, reverse!(unshift!(nxt, lst)))
+                append!(ex.args, reverse!(unshift!(lst, nxt)))
                 return ex
             end
             lst = unshift!(lst, nxt)
@@ -1303,7 +1306,7 @@ function parse_dict(ts::TokenStream, frst, closer)
     if any(is_dict_literal, v.args)
         if all(is_dict_literal, v.args)
             ex = Expr(:dict)
-            copy!(ex.args, v.args)
+            ex.args = v.args 
             return ex
         else
             error("invalid dict literal")
@@ -1390,7 +1393,7 @@ end
 
 function peek_non_newline_token(ts::TokenStream)
     t = peek_token(ts)
-    while !eof(t)
+    while true#!eof(ts)
         if Lexer.isnewline(t)
             take_token(ts)
             t = peek_token(ts)
@@ -1644,7 +1647,9 @@ function _parse_atom(ts::TokenStream)
         if is_closing_token(peek_token(ts))
             return :(:)
         else
-            return Expr(:quote, _parse_atom(ts))
+            ex = _parse_atom(ts)
+            #return QuoteNode(ex)
+            return isa(ex, Symbol) ? QuoteNode(ex) : Expr(:quote, ex)
         end
     
     # misplaced =
@@ -1739,6 +1744,8 @@ function _parse_atom(ts::TokenStream)
             return ex
         elseif vex.head == :dict
             ex = Expr(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
+            #@show :typed_dict, vex.args, length(vex.args)
+            #error() 
             append!(ex.args, vex.args)
             return ex
         elseif vex.head == :hcat
@@ -1746,7 +1753,7 @@ function _parse_atom(ts::TokenStream)
             append!(ex.args, vex.args)
             return ex
         else # vcat(...)
-            if length(vcat.args) == 1 && vcat.args[1].head == :row
+            if length(vex.args) == 1 && vex.args[1].head == :row
                 nr = length(vex.args)
                 nc = length(vex.args[1].args)
                 # make sure all rows are the same length
@@ -1760,7 +1767,10 @@ function _parse_atom(ts::TokenStream)
                 #XXX transpose to storage order
                 return ex
              end
-             if any(x -> length(x.args) == 1 && x.args[1].head == :row)
+             if any(x -> begin isa(x, Expr) && 
+                               length(x.args) == 1 && 
+                               x.args[1].head == :row
+                         end, vex.args[2:end])
                 error("inconsistent shape in cell expression")
              end
              ex = Expr(:cell1d)
