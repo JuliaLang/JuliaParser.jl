@@ -12,7 +12,7 @@ const range_colon_enabled = true
 const space_sensitive = false
 
 # treat "end" like a normal symbol, instead of a reserved word 
-const inside_vec = false
+const inside_vector = false
 
 # treat newline like ordinary whitespace instead of a reserved word
 const end_symbol = false
@@ -40,7 +40,7 @@ end
 macro with_inside_vec(body)
     esc(quote
             let space_sensitive = true, 
-                inside_vec = true, 
+                inside_vector = true, 
                 whitespace_newline = false
                 $body
             end
@@ -1197,11 +1197,9 @@ end
 function parse_space_separated_exprs(ts::TokenStream)
     @with_space_sensitive begin
         exprs = {}
-        while !eof(ts)
+        while true 
             nt = peek_token(ts)
-            if (is_closing_token(nt) ||
-                Lexer.isnewline(nt) ||
-                (inside_vector && nt == :for))
+            if is_closing_token(nt) || Lexer.isnewline(nt) || (inside_vector && nt == :for)
                 return exprs
             end
             ex = parse_eq(ts)
@@ -1216,7 +1214,7 @@ end
 
 has_parameters(lst) = length(lst) == 2 && length(first(lst)) == 2 && first(first(lst)) == :params
 
-to_kws(lst) = map((x) -> is_assignment(x) ? Expr(:kw, x[2:end]...) : x, lst)
+to_kws(lst) = map((x) -> Lexer.is_assignment(x) ? Expr(:kw, x[2:end]...) : x, lst)
 
 # handle function call argument list, or any comma-delimited list
 # * an extra comma at the end is allowed
@@ -1224,7 +1222,7 @@ to_kws(lst) = map((x) -> is_assignment(x) ? Expr(:kw, x[2:end]...) : x, lst)
 # * an expression followed by ... becomes (.... x)
 function _parse_arglist(ts::TokenStream, closer::Token)
     lst = {} 
-    while !eof(ts)
+    while true #!eof(ts)
         t = require_token(ts)
         if t == closer
             take_token(ts)
@@ -1237,7 +1235,9 @@ function _parse_arglist(ts::TokenStream, closer::Token)
         elseif t == ';'
             take_token(ts)
             # allow f(a, b; )
-            peek_token(ts) == closer && continue
+            if peek_token(ts) == closer
+                continue
+            end
             params = parse_arglist(ts, closer)
             if closer == ')'
                 lst = to_kws(lst)
@@ -1253,11 +1253,11 @@ function _parse_arglist(ts::TokenStream, closer::Token)
         elseif nt == ';'
             push!(lst, nxt)
             continue
-        elseif c == closer
+        elseif nt == closer
             push!(lst, nxt)
             continue
-        elseif c in (']', '}')
-            error("unexpected \"$c\" in argument list")
+        elseif nt in (']', '}')
+            error("unexpected \"$nt\" in argument list")
         else
             error("missing comma or \"$closer\" in argument list")
         end
@@ -1822,9 +1822,9 @@ function _parse_atom(ts::TokenStream)
                 return ex
             else
                 call = parse_call_chain(ts, head, true)
-                if length(call.args) == 1 && call.head == :call
-                    ex = Expr(:macrocall, macroify_name(call.args[1].head))
-                    append!(ex.args, call.args[1].args)
+                if isa(call, Expr) && call.head == :call
+                    ex = Expr(:macrocall, macroify_name(call.args[1]))
+                    append!(ex.args, call.args[2:end])
                     return ex
                 else
                     ex = Expr(:macrocall, macroify_name(call))
@@ -1856,10 +1856,10 @@ end
 function is_valid_modref(ex::Expr)
     return length(ex.args) == 2 &&
            ex.head === :(.) &&
-           length(ex.args[2]) == 1 && 
-           isa(ex.args[2], Expr) &&
+           isa(ex.args[2], Expr) && 
            ex.args[2].head == :quote &&
-           (isa(ex.args[1], Expr) || valid_modref(ex.args[1]))
+           isa(ex.args[2].args[1], Symbol) &&
+           (isa(ex.args[1], Symbol) || valid_modref(ex.args[1]))
 end
 
 function macroify_name(ex)

@@ -276,6 +276,7 @@ end
 facts("test string literal expression") do
     exprs = [
         "\"test\""
+        #TODO: string interpolation
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
@@ -302,6 +303,17 @@ facts("test cat expressions") do
         "[1,2,3,]",
         "[:a => 1, :b => 2]",
         "[i for i=1:10]"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
+facts("test macrocall expression") do
+    exprs = [
+        "@test",
+        "@test 1 2",
+        "@test(a,b)"
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
