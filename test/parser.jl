@@ -348,14 +348,18 @@ facts("test backquote (cmd) expression") do
     @fact_throws Parser.parse("`pwd()")
 end
 
-facts("test quote/begin expr") do
+facts("test quote/begin expression") do
     exprs = [
-        """begin
+        """
+        begin
             x + 1
-         end""",
-        """quote
+        end
+        """,
+        """
+        quote
             x + 1
-         end"""
+        end
+        """
     ]
     for ex in exprs
         pex = Parser.parse(ex)
@@ -363,6 +367,22 @@ facts("test quote/begin expr") do
         if isa(pex, QuoteNode) && isa(bex, QuoteNode)
             pex, bex = pex.value, bex.value
         end
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+end
+
+facts("test while expression") do
+    exprs = [
+        """
+        while true
+            x + 1
+        end
+        """
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
         @fact pex.head => bex.head
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
