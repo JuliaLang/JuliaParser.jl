@@ -16,6 +16,21 @@ end
 
 tokens(str::String) = tokens(TokenStream(str))
 
+without_linenums(ex::Expr) = begin
+    args = {}
+    for a in ex.args
+        if isa(a, Expr) && !is(a.head, :line)
+            push!(args, without_linenums(a))
+        else
+            is(a, LineNumberNode) && continue
+            push!(args, a)
+        end
+    end
+    return Expr(ex.head, args...)
+end
+
+without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
+
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -331,4 +346,24 @@ facts("test backquote (cmd) expression") do
 
     # premature end of file
     @fact_throws Parser.parse("`pwd()")
+end
+
+facts("test quote/begin expr") do
+    exprs = [
+        """begin
+            x + 1
+         end""",
+        """quote
+            x + 1
+         end"""
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Base.parse(ex) 
+        if isa(pex, QuoteNode) && isa(bex, QuoteNode)
+            pex, bex = pex.value, bex.value
+        end
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
 end

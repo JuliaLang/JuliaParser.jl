@@ -731,7 +731,7 @@ function _expect_end(ts::TokenStream, word)
     t = peek_token(ts)
     if t == sym_end
         take_token(ts)
-    elseif eof(t)
+    elseif Lexer.eof(t)
         err_msg = "incomplete: \"$word\" at {current_filename} : {expected} requires end"
         error(err_msg)
     else
@@ -744,7 +744,7 @@ end
 parse_subtype_spec(ts::TokenStream) = subtype_syntax(parse_ineq(ts))
 
 # parse expressions or blocks introduced by syntatic reserved words
-function parse_resword(ts::TokenStream, word)
+function parse_resword(ts::TokenStream, word::Symbol)
     #XXX: with bindings
     expect_end_current_line = curline(ts)
     
@@ -757,14 +757,14 @@ function parse_resword(ts::TokenStream, word)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ts)
                 expect_end(ts)
-                if length(blk.args) > 1
-                    blk = Expr(:block, loc, blk.args...)
-                end
-                if word == :quote
-                    return Expr(sym_quote, blk)
+                local ex::Expr
+                if !isempty(blk.args) && isa(blk.args[1], Expr) && blk.args[1].head === :line
+                    ex = Expr(:block, loc)
+                    append!(ex.args, blk.args[2:end])
                 else
-                    return blk
+                    ex = blk
                 end
+                return word === :quote ? QuoteNode(ex) : ex
 
             elseif word == :while
                 ex = Expr(:while, parse_cond(ts), parse_block(ts))
@@ -970,10 +970,10 @@ function parse_resword(ts::TokenStream, word)
 
             elseif word == :const
                 assgn = parse_eq(ts)
-                if !(isa(assgn, Expr) && 
-                     (assgn.head == :(=) ||
-                      assgn.head == :global ||
-                      assgn.head == :local))
+                if !isa(assgn, Expr &&
+                   (assgn.head == :(=) ||
+                    assgn.head == :global ||
+                    assgn.head == :local))
                     error("expected assignment after \"const\"")
                 end
                 return Expr(:const, assgn)
@@ -1662,7 +1662,8 @@ function _parse_atom(ts::TokenStream)
         if is_closing_token(peek_token(ts))
             return :(:)
         else
-            return QuoteNode(_parse_atom(ts))
+            ex = _parse_atom(ts)
+            return isa(ex, Symbol) ? QuoteNode(ex) : Expr(:quote, ex)
         end
     
     # misplaced =
