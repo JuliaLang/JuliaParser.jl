@@ -645,7 +645,6 @@ facts("test export expression") do
     # you need to export at least one symbol
     @fact_throws Parser.parse("export")
 end
-=#
 
 facts("test import / using / importall expressions") do
     exprs = [
@@ -665,9 +664,17 @@ facts("test import / using / importall expressions") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
+=#
 
 facts("test bitstype expression") do
-    #TODO:
+    exprs = [
+        "bitstype 16 Float16",
+        "bitstype 16 Float16 <: FloatingPoint"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+
 end
 
 facts("test typealias expression") do
