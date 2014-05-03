@@ -427,7 +427,6 @@ facts("test if condtion expression") do
                                  else if
                                  end""")
 end
-=#
 
 facts("test let expression") do
     exprs = [
@@ -443,5 +442,19 @@ facts("test let expression") do
         bex = Parser.parse(ex)
         @fact pex.head => bex.head
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+end
+=#
+
+facts("test global/local reserved words") do
+    exprs = ["global x",
+             "global x, y",
+             "global x = 1, y = 2",
+             "global const x = 1, y = 2",
+             "global const x = 1",
+             "local x",
+             "local x = 1"]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
     end
 end

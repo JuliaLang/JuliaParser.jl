@@ -835,9 +835,9 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 args = map((ex) -> short_form_function_loc(ex, lno), 
                            parse_comma_sep_assigns(ts))
                 if isconst
-                    return Expr(:const, Expr(head, args))
+                    return Expr(:const, Expr(head, args...))
                 else
-                    return Expr(head, args)
+                    return Expr(head, args...)
                 end
 
             elseif word == :function || word == :macro
