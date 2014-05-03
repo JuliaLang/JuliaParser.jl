@@ -957,10 +957,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
 
             elseif word == :const
                 assgn = parse_eq(ts)
-                if !isa(assgn, Expr &&
-                   (assgn.head == :(=) ||
-                    assgn.head == :global ||
-                    assgn.head == :local))
+                if !(isa(assgn, Expr) && 
+                     (assgn.head == :(=) || assgn.head == :global || assgn.head == :local))
                     error("expected assignment after \"const\"")
                 end
                 return Expr(:const, assgn)

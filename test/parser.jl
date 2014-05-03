@@ -577,7 +577,6 @@ facts("test return expression") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-=#
 
 facts("test break / continue expression") do
     #TODO: single line statments still fail 
@@ -597,4 +596,18 @@ facts("test break / continue expression") do
         @fact pex.head => bex.head
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
+end
+=#
+
+facts("test const expression") do
+    exprs = [
+        "const x = 1",
+        "const global x = 1",
+        "const local  x = 1",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+    # expected assignment after const
+    @fact_throws Parser.parse("const x")
 end
