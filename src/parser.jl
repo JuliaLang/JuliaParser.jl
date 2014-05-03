@@ -562,10 +562,11 @@ end
 function subtype_syntax(ex::Expr)
     if ex.head == :comparison && length(ex.args) == 3 && ex.args[2] == :(<:)
         return Expr(:(<:), ex.args[1], ex.args[3])
-    else 
+    else
         return ex
     end
 end
+subtype_syntax(ex::Symbol) = ex
 
 function parse_unary_prefix(ts::TokenStream)
     op = peek_token(ts)

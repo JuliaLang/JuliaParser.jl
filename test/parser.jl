@@ -473,7 +473,6 @@ facts("test function expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
 
 facts("test macro expressions") do
     exprs = ["macro x(body) end",
@@ -490,5 +489,19 @@ facts("test macro expressions") do
         bex = Parser.parse(ex)
         @fact pex.head => bex.head
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+end
+=#
+
+facts("test abstract type expression") do
+    exprs = [
+        "abstract Test",
+        "abstract Test{T}",
+        "abstract Test1{T<:Test}",
+        "abstract Test1 <: Test2",
+        "abstract Test1{T} <: Test2{T}"
+    ] 
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
