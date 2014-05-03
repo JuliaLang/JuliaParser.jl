@@ -31,6 +31,7 @@ end
 
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 
+#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -401,4 +402,29 @@ facts("test for loop expression") do
         @fact pex.head => bex.head
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
+end
+=#
+
+facts("test if condtion expression") do
+    exprs = [
+        """if x == 2
+           end""",
+        """if x == 1
+           else 
+           end""",
+        """if x == 1
+           elseif x == 2
+           else
+           end"""
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+    # else if should throw and error => use elseif 
+    @fact_throws Parser.parse("""if x == 1
+                                 else if
+                                 end""")
 end
