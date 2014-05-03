@@ -294,8 +294,8 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
                 return first(args)
             end
         end
-        take_token(ts)
         isfirst = false
+        take_token(ts)
         nt = peek_token(ts)
         # allow input to end with the operator, as in a;b;
         if Lexer.eof(nt) || (nt in closers) || (allow_empty && nt in ops) ||  
@@ -993,11 +993,11 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 return ex
 
             elseif word == :import || word == :using || word == :importall
-                imports = parse_imports(ts)
-                if isempty(imports.args)
-                    return Expr(:imports)
+                imports = parse_imports(ts, word)
+                if length(imports) == 1
+                    return first(imports)
                 else
-                    return Expr(:toplevel, imports)
+                    ex = Expr(:toplevel, imports...)
                 end
 
             elseif word == :ccall
@@ -1053,31 +1053,32 @@ function macrocall_to_atsym(ex)
 end
 
 function parse_imports(ts::TokenStream, word)
-    frst = parse_import(ts, word)
+    frst = {parse_import(ts, word)}
     nt   = peek_token(ts)
-    from = nt == :(:) && ts.isspace
+    from = nt == :(:) && true #TODO:ts.isspace
     done = false
     if from || nt == ','
         take_token(ts)
         done = false
     elseif nt in ('\n', ';')
         done = true
-    elseif eof(nt)
+    elseif Lexer.eof(nt)
         done = true
     else
         done = false
     end
     rest = done ? {} : parse_comma_sep(ts, (ts) -> parse_import(ts, word))
     if from
-        #TODO: this is a mess
+        module_sym = frst[1].args[1]
         fn = x -> begin
-            ret = {x[1]}
-            append!(ret, frst[2:end])
-            append!(ret, x[2:end])
+            ret = Expr(x.head, module_sym)
+            append!(ret.args, x.args)
+            ret
         end
         return map(fn, rest)
     else
-        return append!(frst, rest)
+        append!(frst, rest)
+        return frst
     end
 end
 
@@ -1089,30 +1090,31 @@ const sym_4dots = symbol("....")
 function parse_import_dots(ts::TokenStream)
     l = {}
     t = peek_token(ts)
-    while !eof(ts)
+    while true
         if t == sym_1dot
             take_token(ts)
-            l = append!({:(.)}, l)
+            push!(l, :(.))
             t = peek_token(ts)
             continue
         elseif t == sym_2dots
             take_token(ts)
-            l = append!({:(.), :(.)}, l)
+            append!(l, {:(.), :(.)})
             t = peek_token(ts)
             continue
         elseif t == sym_3dots
             take_token(ts)
-            l = append!({:(.), :(.), :(.)}, l)
+            append!(l, {:(.), :(.), :(.)})
             t = peek_token(ts)
             continue
         elseif t == sym_4dots
             take_token(ts)
-            l = append!({:(.), :(.), :(.), :(.)}, l)
+            append!(l, {:(.), :(.), :(.), :(.)})
             t = peek_token(ts)
             continue
         else
             ex = macrocall_to_atsym(parse_atom(ts))
-            return append!(ex.args, l)
+            push!(l, ex)
+            return l
         end
     end
 end
@@ -1120,16 +1122,18 @@ end
 
 function parse_import(ts::TokenStream, word)
     path = parse_import_dots(ts)
-    while !eof(ts)
+    while true
         nxt = peek_token(ts)
         if nxt == :(.)
             take_token(ts)
             ex = macrocall_to_atsym(parse_atom(ts))
-            append!(ex.args, path)
+            push!(path, ex)
             continue
-        elseif (nxt in ('\n', ';', ',', :(:))) || eof(nxt)
+        elseif (nxt in ('\n', ';', ',', :(:))) || Lexer.eof(nxt)
             # reverse path
-            return Expr(word, path)
+            ex = Expr(word)
+            ex.args = path
+            return ex
         elseif false #string sub
             #TODO:
         else

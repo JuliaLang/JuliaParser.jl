@@ -631,7 +631,6 @@ facts("test module expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
 
 facts("test export expression") do
     exprs = [
@@ -646,5 +645,23 @@ facts("test export expression") do
     # you need to export at least one symbol
     @fact_throws Parser.parse("export")
 end
+=#
 
-
+facts("test import / using / importall expressions") do
+    exprs = [
+        """import Test""",
+        """import .Test""",
+        """import ..Test""",
+        """import ...Test""",
+        """import ....Test""",
+        """import .....Test""",
+        """import Test1, Test2""",
+        """import Test: a, b, c""",
+        """using Test""",
+        """importall Test""",
+        
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
