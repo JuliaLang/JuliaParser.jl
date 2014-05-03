@@ -539,7 +539,7 @@ facts("test type / immutable expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
+
 
 facts("test type / immutable expression") do
     exprs = [
@@ -566,5 +566,15 @@ facts("test type / immutable expression") do
         @fact pex.head => bex.head
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
+end
+=#
 
+facts("test return expression") do
+    exprs = [
+        "return",
+        "return x + 1"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
 end
