@@ -567,7 +567,6 @@ facts("test type / immutable expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
 
 facts("test return expression") do
     exprs = [
@@ -576,5 +575,26 @@ facts("test return expression") do
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+=#
+
+facts("test break / continue expression") do
+    #TODO: single line statments still fail 
+    exprs = [
+        "break", 
+        "continue",
+        """while true
+            break
+        end""",
+        """while true
+            continue
+        end"""
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
