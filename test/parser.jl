@@ -491,7 +491,6 @@ facts("test macro expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
 
 facts("test abstract type expression") do
     exprs = [
@@ -501,6 +500,21 @@ facts("test abstract type expression") do
         "abstract Test1 <: Test2",
         "abstract Test1{T} <: Test2{T}"
     ] 
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+=#
+
+facts("test type / immutable expression") do
+    exprs = [
+        """type Test
+         end""",
+        """immutable Test
+        end""",
+        """immutable type Test
+        end""",
+    ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
     end

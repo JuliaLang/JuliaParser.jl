@@ -876,7 +876,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
             elseif word == :type || word == :immutable
                 istype = word == :type
                 isimmutable = word == :immutable
-                if isimmutable && peek_token == :type
+                if isimmutable && peek_token(ts) == :type
                     # allow "immutable type"
                     take_token(ts)
                 end
