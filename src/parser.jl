@@ -881,7 +881,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     take_token(ts)
                 end
                 sig = parse_subtype_spec(ts)
-                ex  = Expr(:type, istype, sig, parse_block(ts))
+                blk = parse_block(ts)
+                ex  = Expr(:type, istype, sig, blk) 
                 expect_end(ts)
                 return ex
 

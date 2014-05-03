@@ -508,14 +508,35 @@ end
 
 facts("test type / immutable expression") do
     exprs = [
+        """type Test;end""",
         """type Test
-         end""",
+        end""",
+        """type Test{T}; end""",
+        """type Test{T}
+        end""",
+        """type Test{T<:Int}
+        end""",
+        """type Test{T,X}
+        end""",
+        """type Test <: Int
+        end""",
+        """type Test
+            x
+        end""",
+        #"""type Test{T}
+        #    x::T
+        #end""",
+        """immutable Test;end""",
         """immutable Test
         end""",
+        """immutable type Test; end""",
         """immutable type Test
         end""",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
