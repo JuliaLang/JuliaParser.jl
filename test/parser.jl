@@ -504,7 +504,6 @@ facts("test abstract type expression") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-=#
 
 facts("test type / immutable expression") do
     exprs = [
@@ -539,4 +538,33 @@ facts("test type / immutable expression") do
         @fact pex.head => bex.head
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
+end
+=#
+
+facts("test type / immutable expression") do
+    exprs = [
+        """try;end""",
+        """try
+        end""",
+        """try
+            x + 1
+        catch
+        end""",
+        """try
+            x + 1
+        catch ex
+        end""",
+        """try
+            x + 1
+        catch ex
+        finally
+        end""",
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+
 end
