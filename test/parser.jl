@@ -387,3 +387,18 @@ facts("test while expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
+
+facts("test for loop expression") do
+    exprs = [
+        """for 1 = 1:10
+            x + 1
+           end""",
+        #"for i in coll; x + 1; end"
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+end

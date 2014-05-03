@@ -306,7 +306,7 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
         end
         if '\n' in ops
             loc = line_number_node(ts)
-            append!(args, (loc, down(ts)))
+            append!(args, {loc, down(ts)})
             t = nt
             continue
         else
@@ -775,12 +775,12 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 ranges = parse_comma_sep_iters(ts)
                 body   = parse_block(ts)
                 expect_end(ts)
-                r = nothing #TODO: 
-                if r != nothing
-                    return body
-                else
-                    return Expr(:for, r.head, nest(r.args))
-                end
+                #r = nothing
+                #if r == nothing
+                #    return body
+                #else
+                return Expr(:for, ranges[1], body) 
+                #end
 
             elseif word == :if
                 test = parse_cond(ts)
@@ -1175,13 +1175,14 @@ parse_comma_sep_assigns(ts::TokenStream) = parse_comma_sep(ts, parse_eqs)
 # return a list of range expressions
 function parse_comma_sep_iters(ts::TokenStream)
     ranges = {}
-    while true #!eof(ts)
+    while true 
         r = parse_eqs(ts)
         if r == :(:)
         elseif isa(r, Expr) && r.head == :(=)
         elseif isa(r, Expr) && r.head == :in
-            r = Expr(:(=), r.args[1], r.args[2])
+            r = Expr(:(=), r.args[1], r.args[2:end]...)
         else
+            @show r 
             error("invalid iteration spec")
         end
         if peek_token(ts) == ','
