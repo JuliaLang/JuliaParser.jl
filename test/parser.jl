@@ -457,7 +457,6 @@ facts("test global/local reserved words") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-=#
 
 facts("test function expressions") do
     exprs = ["function x() end",
@@ -466,6 +465,25 @@ facts("test function expressions") do
               end""", 
               """function x()
                   return x + 1
+              end"""]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+end
+=#
+
+facts("test macro expressions") do
+    exprs = ["macro x(body) end",
+             """macro x()
+                quote
+                    x + 1
+                end
+              end""", 
+              """macro x()
+                  :(x + 1)
               end"""]
     for ex in exprs
         pex = Parser.parse(ex)
