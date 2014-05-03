@@ -817,7 +817,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     binds = parse_comma_sep_assigns(ts)
                 end
                 nt = peek_token(ts)
-                if !(eof(nt) || (nt in ('\n', ';', sym_end)))
+                if !(Lexer.eof(nt) || (nt in ('\n', ';', sym_end)))
                     error("let variables should end in \";\" or newline")
                 end
                 ex = parse_block(ts)
@@ -1154,7 +1154,7 @@ end
 
 function parse_comma_sep(ts::TokenStream, what)
     exprs = {}
-    while !eof(ts)
+    while true 
         r = what(ts)
         if peek_token(ts) == ','
             take_token(ts)

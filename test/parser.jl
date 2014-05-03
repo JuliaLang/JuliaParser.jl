@@ -403,7 +403,6 @@ facts("test for loop expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
 
 facts("test if condtion expression") do
     exprs = [
@@ -427,4 +426,22 @@ facts("test if condtion expression") do
     @fact_throws Parser.parse("""if x == 1
                                  else if
                                  end""")
+end
+=#
+
+facts("test let expression") do
+    exprs = [
+        """let
+        end""",
+        """let; end""",
+        """let x=1,y=2
+            x + y
+        end"""
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
 end
