@@ -597,7 +597,6 @@ facts("test break / continue expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
 
 facts("test const expression") do
     exprs = [
@@ -611,3 +610,26 @@ facts("test const expression") do
     # expected assignment after const
     @fact_throws Parser.parse("const x")
 end
+=#
+
+facts("test module expressions") do
+    exprs = [
+        """module Test
+        end""",
+        """baremodule Test
+        end""",
+        """module Test
+            const x = 1
+        end""",
+        """baremodule Test
+            const x = 1
+        end"""
+    ]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+    end
+end
+

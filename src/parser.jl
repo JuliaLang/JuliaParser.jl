@@ -978,7 +978,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     push!(block.args,
                         Expr(:(=), Expr(:call, :eval, :m, :x),
                                    Expr(:call, Expr(:(.), Expr(:top, :Core), :eval), :m, :x)))
-                    append!(block.ags, body.args)
+                    append!(block.args, body.args)
                     body = block
                 end
                 return Expr(:module, !isbare, name, body) 
