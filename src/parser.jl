@@ -994,11 +994,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
 
             elseif word == :import || word == :using || word == :importall
                 imports = parse_imports(ts, word)
-                if length(imports) == 1
-                    return first(imports)
-                else
-                    ex = Expr(:toplevel, imports...)
-                end
+                return length(imports) == 1 ? first(imports) :
+                                              Expr(:toplevel, imports...)
 
             elseif word == :ccall
                 if peek_token(ts) != '('
@@ -1070,15 +1067,15 @@ function parse_imports(ts::TokenStream, word)
     rest = done ? {} : parse_comma_sep(ts, (ts) -> parse_import(ts, word))
     if from
         module_sym = frst[1].args[1]
-        fn = x -> begin
-            ret = Expr(x.head, module_sym)
-            append!(ret.args, x.args)
-            ret
+        imports = Expr[]
+        for expr in rest
+            ex = Expr(expr.head, module_sym)
+            append!(ex.args, expr.args)
+            push!(imports, ex)
         end
-        return map(fn, rest)
+        return imports
     else
-        append!(frst, rest)
-        return frst
+        return append!(frst, rest)
     end
 end
 
