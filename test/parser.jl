@@ -444,7 +444,6 @@ facts("test let expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
 
 facts("test global/local reserved words") do
     exprs = ["global x",
@@ -456,5 +455,22 @@ facts("test global/local reserved words") do
              "local x = 1"]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+=#
+
+facts("test function expressions") do
+    exprs = ["function x() end",
+             """function x()
+                x + 1
+              end""", 
+              """function x()
+                  return x + 1
+              end"""]
+    for ex in exprs
+        pex = Parser.parse(ex)
+        bex = Parser.parse(ex)
+        @fact pex.head => bex.head
+        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end

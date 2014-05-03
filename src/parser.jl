@@ -1035,11 +1035,9 @@ function parse_resword(ts::TokenStream, word::Symbol)
     end
 end
 
-function add_filename_to_block(body::Expr, loc)
-    if !isempty(body.args) && 
-        isa(body.args[1], Expr) && 
-        body.args[1].head == :line
-        unshift!(body.args, loc)
+function add_filename_to_block!(body::Expr, loc)
+    if !isempty(body.args) && isa(body.args[1], Expr) && body.args[1].head == :line
+        body.args[1] = loc
     end
     return body
 end
