@@ -1007,7 +1007,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     # place calling convenction at end of arglist
                     return Expr(:ccall, al[1], al[3:end]..., al[2])
                 else
-                    return Expr(:ccall, al)
+                    return Expr(:ccall, al...)
                 end
 
             elseif word == :do

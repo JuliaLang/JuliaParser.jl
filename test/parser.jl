@@ -689,5 +689,12 @@ facts("test typealias expression") do
 end
 
 facts("test ccall expression") do
-    #TODO: 
+     exprs = [
+     "ccall((:testUcharX, \"./libccalltest\"), Int32, (Uint8,), x)"
+     "ccall((:testUcharX, \"./libccalltest\"), :stdcall, Int32, (Uint8,), x)"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+
 end
