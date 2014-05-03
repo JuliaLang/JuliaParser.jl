@@ -665,3 +665,15 @@ facts("test import / using / importall expressions") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
+
+facts("test bitstype expression") do
+    #TODO:
+end
+
+facts("test typealias expression") do
+    #TODO:
+end
+
+facts("test ccall expression") do
+    #TODO: 
+end
