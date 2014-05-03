@@ -893,11 +893,11 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 return Expr(:bitstype, stmnt, parse_subtype_spec(ts))
 
             elseif word == :typealias
-                lhs = pase_call(ts)
+                lhs = parse_call(ts)
                 if isa(lhs, Expr) && lhs.head == :call 
                     # typealias X (...) is a tuple type alias, not call
                     return Expr(:typealias, lhs.args[1], 
-                                            Expr(:tuple, lhs.args[2:end]))
+                                Expr(:tuple, lhs.args[2:end]...))
                 else
                     return Expr(:typealias, lhs, parse_arrow(ts))
                 end

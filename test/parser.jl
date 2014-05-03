@@ -671,7 +671,14 @@ facts("test bitstype expression") do
 end
 
 facts("test typealias expression") do
-    #TODO:
+    exprs = [
+        "typealias Test Test",
+        "typealias Test Union(Test, Test)",
+        "typealias Test (Int, Int)",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
 end
 
 facts("test ccall expression") do
