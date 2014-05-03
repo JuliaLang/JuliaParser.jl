@@ -610,7 +610,6 @@ facts("test const expression") do
     # expected assignment after const
     @fact_throws Parser.parse("const x")
 end
-=#
 
 facts("test module expressions") do
     exprs = [
@@ -632,4 +631,20 @@ facts("test module expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
+=#
+
+facts("test export expression") do
+    exprs = [
+        """export a""",
+        """export a,b,c,
+                d""",
+        
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+    # you need to export at least one symbol
+    @fact_throws Parser.parse("export")
+end
+
 
