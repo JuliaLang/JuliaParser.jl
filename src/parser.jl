@@ -145,8 +145,7 @@ end
 # insert line/file for short form function defs,
 # otherwise leave alone
 short_form_function_loc(ex, lno) = begin
-    if (isa(ex, Expr) && ex.head === :(=) &&
-        isa(ex.args[1], Expr) && ex.args[1].head === :call)
+    if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
        block = Expr(:block, Expr(:line, lno, current_filename))
        append!(bl.args, ex.args[2:end])
        return Expr(:(=), ex.args[1], block) 
