@@ -3,7 +3,8 @@ module Parser
 
 using ..Lexer
 
-current_filename = ""
+const current_filename = ""
+
 #=
 # disable range colon for parsing ternary cond op
 const range_colon_enabled = true
@@ -24,15 +25,15 @@ macro with_normal_ops(ts, body)
     tmp1 = gensym("range_colon_enabled")
     tmp2 = gensym("space_sensitive")
     quote
-        $tmp1 = $ts.range_colon_enabled
-        $tmp2 = $ts.space_sensitive
+        $tmp1 = $(esc(ts)).range_colon_enabled
+        $tmp2 = $(esc(ts)).space_sensitive
         try
-            $ts.range_colon_enabled = false
-            $ts.space_sensitive = true
-            esc($body)
+            $(esc(ts)).range_colon_enabled = false
+            $(esc(ts)).space_sensitive = true
+            $(esc(body))
         finally
-            $ts.range_colon_enabled = $tmp1
-            $ts.space_sensitive = $tmp2
+            $(esc(ts)).range_colon_enabled = $tmp1
+            $(esc(ts)).space_sensitive = $tmp2
         end
     end
 end
@@ -40,97 +41,59 @@ end
 macro without_range_colon(ts, body) 
     tmp1 = gensym("range_colon_enabled")
     quote
-        $tmp1 = $ts.range_colon_enabled
+        $tmp1 = $(esc(ts)).range_colon_enabled
         try
-            $tmp1.range_colon_enabled = false
-            esc(body)
+            $(esc(ts)).range_colon_enabled = false
+            $(esc(body))
         finally
-            $ts.range_colon_enabled = $tmp1
+            $(esc(ts)).range_colon_enabled = $tmp1
         end
     end
 end
-
-#=
-macro with_inside_vec(body)
-    esc(quote
-            let space_sensitive = true, 
-                inside_vector = true, 
-                whitespace_newline = false
-                $body
-            end
-        end)
-end
-=#
 
 macro with_inside_vec(ts, body)
     tmp1 = gensym("space_sensitive")
     tmp2 = gensym("inside_vector")
     tmp3 = gensym("whitespace_newline")
     quote
-        $tmp1 = $ts.space_sensitive
-        $tmp2 = $ts.inside_vector
-        $tmp3 = $ts.whitespace_newline
+        $tmp1 = $(esc(ts)).space_sensitive
+        $tmp2 = $(esc(ts)).inside_vector
+        $tmp3 = $(esc(ts)).whitespace_newline
         try
-            $ts.space_sensitive = true
-            $ts.inside_vector = true
-            $ts.whitespace_newline = false
-            esc($body)
+            $(esc(ts)).space_sensitive = true
+            $(esc(ts)).inside_vector = true
+            $(esc(ts)).whitespace_newline = false
+            $(esc(body))
         finally
-            $ts.space_sensitive = $tmp1
-            $ts.inside_vector = $tmp2
-            $ts.whitespace_newline = $tmp3
+            $(esc(ts)).space_sensitive = $tmp1
+            $(esc(ts)).inside_vector = $tmp2
+            $(esc(ts)).whitespace_newline = $tmp3
         end
     end
 end
 
-#=
-macro with_end_symbol(body)
-    esc(quote
-            let end_symbol = true
-                $body
-            end
-        end)
-end
-=#
 macro with_end_symbol(ts, body)
     tmp1 = gensym("end_symbol")
     quote
-        $tmp1 = $ts.end_symbol
+        $tmp1 = $(esc(ts)).end_symbol
         try
-            $ts.end_symbol = true
-            esc($body)
+            $(esc(ts)).end_symbol = true
+            $(esc(body))
         finally
-            $ts.end_symbol = $tmp1
+            $(esc(ts)).end_symbol = $tmp1
         end
     end
 end
 
-#=
-macro with_whitespace_newline(body)
-    esc(quote
-            let whitespace_newline = true
-                $body
-            end
-        end)
-end
-
-macro without_whitespace_newline(body)
-    esc(quote
-            let whitespace_newline = false
-                $body
-            end
-        end)
-end
-=#
 macro with_whitespace_newline(ts, body)
     tmp1 = gensym("whitespace_newline")
     quote
-        $tmp1 = $ts.whitespace_newline
+        $tmp1 = $(esc(ts)).whitespace_newline
         try
-            $ts.whitespace_newline = true
-            esc($body)
+            $(esc(ts)).whitespace_newline = true
+            $(esc(body))
         finally
-            $ts.whitespace_newline = $tmp1
+            $(esc(ts)).whitespace_newline = $tmp1
         end
     end
 end
@@ -138,39 +101,29 @@ end
 macro without_whitespace_newline(ts, body)
     tmp1 = gensym("whitespace_newline")
     quote
-        $tmp1 = $ts.whitespace_newline
+        $tmp1 = $(esc(ts)).whitespace_newline
         try
-            $ts.whitespace_newline = false
-            esc($body)
+            $(esc(ts)).whitespace_newline = false
+            $(esc(body))
         finally
-            $ts.whitespace_newline = $tmp1
+            $(esc(ts)).whitespace_newline = $tmp1
         end
     end
 end
 
-#=
-macro with_space_sensitive(body)
-    esc(quote
-            let space_sensitive = true,
-                whitespace_newline = true
-                $body
-            end
-        end)
-end
-=#
 macro space_sensitive(ts, body)
     tmp1 = gensym("space_sensitive")
     tmp2 = gensym("whitespace_newline")
     quote
-        $tmp1 = $ts.space_sensitive
-        $tmp2 = $ts.whitespace_newline
+        $tmp1 = $(esc(ts)).space_sensitive
+        $tmp2 = $(esc(ts)).whitespace_newline
         try 
-            $ts.space_sensitive = true
-            $ts.whitespace_newline = true 
-            esc($body)
-        finally
-            $ts.space_sensitive = $tmp1
-            $ts.whitespace_newline = $tmp2
+            $(esc(ts)).space_sensitive = true
+            $(esc(ts)).whitespace_newline = true 
+            $(esc(body))
+        finally 
+            $(esc(ts)).space_sensitive = $tmp1
+            $(esc(ts)).whitespace_newline = $tmp2
         end
     end
 end
@@ -1413,7 +1366,6 @@ function parse_comprehension(ts::TokenStream, frst, closer)
     if rt === closer
         take_token(ts)
     else
-        @show parse_comprehension, rs, rt
         error("expected $closer")
     end
     ex = Expr(:comprehension, frst)
