@@ -31,7 +31,6 @@ end
 
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 
-#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -664,7 +663,7 @@ facts("test import / using / importall expressions") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-=#
+
 
 facts("test bitstype expression") do
     exprs = [
