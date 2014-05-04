@@ -28,8 +28,8 @@ macro with_normal_ops(ts, body)
         $tmp1 = $(esc(ts)).range_colon_enabled
         $tmp2 = $(esc(ts)).space_sensitive
         try
-            $(esc(ts)).range_colon_enabled = false
-            $(esc(ts)).space_sensitive = true
+            $(esc(ts)).range_colon_enabled = true
+            $(esc(ts)).space_sensitive = false
             $(esc(body))
         finally
             $(esc(ts)).range_colon_enabled = $tmp1
@@ -119,7 +119,7 @@ macro space_sensitive(ts, body)
         $tmp2 = $(esc(ts)).whitespace_newline
         try 
             $(esc(ts)).space_sensitive = true
-            $(esc(ts)).whitespace_newline = true 
+            $(esc(ts)).whitespace_newline = false
             $(esc(body))
         finally 
             $(esc(ts)).space_sensitive = $tmp1
@@ -780,8 +780,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
     expect_end_current_line = curline(ts)
     @with_normal_ops ts begin
         @without_whitespace_newline ts begin
-            @assert ts.range_colon_enabled == false
-            @assert ts.space_sensitive == true
+            @assert ts.range_colon_enabled == true 
+            @assert ts.space_sensitive == false 
             @assert ts.whitespace_newline == false
             if word == :quote || word == :begin
                 Lexer.skip_ws_and_comments(ts.io)
@@ -1280,9 +1280,9 @@ end
 function parse_arglist(ts::TokenStream, closer::Token)
     @with_normal_ops ts begin
         @with_whitespace_newline ts begin
-            @assert ts.range_colon_enabled == false
-            @assert ts.space_sensitive == true
-            @assert ts.whitespace_newline == false
+            @assert ts.range_colon_enabled == true
+            @assert ts.space_sensitive == false
+            @assert ts.whitespace_newline == true
             return _parse_arglist(ts, closer)
         end
     end
@@ -1434,8 +1434,9 @@ end
 function parse_cat(ts::TokenStream, closer)
     @with_normal_ops ts begin
         @with_inside_vec ts begin 
-            @assert ts.range_colon_enabled == false
+            @assert ts.range_colon_enabled == true
             @assert ts.space_sensitive == true
+            @assert ts.whitespace_newline == false
             @assert ts.inside_vector == true
             if require_token(ts) == closer
                 take_token(ts)
@@ -1700,9 +1701,9 @@ function _parse_atom(ts::TokenStream)
         take_token(ts)
         @with_normal_ops ts begin
             @with_whitespace_newline ts begin
-                @assert ts.range_colon_enabled == false
-                @assert ts.space_sensitive == true
-                @assert ts.whitespace_newline == false
+                @assert ts.range_colon_enabled == true
+                @assert ts.space_sensitive == false
+                @assert ts.whitespace_newline == true
                 if require_token(ts) == ')'
                     # empty tuple
                     take_token(ts)
