@@ -375,7 +375,7 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
     t = peek_token(ts)
     while true 
         if !(t in ops)
-            if !(Lexer.eof(t) || t == '\n' || (',' in ops) || (t in closers))
+            if !(Lexer.eof(t) || t == '\n' || ',' in ops || t in closers)
                 error("extra token \"$t\" after end of expression")
             end
             if isempty(args) || length(args[2:end]) == 2 || !isfirst
