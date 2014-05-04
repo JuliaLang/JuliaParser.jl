@@ -4,7 +4,7 @@ module Parser
 using ..Lexer
 
 current_filename = ""
-
+#=
 # disable range colon for parsing ternary cond op
 const range_colon_enabled = true
 
@@ -19,24 +19,38 @@ const end_symbol = false
 
 # treat newline like ordinary whitespace instead of as a potential separator 
 const whitespace_newline = false
-
-macro with_normal_ops(body)
-    esc(quote
-            let range_colon_enabled = false,
-                space_sensitive = true
-                $body
-            end
-        end)
+=#
+macro with_normal_ops(ts, body)
+    tmp1 = gensym("range_colon_enabled")
+    tmp2 = gensym("space_sensitive")
+    quote
+        $tmp1 = $ts.range_colon_enabled
+        $tmp2 = $ts.space_sensitive
+        try
+            $ts.range_colon_enabled = false
+            $ts.space_sensitive = true
+            esc($body)
+        finally
+            $ts.range_colon_enabled = $tmp1
+            $ts.space_sensitive = $tmp2
+        end
+    end
 end
 
-macro without_range_colon(body)
-    esc(quote
-            let range_colon_enabled = false
-                $body
-            end
-        end)
+macro without_range_colon(ts, body) 
+    tmp1 = gensym("range_colon_enabled")
+    quote
+        $tmp1 = $ts.range_colon_enabled
+        try
+            $tmp1.range_colon_enabled = false
+            esc(body)
+        finally
+            $ts.range_colon_enabled = $tmp1
+        end
+    end
 end
 
+#=
 macro with_inside_vec(body)
     esc(quote
             let space_sensitive = true, 
@@ -46,7 +60,30 @@ macro with_inside_vec(body)
             end
         end)
 end
+=#
 
+macro with_inside_vec(ts, body)
+    tmp1 = gensym("space_sensitive")
+    tmp2 = gensym("inside_vector")
+    tmp3 = gensym("whitespace_newline")
+    quote
+        $tmp1 = $ts.space_sensitive
+        $tmp2 = $ts.inside_vector
+        $tmp3 = $ts.whitespace_newline
+        try
+            $ts.space_sensitive = true
+            $ts.inside_vector = true
+            $ts.whitespace_newline = false
+            esc($body)
+        finally
+            $ts.space_sensitive = $tmp1
+            $ts.inside_vector = $tmp2
+            $ts.whitespace_newline = $tmp3
+        end
+    end
+end
+
+#=
 macro with_end_symbol(body)
     esc(quote
             let end_symbol = true
@@ -54,7 +91,21 @@ macro with_end_symbol(body)
             end
         end)
 end
+=#
+macro with_end_symbol(ts, body)
+    tmp1 = gensym("end_symbol")
+    quote
+        $tmp1 = $ts.end_symbol
+        try
+            $ts.end_symbol = true
+            esc($body)
+        finally
+            $ts.end_symbol = $tmp1
+        end
+    end
+end
 
+#=
 macro with_whitespace_newline(body)
     esc(quote
             let whitespace_newline = true
@@ -70,7 +121,34 @@ macro without_whitespace_newline(body)
             end
         end)
 end
+=#
+macro with_whitespace_newline(ts, body)
+    tmp1 = gensym("whitespace_newline")
+    quote
+        $tmp1 = $ts.whitespace_newline
+        try
+            $ts.whitespace_newline = true
+            esc($body)
+        finally
+            $ts.whitespace_newline = $tmp1
+        end
+    end
+end
 
+macro without_whitespace_newline(ts, body)
+    tmp1 = gensym("whitespace_newline")
+    quote
+        $tmp1 = $ts.whitespace_newline
+        try
+            $ts.whitespace_newline = false
+            esc($body)
+        finally
+            $ts.whitespace_newline = $tmp1
+        end
+    end
+end
+
+#=
 macro with_space_sensitive(body)
     esc(quote
             let space_sensitive = true,
@@ -78,6 +156,23 @@ macro with_space_sensitive(body)
                 $body
             end
         end)
+end
+=#
+macro space_sensitive(ts, body)
+    tmp1 = gensym("space_sensitive")
+    tmp2 = gensym("whitespace_newline")
+    quote
+        $tmp1 = $ts.space_sensitive
+        $tmp2 = $ts.whitespace_newline
+        try 
+            $ts.space_sensitive = true
+            $ts.whitespace_newline = true 
+            esc($body)
+        finally
+            $ts.space_sensitive = $tmp1
+            $ts.whitespace_newline = $tmp2
+        end
+    end
 end
 
 filename(ts::TokenStream) = "test.jl"
@@ -134,7 +229,7 @@ end
 is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
 is_dict_literal(ex) = false
 
-function parse_chain(ts::TokenStream, down, op) 
+function parse_chain(ts::TokenStream, down::Function, op) 
     chain = {down(ts)}
     while true 
         t = peek_token(ts)
@@ -143,7 +238,7 @@ function parse_chain(ts::TokenStream, down, op)
         end
         take_token(ts)
         #TODO: this could be refactored
-        if (space_sensitive && isspace(ts) && 
+        if (ts.space_sensitive && isspace(ts) && 
             (t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts.io) != '\\')
             # here we have "x -y"
@@ -156,7 +251,7 @@ end
 
 # parse left to right chains of certain binary operator
 # ex. a + b + c => (call + a b c)
-function parse_with_chains(ts::TokenStream, down, ops, chain_op) 
+function parse_with_chains(ts::TokenStream, down::Function, ops, chain_op) 
     ex = down(ts)
     while true #!eof(ts)
         t = peek_token(ts)
@@ -164,13 +259,12 @@ function parse_with_chains(ts::TokenStream, down, ops, chain_op)
             return ex
         end
         take_token(ts)
-        if (space_sensitive &&
-            ts.isspace &&
+        if (ts.space_sensitive && ts.isspace &&
             (t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts.io) != '\\')
             # here we have "x -y"
             put_back!(ts, t)
-            return chain
+            return ex
         elseif t == chain_op
             ex = Expr(:call, t, ex, parse_chain(ts, down, t)...)
         else
@@ -207,7 +301,7 @@ function parse_RtoL(ts::TokenStream, down::Function, ops)
             return ex
         end
         take_token(ts)
-        if (space_sensitive && isspace(ts) &&
+        if (ts.space_sensitive && ts.isspace &&
             (t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts.io) != '\\')
             put_back!(ts, t)
@@ -233,7 +327,9 @@ function parse_cond(ts::TokenStream)
     ex = parse_or(ts)
     if peek_token(ts) == '?'
         take_token(ts)
-        then = @without_range_colon parse_eq(ts)
+        then = @without_range_colon ts begin
+            parse_eq(ts)
+        end
         take_token(ts) == ':' || error("colon expected in \"?\" expression")
         return Expr(:if, ex, then, parse_cond(ts))
     end
@@ -443,9 +539,9 @@ function parse_range(ts::TokenStream)
            take_token(ts)
            return Expr(:call, t, ex, parse_expr(ts))
         end
-        if range_colon_enabled && t == :(:)
+        if ts.range_colon_enabled && t == :(:)
             take_token(ts)
-            if (space_sensitive && spc && (peek_token(ts) || true) && !ts.isspace)
+            if (ts.space_sensitive && spc && (peek_token(ts) || true) && !ts.isspace)
                 # "a :b" in space sensitive mode
                 put_back!(ts, :(:))
                 return ex
@@ -608,7 +704,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
     temp = ['(', '[', '{', '\'', '"']
     while true 
         t = peek_token(ts)
-        if (space_sensitive && ts.isspace && (t in temp)) || 
+        if (ts.space_sensitive && ts.isspace && (t in temp)) || 
            (isa(ex, Number) && t == '(')
            return ex
         end
@@ -631,7 +727,9 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
         elseif t == '['
             take_token(ts)
             # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
-            al = @with_end_symbol parse_cat(ts, ']')
+            al = @with_end_symbol ts begin
+                parse_cat(ts, ']')
+            end
             if al == nothing
                 if is_dict_literal(ex)
                     ex = Expr(:typed_dict, ex)
@@ -723,7 +821,7 @@ end
 
 const expect_end_current_line = 0
 
-function _expect_end(ts::TokenStream, word)
+function _expect_end(ts::TokenStream, word::Symbol)
     t = peek_token(ts)
     if t == sym_end
         take_token(ts)
@@ -746,8 +844,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
     
     expect_end(ts::TokenStream) = _expect_end(ts, word) 
 
-    @with_normal_ops begin
-        @without_whitespace_newline begin
+    @with_normal_ops ts begin
+        @without_whitespace_newline ts begin
             if word == :quote || word == :begin
                 Lexer.skip_ws_and_comments(ts.io)
                 loc = line_number_filename_node(ts)
@@ -887,8 +985,13 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 return ex
 
             elseif word == :bitstype
-                stmnt = let space_sensitive=true
-                    parse_cond(ts)
+                tmp = ts.space_sensitive
+                local stmnt
+                try
+                    ts.space_sensitive = true
+                    stmnt = parse_cond(ts)
+                finally
+                    ts.space_sensitive = tmp
                 end
                 return Expr(:bitstype, stmnt, parse_subtype_spec(ts))
 
@@ -1049,7 +1152,7 @@ function macrocall_to_atsym(ex)
     end
 end
 
-function parse_imports(ts::TokenStream, word)
+function parse_imports(ts::TokenStream, word::Symbol)
     frst = {parse_import(ts, word)}
     nt   = peek_token(ts)
     from = nt == :(:) && true #TODO:ts.isspace
@@ -1117,7 +1220,7 @@ function parse_import_dots(ts::TokenStream)
 end
 
 
-function parse_import(ts::TokenStream, word)
+function parse_import(ts::TokenStream, word::Symbol)
     path = parse_import_dots(ts)
     while true
         nxt = peek_token(ts)
@@ -1179,11 +1282,11 @@ function parse_comma_sep_iters(ts::TokenStream)
 end
        
 function parse_space_separated_exprs(ts::TokenStream)
-    @with_space_sensitive begin
+    @space_sensitive ts begin
         exprs = {}
         while true 
             nt = peek_token(ts)
-            if is_closing_token(nt) || Lexer.isnewline(nt) || (inside_vector && nt == :for)
+            if is_closing_token(nt) || Lexer.isnewline(nt) || (ts.inside_vector && nt == :for)
                 return exprs
             end
             ex = parse_eq(ts)
@@ -1248,9 +1351,9 @@ function _parse_arglist(ts::TokenStream, closer::Token)
     end
 end
 
-function parse_arglist(ts::TokenStream, closer)
-    @with_normal_ops begin
-        @with_whitespace_newline begin
+function parse_arglist(ts::TokenStream, closer::Token)
+    @with_normal_ops ts begin
+        @with_whitespace_newline ts begin
             return _parse_arglist(ts, closer)
         end
     end
@@ -1306,9 +1409,11 @@ end
 
 function parse_comprehension(ts::TokenStream, frst, closer)
     rs = parse_comma_sep_iters(ts)
-    if require_token(ts) == closer
+    rt = require_token(ts)
+    if rt === closer
         take_token(ts)
     else
+        @show parse_comprehension, rs, rt
         error("expected $closer")
     end
     ex = Expr(:comprehension, frst)
@@ -1396,8 +1501,8 @@ function peek_non_newline_token(ts::TokenStream)
 end
 
 function parse_cat(ts::TokenStream, closer)
-    @with_normal_ops begin
-        @with_inside_vec begin
+    @with_normal_ops ts begin
+        @with_inside_vec ts begin
             if require_token(ts) == closer
                 take_token(ts)
                 if closer == '}'
@@ -1411,7 +1516,7 @@ function parse_cat(ts::TokenStream, closer)
             frst = parse_eqs(ts)
             if is_dict_literal(frst)
                 nt = peek_non_newline_token(ts)
-                if nt == :for
+                if nt === :for 
                     take_token(ts)
                     return parse_dict_comprehension(ts, frst, closer)
                 else
@@ -1421,7 +1526,7 @@ function parse_cat(ts::TokenStream, closer)
             nt = peek_token(ts)
             if nt == ','
                 return parse_vcat(ts, frst, closer)
-            elseif nt == :for
+            elseif nt === :for
                 take_token(ts)
                 return parse_comprehension(ts, frst, closer)
             else
@@ -1660,8 +1765,8 @@ function _parse_atom(ts::TokenStream)
     # parens or tuple
     elseif t == '('
         take_token(ts)
-        @with_normal_ops begin
-            @with_whitespace_newline begin
+        @with_normal_ops ts begin
+            @with_whitespace_newline ts begin
                 if require_token(ts) == ')'
                     # empty tuple
                     take_token(ts)
@@ -1797,7 +1902,7 @@ function _parse_atom(ts::TokenStream)
     # macrocall
     elseif t == '@'
         take_token(ts)
-        @with_space_sensitive begin
+        @space_sensitive ts begin
             head = parse_unary_prefix(ts)
             t = peek_token(ts)
             if ts.isspace

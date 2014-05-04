@@ -307,6 +307,7 @@ facts("test cell expressions") do
         "{i for i=1:10}",
     ]
     for ex in exprs
+        @show ex
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
@@ -347,7 +348,7 @@ facts("test backquote (cmd) expression") do
     # premature end of file
     @fact_throws Parser.parse("`pwd()")
 end
-
+#=
 facts("test quote/begin expression") do
     exprs = [
         """
@@ -402,7 +403,7 @@ facts("test for loop expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-
+=#
 facts("test if condtion expression") do
     exprs = [
         """if x == 2
@@ -426,7 +427,7 @@ facts("test if condtion expression") do
                                  else if
                                  end""")
 end
-
+#=
 facts("test let expression") do
     exprs = [
         """let
@@ -443,7 +444,7 @@ facts("test let expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-
+=#
 facts("test global/local reserved words") do
     exprs = ["global x",
              "global x, y",
@@ -456,7 +457,7 @@ facts("test global/local reserved words") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-
+#=
 facts("test function expressions") do
     exprs = ["function x() end",
              """function x()
@@ -490,7 +491,7 @@ facts("test macro expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-
+=#
 facts("test abstract type expression") do
     exprs = [
         "abstract Test",
@@ -539,7 +540,7 @@ facts("test type / immutable expression") do
     end
 end
 
-
+#=
 facts("test type / immutable expression") do
     exprs = [
         """try;end""",
@@ -566,7 +567,7 @@ facts("test type / immutable expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-
+=#
 facts("test return expression") do
     exprs = [
         "return",
@@ -609,7 +610,7 @@ facts("test const expression") do
     # expected assignment after const
     @fact_throws Parser.parse("const x")
 end
-
+#=
 facts("test module expressions") do
     exprs = [
         """module Test
@@ -630,7 +631,7 @@ facts("test module expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-
+=#
 facts("test export expression") do
     exprs = [
         """export a""",

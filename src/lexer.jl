@@ -513,7 +513,7 @@ function skipwhitespace(io::IO)
     end
     return io
 end
-       
+
 # skip all whitespace before a comment,
 # upon reaching the comment, if it is a
 # single line comment skip to the end of the line
@@ -552,6 +552,30 @@ function accum_julia_symbol(io::IO, c::Char)
     return symbol(str)
 end
 
+function isuws(wc::Char)
+    return (wc==9 || wc==10 || wc==11 || wc==12 || wc==13 || wc==32 ||
+            wc==133 || wc==160 || wc==5760 || wc==6158 || wc==8192 ||
+            wc==8193 || wc==8194 || wc==8195 || wc==8196 || wc==8197 ||
+            wc==8198 || wc==8199 || wc==8200 || wc==8201 || wc==8202 ||
+            wc==8232 || wc==8233 || wc==8239 || wc==8287 || wc==12288)
+end
+
+function isbom(wc::Char)
+    return wc == 0xFEFF
+end
+
+function _skipws(io::IO, newlines::Bool)
+    nc = peekchar(io)
+    nc === EOF && return EOF
+    skipped = false
+    while !eof(io) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
+        skipped = true
+        takechar(io)
+        nc = peekchar(io)
+    end
+    return skipped
+end
+
 #= Token Stream =#
 export Token, TokenStream, next_token, set_token!, last_token, 
        put_back!, peek_token, take_token, require_token
@@ -565,51 +589,58 @@ type TokenStream
     putback::Token
     isspace::Bool
     ateof::Bool
+
+    #TODO: this should ideally not be apart of TokenStream 
+    range_colon_enabled::Bool
+    space_sensitive::Bool
+    inside_vector::Bool
+    end_symbol::Bool
+    whitespace_newline::Bool
 end
 
-TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io)) 
+TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io),
+                                  true, false, false, false, false) 
 TokenStream(str::String) = TokenStream(IOBuffer(str))
 
 function next_token(ts::TokenStream)
     ts.ateof && return EOF
-    #TODO: customize whitespace management
-    io = ts.io
-    while !eof(io)
-        c = peekchar(io)
+    ts.isspace = _skipws(ts.io, ts.whitespace_newline)
+    while !eof(ts.io)
+        c = peekchar(ts.io)
         if c == ' ' || c == '\t'
-            skip(io, 1)
+            skip(ts.io, 1)
             continue
         elseif c == '#'
-            skipcomment(io)
+            skipcomment(ts.io)
             continue
         elseif eof(c) || isnewline(c)
-            return readchar(io)
+            return readchar(ts.io)
         elseif is_special_char(c)
-            return readchar(io)
+            return readchar(ts.io)
         elseif isdigit(c)
-            return read_number(io, false, false)
+            return read_number(ts.io, false, false)
         elseif c == '.'
-            c  = readchar(io)
-            nc = peekchar(io)
+            c  = readchar(ts.io)
+            nc = peekchar(ts.io)
             if eof(nc)
                 return :(.)
             elseif isdigit(nc)
-                return read_number(io, true, false)
+                return read_number(ts.io, true, false)
             elseif is_opchar(nc)
-                op = read_operator(io, c)
-                if op === :(..) && is_opchar(peekchar(io))
-                    error(string("invalid operator \"", op, peekchar(io), "\""))
+                op = read_operator(ts.io, c)
+                if op === :(..) && is_opchar(peekchar(ts.io))
+                    error(string("invalid operator \"", op, peekchar(ts.io), "\""))
                 end
                 return op
             else
                 return :(.)
             end
         elseif is_opchar(c)
-            return read_operator(io, readchar(io))
+            return read_operator(ts.io, readchar(ts.io))
         elseif is_identifier_char(c)
-            return accum_julia_symbol(io, c)
+            return accum_julia_symbol(ts.io, c)
         else
-            error(string("invalid character \"", readchar(io), "\""))
+            error(string("invalid character \"", readchar(ts.io), "\""))
         end
     end
     ts.ateof = true
