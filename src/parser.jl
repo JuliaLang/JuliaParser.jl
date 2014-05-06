@@ -275,7 +275,7 @@ function parse_cond(ts::TokenStream)
     if peek_token(ts) == '?'
         take_token(ts)
         then = @without_range_colon ts begin
-            @assert ts.range_colon_enabled == false
+            @assert !ts.range_colon_enabled
             parse_eq(ts)
         end
         take_token(ts) == ':' || error("colon expected in \"?\" expression")
@@ -299,7 +299,7 @@ end
 
 function parse_Nary(ts::TokenStream, down::Function, ops, 
                     head::Symbol, closers, allow_empty::Bool)
-    t = require_token(ts)
+    t::Token = require_token(ts)
     is_invalid_initial_token(t) && error("unexpected \"$t\"")
     # empty block
     # Note: "\n" has a int value of 10 so we need a typecheck here
@@ -308,7 +308,7 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
     end
     local args::Vector{Any}
     # in allow empty mode, skip leading runs of operator
-    if allow_empty && t in ops 
+    if allow_empty && isa(t, Union(Char, Symbol)) && t in ops 
         args = {}
     elseif '\n' in ops
         # nore line-number must happend before (down s)
@@ -318,10 +318,10 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
         args = {down(ts)}
     end
     isfirst = true
-    t = peek_token(ts)
     while true 
+        t = peek_token(ts)
         if !(t in ops)
-            if !(Lexer.eof(t) || t == '\n' || ',' in ops || t in closers)
+            if !(Lexer.eof(t) || t === '\n' || ',' in ops || t in closers)
                 error("extra token \"$t\" after end of expression")
             end
             if isempty(args) || length(args[2:end]) == 2 || !isfirst
@@ -338,17 +338,16 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
         end
         isfirst = false
         take_token(ts)
-        nt = peek_token(ts)
+        t = peek_token(ts)
         # allow input to end with the operator, as in a;b;
-        if Lexer.eof(nt) || (nt in closers) || (allow_empty && nt in ops) ||  
-           (length(ops) == 1 && first(ops) == ',' && nt === :(=))
-            t = nt
+        if Lexer.eof(t) || (t in closers) || 
+           (allow_empty && isa(t, Union(Symbol, Char)) && t in ops) ||  
+           (length(ops) == 1 && first(ops) == ',' && t === :(=))
             continue
         end
         if '\n' in ops
             loc = line_number_node(ts)
             append!(args, {loc, down(ts)})
-            t = nt
             continue
         else
             push!(args, down(ts))
@@ -665,7 +664,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             take_token(ts)
             # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
             al = @with_end_symbol ts begin
-                @assert ts.end_symbol == true
+                @assert ts.end_symbol
                 parse_cat(ts, ']')
             end
             if al == nothing
@@ -780,9 +779,9 @@ function parse_resword(ts::TokenStream, word::Symbol)
     expect_end_current_line = curline(ts)
     @with_normal_ops ts begin
         @without_whitespace_newline ts begin
-            @assert ts.range_colon_enabled == true 
-            @assert ts.space_sensitive == false 
-            @assert ts.whitespace_newline == false
+            @assert ts.range_colon_enabled
+            @assert !ts.space_sensitive
+            @assert !ts.whitespace_newline
             if word == :quote || word == :begin
                 Lexer.skip_ws_and_comments(ts.io)
                 loc = line_number_filename_node(ts)
@@ -1280,9 +1279,9 @@ end
 function parse_arglist(ts::TokenStream, closer::Token)
     @with_normal_ops ts begin
         @with_whitespace_newline ts begin
-            @assert ts.range_colon_enabled == true
-            @assert ts.space_sensitive == false
-            @assert ts.whitespace_newline == true
+            @assert ts.range_colon_enabled
+            @assert !ts.space_sensitive
+            @assert ts.whitespace_newline
             return _parse_arglist(ts, closer)
         end
     end
@@ -1434,10 +1433,10 @@ end
 function parse_cat(ts::TokenStream, closer)
     @with_normal_ops ts begin
         @with_inside_vec ts begin 
-            @assert ts.range_colon_enabled == true
-            @assert ts.space_sensitive == true
-            @assert ts.whitespace_newline == false
-            @assert ts.inside_vector == true
+            @assert ts.range_colon_enabled
+            @assert ts.space_sensitive
+            @assert !ts.whitespace_newline
+            @assert ts.inside_vector 
             if require_token(ts) == closer
                 take_token(ts)
                 if closer == '}'
@@ -1701,9 +1700,9 @@ function _parse_atom(ts::TokenStream)
         take_token(ts)
         @with_normal_ops ts begin
             @with_whitespace_newline ts begin
-                @assert ts.range_colon_enabled == true
-                @assert ts.space_sensitive == false
-                @assert ts.whitespace_newline == true
+                @assert ts.range_colon_enabled 
+                @assert !ts.space_sensitive
+                @assert ts.whitespace_newline
                 if require_token(ts) == ')'
                     # empty tuple
                     take_token(ts)
@@ -1840,7 +1839,7 @@ function _parse_atom(ts::TokenStream)
     elseif t == '@'
         take_token(ts)
         @space_sensitive ts begin
-            @assert ts.space_sensitive == true
+            @assert ts.space_sensitive
             head = parse_unary_prefix(ts)
             t = peek_token(ts)
             if ts.isspace

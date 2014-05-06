@@ -19,10 +19,11 @@ tokens(str::String) = tokens(TokenStream(str))
 without_linenums(ex::Expr) = begin
     args = {}
     for a in ex.args
-        if isa(a, Expr) && !is(a.head, :line)
+        if isa(a, Expr)
+            a.head === :line && continue
             push!(args, without_linenums(a))
         else
-            is(a, LineNumberNode) && continue
+            isa(a, LineNumberNode) && continue
             push!(args, a)
         end
     end
@@ -30,7 +31,7 @@ without_linenums(ex::Expr) = begin
 end
 
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
-
+#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -307,7 +308,6 @@ facts("test cell expressions") do
         "{i for i=1:10}",
     ]
     for ex in exprs
-        @show ex
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
@@ -348,7 +348,6 @@ facts("test backquote (cmd) expression") do
     # premature end of file
     @fact_throws Parser.parse("`pwd()")
 end
-#=
 facts("test quote/begin expression") do
     exprs = [
         """
@@ -373,6 +372,7 @@ facts("test quote/begin expression") do
     end
 end
 
+
 facts("test while expression") do
     exprs = [
         """
@@ -388,22 +388,25 @@ facts("test while expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-
+=#
 facts("test for loop expression") do
     exprs = [
         """for 1 = 1:10
             x + 1
-           end""",
-        #"for i in coll; x + 1; end"
+         end""",
+        #"for i in coll; x + i; end"
     ]
     for ex in exprs
         pex = Parser.parse(ex)
-        bex = Parser.parse(ex)
-        @fact pex.head => bex.head
-        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+        bex = Base.parse(ex)
+        #@fact pex.head => bex.head
+        dump(without_linenums(pex))
+        dump(without_linenums(bex))
+        #@show Base.without_linenums(pex.args)
+        #@show Base.without_linenums(bex.args)
     end
 end
-=#
+error()
 facts("test if condtion expression") do
     exprs = [
         """if x == 2
@@ -427,7 +430,7 @@ facts("test if condtion expression") do
                                  else if
                                  end""")
 end
-#=
+
 facts("test let expression") do
     exprs = [
         """let
@@ -444,7 +447,7 @@ facts("test let expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
+
 facts("test global/local reserved words") do
     exprs = ["global x",
              "global x, y",
@@ -457,7 +460,7 @@ facts("test global/local reserved words") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-#=
+
 facts("test function expressions") do
     exprs = ["function x() end",
              """function x()
@@ -491,7 +494,7 @@ facts("test macro expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
+
 facts("test abstract type expression") do
     exprs = [
         "abstract Test",
@@ -522,9 +525,9 @@ facts("test type / immutable expression") do
         """type Test
             x
         end""",
-        #"""type Test{T}
-        #    x::T
-        #end""",
+        """type Test{T}
+            x::T
+        end""",
         """immutable Test;end""",
         """immutable Test
         end""",
@@ -540,7 +543,6 @@ facts("test type / immutable expression") do
     end
 end
 
-#=
 facts("test type / immutable expression") do
     exprs = [
         """try;end""",
@@ -567,7 +569,7 @@ facts("test type / immutable expression") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
+
 facts("test return expression") do
     exprs = [
         "return",
@@ -610,7 +612,7 @@ facts("test const expression") do
     # expected assignment after const
     @fact_throws Parser.parse("const x")
 end
-#=
+
 facts("test module expressions") do
     exprs = [
         """module Test
@@ -631,7 +633,7 @@ facts("test module expressions") do
         @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
     end
 end
-=#
+
 facts("test export expression") do
     exprs = [
         """export a""",
