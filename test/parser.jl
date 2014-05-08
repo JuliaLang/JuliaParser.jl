@@ -518,6 +518,7 @@ facts("test type / immutable expression") do
         """type Test{T}
             x::T
         end""",
+        """type Test1{Test2{T} <: Test3}; end""",
         """immutable Test;end""",
         """immutable Test
         end""",
