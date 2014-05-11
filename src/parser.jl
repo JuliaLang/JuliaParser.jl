@@ -1570,6 +1570,16 @@ function parse_interpolate(ts::TokenStream)
     end
 end
 
+function tostr(buf::IOBuffer, custom::Bool)
+    str = bytestring(buf)
+    custom && return str
+    str = unescape_string(str)
+    if !is_valid_utf8(str)
+        error("invalid UTF-8 sequence")
+    end
+    return  str
+end
+
 function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom::Bool)
     c  = Lexer.readchar(ts.io)
     b  = IOBuffer()
@@ -1581,10 +1591,9 @@ function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom
                 c = Lexer.readchar(ts.io)
                 quotes += 1
                 continue
-            else
-                push!(ex.args, bytestring(b))
-                return ex
             end
+            push!(ex.args, tostr(b, custom))
+            return ex
         elseif quotes == 1
             custom || write(b, '\\')
             write(b, '"')
@@ -1607,11 +1616,11 @@ function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom
             quotes = 0
             continue
         elseif c == '$' && !custom
-            nex = parse_interpolate(ts)
-            push!(nex.args, bytestring(b), ex)
-            c  = Lexer.readchar(ts.io)
-            b  = IOBuffer()
-            ex = nex
+            iex = parse_interpolate(ts)
+            append!(ex.args, {iex, tostr(b, custom)})
+            #append!(ex.args, {iex,})
+            c = Lexer.readchar(ts.io)
+            b = b.size == 0 ? b : IOBuffer()
             quotes = 0
             continue
         else
@@ -1828,9 +1837,7 @@ function _parse_atom(ts::TokenStream)
             append!(ex.args, ps.args)
             return ex
         elseif interpolate_string_literal(ps)
-            ex = Expr(:string)
-            append!(ex.args, filter((s) -> isa(s, String) && length(s) != 0, ps.args))
-            return ex
+            return Expr(:string, filter((s) -> !(isa(s, String) && length(s) == 0), ps.args)...)
         else
             return ps.args[1]
         end

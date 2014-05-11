@@ -680,3 +680,14 @@ facts("test ccall expression") do
     end
 
 end
+
+facts("test string interpolation") do
+    exprs = [
+        "\"\$test\"",
+        "\"\$(1 + 1)\""
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
