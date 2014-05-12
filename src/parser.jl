@@ -1083,7 +1083,7 @@ end
 function parse_imports(ts::TokenStream, word::Symbol)
     frst = {parse_import(ts, word)}
     nt   = peek_token(ts)
-    from = nt == :(:) && ts.isspace 
+    from = nt == :(:) && !ts.isspace 
     done = false
     if from || nt == ','
         take_token(ts)
@@ -1100,8 +1100,7 @@ function parse_imports(ts::TokenStream, word::Symbol)
         module_sym = frst[1].args[1]
         imports = Expr[]
         for expr in rest
-            ex = Expr(expr.head, module_sym)
-            append!(ex.args, expr.args)
+            ex = Expr(expr.head, module_sym, expr.args...)
             push!(imports, ex)
         end
         return imports
@@ -1141,12 +1140,10 @@ function parse_import_dots(ts::TokenStream)
             continue
         else
             ex = macrocall_to_atsym(parse_atom(ts))
-            push!(l, ex)
-            return l
+            return push!(l, ex)
         end
     end
 end
-
 
 function parse_import(ts::TokenStream, word::Symbol)
     path = parse_import_dots(ts)
@@ -1154,16 +1151,17 @@ function parse_import(ts::TokenStream, word::Symbol)
         nxt = peek_token(ts)
         if nxt == :(.)
             take_token(ts)
-            ex = macrocall_to_atsym(parse_atom(ts))
-            push!(path, ex)
+            push!(path, macrocall_to_atsym(parse_atom(ts)))
             continue
-        elseif (nxt in ('\n', ';', ',', :(:))) || Lexer.eof(nxt)
+        elseif nxt in ('\n', ';', ',', :(:)) || Lexer.eof(nxt)
             # reverse path
             ex = Expr(word)
             ex.args = path
             return ex
-        elseif false #string sub
-            #TODO:
+        elseif first(string(nxt)) == '.'
+            Lexer.take_token(ts)
+            push!(path, symbol(string(nxt)[2:end]))
+        continue
         else
             error("invalid \"$word\" statement")
         end

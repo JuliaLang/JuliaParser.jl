@@ -638,6 +638,8 @@ facts("test import / using / importall expressions") do
         """import .....Test""",
         """import Test1, Test2""",
         """import Test: a, b, c""",
+        """import Test: a, b,\nc,d""",
+        """import Test: a, b; c, d""",
         """using Test""",
         """importall Test""",
         
@@ -688,9 +690,8 @@ facts("test string interpolation") do
         "\"\"\"\$(1+1)\"\"\"",
     ]
     for ex in exprs
-        #@show dump(Parser.parse(ex))
-        #@show dump(Base.parse(ex))
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
+
 

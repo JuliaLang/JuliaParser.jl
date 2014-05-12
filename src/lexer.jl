@@ -56,7 +56,7 @@ const ctranspose_op = symbol("'")
 const vararg_op     = :(...)
 
 const operators = union(Set([:(~), :(!), :(->), ctranspose_op, transpose_op, vararg_op]), 
-			[Set(ops) for ops in ops_by_precedent]...)
+			                [Set(ops) for ops in ops_by_precedent]...)
 
 const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
                                     :break, :continue, :function, :macro, :quote,
@@ -98,15 +98,13 @@ function is_identifier_char(c::Char)
            ('\_' === c))
 end 
 
-
 #= Characters that can be in an operator =#
 const operator_chars = union([Set(string(op)) for op in operators]...)
 
 is_opchar(c::Char) = in(c, operator_chars)
 
 #= Characters that can follow a . in an operator =#
-const is_dot_opchar = let
-    chars = Set{Char}(".*^/\\+-'<>!=%")
+const is_dot_opchar = let chars = Set{Char}(".*^/\\+-'<>!=%")
     is_dot_opchar(c::Char) = in(c, chars)
 end
 
@@ -143,8 +141,7 @@ end
 
 
 # this implementation is copied from Base
-const peekchar = let 
-    chtmp = Array(Char, 1)
+const peekchar = let chtmp = Array(Char, 1)
     peekchar(s::IOStream) = begin
         if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, chtmp) < 0
             return EOF
@@ -182,7 +179,7 @@ function read_operator(io::IO, c::Char)
         return symbol(c)
     end
     str = Char[c]
-    c   = pc
+    c   = pc 
     while !eof(c) && is_opchar(c)
         push!(str, c)
         newop = utf32(str)
@@ -191,6 +188,9 @@ function read_operator(io::IO, c::Char)
             skip(io, 1)
             c = peekchar(io)
             continue
+        #TODO: this is wrong
+        elseif c == '.'
+            skip(io, 1)
         end
         break
     end
@@ -623,7 +623,7 @@ function next_token(ts::TokenStream)
             c  = readchar(ts.io)
             nc = peekchar(ts.io)
             if eof(nc)
-                return :(.)
+                return EOF
             elseif isdigit(nc)
                 return read_number(ts.io, true, false)
             elseif is_opchar(nc)
