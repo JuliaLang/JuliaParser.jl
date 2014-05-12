@@ -684,9 +684,12 @@ end
 facts("test string interpolation") do
     exprs = [
         "\"\$test\"",
-        "\"\$(1 + 1)\""
+        "\"\$(1 + 1)\"",
+        "\"\"\"\$(1+1)\"\"\"",
     ]
     for ex in exprs
+        #@show dump(Parser.parse(ex))
+        #@show dump(Base.parse(ex))
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end

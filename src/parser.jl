@@ -1608,7 +1608,8 @@ function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom
             continue
         elseif c == '\\'
             nxch = not_eof_3(Lexer.readchar(ts.io))
-            if !custom || !(nxch == '"' || nxch == '\\')
+            #if !custom || !(nxch == '"' || nxch == '\\')
+            if !custom || nxch != '"' 
                 write(b, '\\')
             end
             write(b, nxch)
@@ -1617,10 +1618,9 @@ function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom
             continue
         elseif c == '$' && !custom
             iex = parse_interpolate(ts)
-            append!(ex.args, {iex, tostr(b, custom)})
-            #append!(ex.args, {iex,})
+            append!(ex.args, {tostr(b, custom), iex})
             c = Lexer.readchar(ts.io)
-            b = b.size == 0 ? b : IOBuffer()
+            b = IOBuffer()
             quotes = 0
             continue
         else
@@ -1638,8 +1638,9 @@ triplequote_string_literal(ex) = isa(ex, Expr) && ex.head === :triple_quoted_str
 function parse_string_literal(ts::TokenStream, custom)
     pc = Lexer.peekchar(ts.io)
     if pc == '"'
-        Lexer.takechar(io)
-        if Lexer.peekchar(io) == '"'
+        Lexer.takechar(ts.io)
+        if Lexer.peekchar(ts.io) == '"'
+            Lexer.takechar(ts.io)
             return  _parse_string_literal(:triple_quoted_string, 2, ts, custom)
         else
             return Expr(:single_quoted_string, "")
@@ -1833,8 +1834,7 @@ function _parse_atom(ts::TokenStream)
         take_token(ts)
         ps = parse_string_literal(ts, false)
         if triplequote_string_literal(ps)
-            ex = Expr(:macrocall, :(@mstr))
-            append!(ex.args, ps.args)
+            ex = Expr(:macrocall, symbol("@mstr"), ps.args...)
             return ex
         elseif interpolate_string_literal(ps)
             return Expr(:string, filter((s) -> !(isa(s, String) && length(s) == 0), ps.args)...)
