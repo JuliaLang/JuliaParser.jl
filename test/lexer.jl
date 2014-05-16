@@ -708,6 +708,9 @@ facts("test next_token") do
     toks = collect(tokens("@testmacro"))
     @fact toks => {'@', :testmacro}
 
+    toks = collect(tokens("x::Int32 + 1"))
+    @fact toks => {:x, :(::), :Int32, :(+), 1}
+
     toks = collect(tokens("func(2) |> send!"))
     @fact toks => {:func, '(', 2, ')', :(|>), :(send!)}
 
