@@ -600,7 +600,10 @@ end
 
 TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io),
                                   true, false, false, false, false) 
+
 TokenStream(str::String) = TokenStream(IOBuffer(str))
+
+eof(ts::TokenStream) = ts.ateof || eof(ts.io)
 
 function next_token(ts::TokenStream)
     ts.ateof && return EOF

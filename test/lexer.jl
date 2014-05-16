@@ -666,18 +666,19 @@ facts("test skip ws and comment") do
 end
 
 function tokens(io::IO)
-    @task while !eof(io)
-        produce(Lexer.next_token(io, nothing))
+    ts = Lexer.TokenStream(io)
+    @task while !Lexer.eof(ts)
+        produce(Lexer.next_token(ts))
     end
 end
 
 facts("test next_token") do
     # throw EOF error
-    io  = IOBuffer("")
-    @fact Lexer.next_token(io, nothing) => Lexer.EOF
+    ts  = Lexer.TokenStream("")
+    @fact Lexer.next_token(ts) => Lexer.EOF
 
-    io  = IOBuffer("\n")
-    tok = Lexer.next_token(io, nothing)
+    ts  = Lexer.TokenStream("\n")
+    tok = Lexer.next_token(ts)
     @fact tok => '\n'
 
     toks = collect(tokens(IOBuffer("(test,)")))
