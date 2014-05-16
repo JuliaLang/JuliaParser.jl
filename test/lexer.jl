@@ -665,7 +665,7 @@ facts("test skip ws and comment") do
     @fact Lexer.readchar(io) => 't'
 end
 
-function tokens(io::IO)
+function tokens(io)
     ts = Lexer.TokenStream(io)
     @task while !Lexer.eof(ts)
         produce(Lexer.next_token(ts))
@@ -681,45 +681,45 @@ facts("test next_token") do
     tok = Lexer.next_token(ts)
     @fact tok => '\n'
 
-    toks = collect(tokens(IOBuffer("(test,)")))
+    toks = collect(tokens("(test,)"))
     @fact toks => {'(', :test, ',', ')'}
 
-    toks = collect(tokens(IOBuffer("[10.0,2.0]")))
+    toks = collect(tokens("[10.0,2.0]"))
     @fact toks => {'[', 10.0, ',', 2.0, ']'}
 
-    toks = collect(tokens(IOBuffer("#test\n{10,};")))
+    toks = collect(tokens("#test\n{10,};"))
     @fact toks => {'{', 10, ',', '}', ';'}
 
-    toks = collect(tokens(IOBuffer("#=test1\ntest2\n=#@test\n")))
+    toks = collect(tokens("#=test1\ntest2\n=#@test\n"))
     @fact toks => {'@', :test, '\n'}
 
-    toks = collect(tokens(IOBuffer("1<=2")))
+    toks = collect(tokens("1<=2"))
     @fact toks => {1, :(<=), 2}
 
-    toks = collect(tokens(IOBuffer("1.0 .+ 2")))
+    toks = collect(tokens("1.0 .+ 2"))
     @fact toks => {1.0, :(.+), 2}
 
-    toks = collect(tokens(IOBuffer("abc .+ .1")))
+    toks = collect(tokens("abc .+ .1"))
     @fact toks => {:abc, :(.+), 0.1}
 
-    toks = collect(tokens(IOBuffer("`ls`")))
+    toks = collect(tokens("`ls`"))
     @fact toks => {'`', :ls, '`'}
 
-    toks = collect(tokens(IOBuffer("@testmacro")))
+    toks = collect(tokens("@testmacro"))
     @fact toks => {'@', :testmacro}
 
-    toks = collect(tokens(IOBuffer("func(2) |> send!")))
+    toks = collect(tokens("func(2) |> send!"))
     @fact toks => {:func, '(', 2, ')', :(|>), :(send!)}
 
     sym_end = symbol("end")
     
-    toks = collect(tokens(IOBuffer("type Test{T<:Int32}\n\ta::T\n\tb::T\nend")))
+    toks = collect(tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend"))
     @fact toks => {:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
                    :a, :(::), :T, '\n', 
                    :b, :(::), :T, '\n', 
                    sym_end} 
 
-    toks = collect(tokens(IOBuffer("function(x::Int)\n\treturn x^2\nend")))
+    toks = collect(tokens("function(x::Int)\n\treturn x^2\nend"))
     @fact toks => {:function, '(', :x, :(::), :Int, ')', '\n',
                    :return , :x, :(^), uint(2), '\n',
                    sym_end}
