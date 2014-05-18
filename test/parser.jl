@@ -183,11 +183,15 @@ facts("test simple numeric expressions") do
 end
 
 facts("test assignment expressions") do
-    code = "a = 1"
-    @fact Parser.parse(code) => Base.parse(code) 
-
-    code = "a = 1;b = 2"
-    @fact Parser.parse(code) => Base.parse(code)
+    exprs = [
+        "a = 1",
+        "a = b,c",
+        "a = (b,c)",
+        "a = 1; b = 2"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
 end
 
 facts("test parse single operator") do
@@ -222,7 +226,7 @@ facts("test tuple expressions") do
         "(a...)",
         "((a,b)...)",
         "((a,b);)",
-        "((a,b);(c,d))"
+        "((a,b);(c,d);)"
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
@@ -498,6 +502,42 @@ facts("test abstract type expression") do
     end
 end
 
+facts("test unary negate") do
+    exprs = [
+        "-10",
+        "x -y",
+        "-2x",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
+facts("test multiply expressions") do
+    exprs = [
+        "2 * x",
+        "2*x",
+        "2(10)",
+        "2x"
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+    #TODO: errors when is_juxtaposed is false (reserved words, etc)
+end
+
+facts("test type assertions") do
+    exprs = [
+        "x::Int",
+        "x::Array{Float32, 2}",
+        "const x::Int = 1",
+        "(x + 1)::Int",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
 facts("test type / immutable expression") do
     exprs = [
         """type Test;end""",
@@ -514,20 +554,28 @@ facts("test type / immutable expression") do
         end""",
         """type Test
             x
+            y
+            z
         end""",
-        """type Test{T}
+        """type Test{T} end""",
+        """type Test{T<:Int}
             x::T
+            y::T
         end""",
         """type Test1{Test2{T} <: Test3}; end""",
         """immutable Test;end""",
         """immutable Test
         end""",
+
         """immutable type Test; end""",
         """immutable type Test
+                x
+                y
+                z
         end""",
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
 
@@ -693,5 +741,3 @@ facts("test string interpolation") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-
-

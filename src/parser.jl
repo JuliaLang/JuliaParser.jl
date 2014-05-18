@@ -217,7 +217,7 @@ function parse_with_chains(ts::TokenStream, down::Function, ops, chain_op)
             # here we have "x -y"
             put_back!(ts, t)
             return ex
-        elseif t == chain_op
+        elseif t === chain_op
             ex = Expr(:call, t, ex, parse_chain(ts, down, t)...)
         else
             ex = Expr(:call, t, ex, down(ts))
@@ -234,12 +234,11 @@ function parse_LtoR(ts::TokenStream, down::Function, ops)
         end
         take_token(ts)
         if Lexer.is_syntactic_op(t) || t === :(in)
-            ex = Expr(t, ex, down(ts))
-            t  = peek_token(ts)
+            ex = Expr(t, ex, down(ts)...)
         else
-            ex = Expr(:call, t, ex, down(ts))
-            t  = peek_token(ts)
+            ex = Expr(:call, t, ex, down(ts)...)
         end
+        t = peek_token(ts)
     end
 end
 
@@ -247,7 +246,9 @@ function parse_RtoL(ts::TokenStream, down::Function, ops)
     while true 
         ex = down(ts)
         t  = peek_token(ts)
-        !(t in ops) && return ex
+        if !(t in ops)
+            return ex
+        end
         take_token(ts)
         if (ts.space_sensitive && ts.isspace &&
             (t in Lexer.unary_and_binary_ops) &&
@@ -265,7 +266,7 @@ function parse_RtoL(ts::TokenStream, down::Function, ops)
                 return Expr(:macrocall, symbol("@~"), ex, args...)
             end
         else
-            return Expr(:call, t, ex, parse_RtoL(ts, down, ops)...)
+            return Expr(:call, t, ex, parse_RtoL(ts, down, ops))
         end
     end
 end
@@ -318,8 +319,8 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
         args = {down(ts)}
     end
     isfirst = true
+    t = peek_token(ts)
     while true 
-        t = peek_token(ts)
         if !(t in ops)
             if !(Lexer.eof(t) || t === '\n' || ',' in ops || t in closers)
                 error("extra token \"$t\" after end of expression")
@@ -338,20 +339,20 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
         end
         isfirst = false
         take_token(ts)
-        t = peek_token(ts)
         # allow input to end with the operator, as in a;b;
-        if Lexer.eof(t) || (t in closers) || 
-           (allow_empty && isa(t, Union(Symbol, Char)) && t in ops) ||  
-           (length(ops) == 1 && first(ops) === ',' && t === :(=))
-            continue
-        end
-        if '\n' in ops
+        if Lexer.eof(peek_token(ts)) ||
+           (isa(peek_token(ts), Union(Symbol, Char)) && peek_token(ts) in closers) || 
+           (allow_empty && isa(peek_token(ts), Union(Symbol, Char)) && peek_token(ts) in ops) ||  
+           (length(ops) == 1 && first(ops) === ',' && peek_token(ts) === :(=))
+           t = peek_token(ts)
+           continue
+        elseif '\n' in ops
             loc = line_number_node(ts)
             append!(args, {loc, down(ts)})
-            continue
+            t = peek_token(ts)
         else
             push!(args, down(ts))
-            continue
+            t = peek_token(ts)
         end
     end
 end 
@@ -397,12 +398,12 @@ parse_and(ts::TokenStream)   = parse_LtoR(ts, parse_arrow, Lexer.precedent_ops(4
 parse_arrow(ts::TokenStream) = parse_RtoL(ts, parse_ineq, Lexer.precedent_ops(5))
 parse_ineq(ts::TokenStream)  = parse_comparison(ts, Lexer.precedent_ops(6))
 
-const expr_ops = Lexer.precedent_ops(9)
-parse_expr(ts::TokenStream)  = parse_with_chains(ts, parse_shift, expr_ops, :(+))
+const EXPR_OPS = Lexer.precedent_ops(9)
+parse_expr(ts::TokenStream)  = parse_with_chains(ts, parse_shift, EXPR_OPS, :(+))
 parse_shift(ts::TokenStream) = parse_LtoR(ts, parse_term, Lexer.precedent_ops(10))
 
-const term_ops = Lexer.precedent_ops(11)
-parse_term(ts::TokenStream)     = parse_with_chains(ts, parse_rational, term_ops, :(*))
+const TERM_OPS = Lexer.precedent_ops(11)
+parse_term(ts::TokenStream)     = parse_with_chains(ts, parse_rational, TERM_OPS, :(*))
 parse_rational(ts::TokenStream) = parse_LtoR(ts, parse_unary, Lexer.precedent_ops(12))
 parse_pipes(ts::TokenStream)    = parse_LtoR(ts, parse_range, Lexer.precedent_ops(7))
 
@@ -450,8 +451,7 @@ end
 isnumber(n::Number) = true
 isnumber(n) = false
 
-const is_juxtaposed = let
-    invalid_chars = Set{Char}({'(', '[', '{'})
+const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
 
     is_juxtaposed(ex, t::Token) = begin
         return !(Lexer.is_operator(t)) &&
@@ -464,11 +464,12 @@ const is_juxtaposed = let
     end
 end
 
+#= This handles forms such as 2x => Expr(:call, :*, 2, :x) =#
 function parse_juxtaposed(ts::TokenStream, ex) 
     nxt = peek_token(ts)
     # numeric literal juxtaposition is a unary operator
     if is_juxtaposed(ex, nxt) && !ts.isspace
-        return Expr(:call, :(*), parse_unary(ts))
+        return Expr(:call, :(*), ex, parse_unary(ts))
     end
     return ex
 end
@@ -516,20 +517,17 @@ function parse_range(ts::TokenStream)
 end 
 
 function parse_decl(ts::TokenStream)
-    local ex
-    if peek_token(ts) === :(::)
-        take_token(ts)
-        ex = Expr(:(::), parse_call(ts))
-    else
-        ex = parse_call(ts)
-    end
-    while true 
+    ex = parse_call(ts)
+    while true
         t = peek_token(ts)
+        # type assertion => x::Int
         if t === :(::)
             take_token(ts)
-            call = parse_call(ts)
-            ex = Expr(t, ex, parse_call(ts))
-        elseif t === :(->)
+            ex = Expr(:(::), ex, parse_call(ts))
+            continue
+        end
+        # anonymous function => (x) -> x + 1
+        if t === :(->)
             take_token(ts)
             # -> is unusual it binds tightly on the left and loosely on the right
             lno = line_number_filename_node(ts)
@@ -564,7 +562,7 @@ function parse_unary(ts::TokenStream)
         neg = op === :(-)
         leadingdot = nc === '.'
         leadingdot && Lexer.readchar(ts.io)
-        n = Lexer.read_number(ts.io, leadingdot, neg) 
+        n   = Lexer.read_number(ts.io, leadingdot, neg) 
         num = parse_juxtaposed(ts, n)
         if peek_token(ts) in (:(^), :(.^))
             # -2^x parsed as (- (^ 2 x))
@@ -600,6 +598,7 @@ function subtype_syntax(ex::Expr)
     end
 end
 subtype_syntax(ex::Symbol) = ex
+subtype_syntax(ex::Number) = ex 
 
 function parse_unary_prefix(ts::TokenStream)
     op = peek_token(ts)
@@ -622,11 +621,9 @@ end
 function parse_call(ts::TokenStream)
     ex = parse_unary_prefix(ts)
     if ex in Lexer.reserved_words
-        ex = parse_resword(ts, ex)
-    else
-        ex = parse_call_chain(ts, ex, false)
+        return parse_resword(ts, ex)
     end
-    return ex
+    return parse_call_chain(ts, ex, false)
 end
 
 function separate(f::Function, collection)
@@ -638,11 +635,11 @@ function separate(f::Function, collection)
 end
 
 function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
-    temp = ['(', '[', '{', '\'', '"']
+    temp = Set(['(', '[', '{', '\'', '"'])
     while true 
         t = peek_token(ts)
         if (ts.space_sensitive && ts.isspace && (t in temp)) || (isa(ex, Number) && t === '(')
-           return ex
+            return ex
         end
         if t === '('
             take_token(ts)
@@ -917,7 +914,6 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 sig = parse_subtype_spec(ts)
                 blk = parse_block(ts)
                 ex  = Expr(:type, istype, sig, blk) 
-                @show ex, sig, blk
                 expect_end(ts, word)
                 return ex
 
