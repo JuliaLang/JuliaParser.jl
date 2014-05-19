@@ -936,40 +936,46 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 end
 
             elseif word === :try
-                local try_block::Expr
-                if require_token(ts) in (sym_catch, sym_finally)
-                    try_block = Expr(:block)
+                t::Token = require_token(ts)
+                local tryb::Expr
+                if t === sym_catch || t === sym_finally
+                    tryb = Expr(:block)
                 else
-                    try_block = parse_block(ts)
+                    tryb = parse_block(ts)
                 end
-                nxt = require_token(ts)
+                nxt::Token = require_token(ts)
                 catchb = nothing
                 catchv = false
                 finalb = nothing
                 while true
                     take_token(ts)
-                    if nxt === sym_end
-                        return finalb != nothing ? Expr(:try, try_block, catchv, catchb, finalb) :
-                                                   Expr(:try, try_block, catchv, catchb)
+                    if nxt === sym_end 
+                        if finalb != nothing
+                            return catchb != nothing ? Expr(:try, tryb, catchv, catchb, finalb) :
+                                                       Expr(:try, tryb, catchv, false, finalb)
+                        else
+                            return catchb != nothing ? Expr(:try, tryb, catchv, catchb) :
+                                                       Expr(:try, tryb, catchv, false)
+                        end
                     end
-                    if nxt === sym_catch && catchb === nothing
-                        nl = Lexer.isnewline(peek_token(ts))
-                        if require_token(ts) in (sym_end, sym_finally)
-                            nxt    = require_token(ts)
+                    if nxt === sym_catch && catchb == nothing
+                        nl  = Lexer.isnewline(peek_token(ts))
+                        nxt = require_token(ts)
+                        if nxt === sym_end || nxt === sym_finally
                             catchb = Expr(:block)
                             catchv = false 
                             continue
                         else
                             var   = parse_eqs(ts)
                             isvar = nl == false && isa(var, Symbol)
-                            catch_block = require_token(ts) == sym_finally? Expr(:block) : parse_block(ts)
+                            catch_block = nxt === sym_finally ? Expr(:block) : parse_block(ts)
                             nxt = require_token(ts)
                             catchb = isvar ? catch_block : Expr(:block, var, catch_block.args...)
-                            catchv = isvar && var != nothing
+                            catchv = isvar ? var : false
                             continue
                         end
                     elseif nxt === sym_finally && finalb == nothing
-                        finalb = require_token(ts) == sym_catch ? Expr(:block) : parse_block(ts)
+                        finalb = require_token(ts) === sym_catch ? Expr(:block) : parse_block(ts)
                         nxt = require_token(ts)
                         continue 
                     else

@@ -582,11 +582,14 @@ facts("test try, catch, finally expression") do
         """try
             x + 1
         catch ex
+            rethrow(ex)
         end""",
         """try
             x + 1
         catch ex
+            rethrow(ex)
         finally
+            dothis()
         end""",
     ]
     for ex in exprs
