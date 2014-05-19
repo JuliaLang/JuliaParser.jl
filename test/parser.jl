@@ -570,7 +570,7 @@ facts("test type / immutable expression") do
     end
 end
 
-facts("test type / immutable expression") do
+facts("test try, catch, finally expression") do
     exprs = [
         """try;end""",
         """try
