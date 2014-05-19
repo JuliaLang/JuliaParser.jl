@@ -234,9 +234,9 @@ function parse_LtoR(ts::TokenStream, down::Function, ops)
         end
         take_token(ts)
         if Lexer.is_syntactic_op(t) || t === :(in)
-            ex = Expr(t, ex, down(ts)...)
+            ex = Expr(t, ex, down(ts))
         else
-            ex = Expr(:call, t, ex, down(ts)...)
+            ex = Expr(:call, t, ex, down(ts))
         end
         t = peek_token(ts)
     end
