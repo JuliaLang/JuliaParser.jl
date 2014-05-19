@@ -320,7 +320,7 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
     end
     isfirst = true
     t = peek_token(ts)
-    while true 
+    while true
         if !(t in ops)
             if !(Lexer.eof(t) || t === '\n' || ',' in ops || t in closers)
                 error("extra token \"$t\" after end of expression")
@@ -590,15 +590,13 @@ function parse_unary(ts::TokenStream)
     end
 end
 
-function subtype_syntax(ex::Expr)
-    if ex.head === :comparison && length(ex.args) == 3 && ex.args[2] === :(<:)
+function subtype_syntax(ex)
+    if isa(ex, Expr) && ex.head === :comparison && length(ex.args) == 3 && ex.args[2] === :(<:)
         return Expr(:(<:), ex.args[1], ex.args[3])
     else
         return ex
     end
 end
-subtype_syntax(ex::Symbol) = ex
-subtype_syntax(ex::Number) = ex 
 
 function parse_unary_prefix(ts::TokenStream)
     op = peek_token(ts)
@@ -617,7 +615,6 @@ end
 
 # parse function all, indexing, dot, and transpose expressions
 # also handles looking for reserved words 
-
 function parse_call(ts::TokenStream)
     ex = parse_unary_prefix(ts)
     if ex in Lexer.reserved_words
@@ -1271,15 +1268,20 @@ function _parse_arglist(ts::TokenStream, closer::Token)
     end
 end
 
+#TODO: returning a local variable instead of inside the inner block
+#fixed types with {} arguments newline error, warrents further investigation
+#into what is going on and why the ts is being set incorrectly
 function parse_arglist(ts::TokenStream, closer::Token)
+    local ex::Vector{Any}
     @with_normal_ops ts begin
         @with_whitespace_newline ts begin
             @assert ts.range_colon_enabled
             @assert !ts.space_sensitive
             @assert ts.whitespace_newline
-            return _parse_arglist(ts, closer)
+            ex = _parse_arglist(ts, closer)
         end
     end
+    return ex
 end
 
 # parse [] concatenation expres and {} cell expressions

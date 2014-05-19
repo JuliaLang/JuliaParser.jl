@@ -392,7 +392,7 @@ end
 facts("test for loop expression") do
     exprs = [
         """for i in coll; x + i; end""",
-        """for 1 = 1:10
+        """for i = 1:10
             x + 1
          end""",
     ]
@@ -558,6 +558,10 @@ facts("test type / immutable expression") do
             z
         end""",
         """type Test{T} end""",
+        """type Test
+            x
+            y
+        end""",
         """type Test{T<:Int}
             x::T
             y::T
@@ -566,7 +570,6 @@ facts("test type / immutable expression") do
         """immutable Test;end""",
         """immutable Test
         end""",
-
         """immutable type Test; end""",
         """immutable type Test
                 x
@@ -575,7 +578,7 @@ facts("test type / immutable expression") do
         end""",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
