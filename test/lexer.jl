@@ -559,7 +559,6 @@ facts("test readnumber") do
     end
 end
 
-
 facts("test skipwhitespace") do
     io = IOBuffer("   abc")
     Lexer.skipwhitespace(io)
@@ -680,6 +679,9 @@ facts("test next_token") do
     ts  = Lexer.TokenStream("\n")
     tok = Lexer.next_token(ts)
     @fact tok => '\n'
+
+    toks = collect(tokens("true false"))
+    @fact toks => {true, false}
 
     toks = collect(tokens("(test,)"))
     @fact toks => {'(', :test, ',', ')'}

@@ -533,6 +533,9 @@ function is_julia_id_char(c::Char)
             c == '!' || c == '_')
 end
 
+const SYM_TRUE  = symbol("true")
+const SYM_FALSE = symbol("false") 
+
 function accum_julia_symbol(io::IO, c::Char)
     # preallocate to a typical size?
     str = Char[]
@@ -549,7 +552,8 @@ function accum_julia_symbol(io::IO, c::Char)
         eof(nc) && break
     end
     str = normalize_string(utf32(str), :NFC)
-    return symbol(str)
+    sym = symbol(str)
+    return sym === SYM_TRUE ? true : sym === SYM_FALSE ? false : sym
 end
 
 function isuws(wc::Char)
