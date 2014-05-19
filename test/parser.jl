@@ -385,7 +385,7 @@ facts("test while expression") do
         """
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
@@ -414,7 +414,7 @@ facts("test if condtion expression") do
            end"""
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
     # else if should throw and error => use elseif 
     @fact_throws Parser.parse("""if x == 1
@@ -432,11 +432,7 @@ facts("test let expression") do
         end"""
     ]
     for ex in exprs
-        pex = Parser.parse(ex)
-        bex = Parser.parse(ex)
-        @fact pex.head => bex.head
-        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
@@ -462,11 +458,7 @@ facts("test function expressions") do
                   return x + 1
               end"""]
     for ex in exprs
-        pex = Parser.parse(ex)
-        bex = Parser.parse(ex)
-        @fact pex.head => bex.head
-        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
@@ -481,11 +473,7 @@ facts("test macro expressions") do
                   :(x + 1)
               end"""]
     for ex in exprs
-        pex = Parser.parse(ex)
-        bex = Parser.parse(ex)
-        @fact pex.head => bex.head
-        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
@@ -602,7 +590,7 @@ facts("test type / immutable expression") do
         end""",
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
@@ -629,7 +617,7 @@ facts("test break / continue expression") do
         end"""
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
@@ -661,7 +649,7 @@ facts("test module expressions") do
         end"""
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Parser.parse(ex))
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
@@ -693,13 +681,11 @@ facts("test import / using / importall expressions") do
         """import Test: a, b; c, d""",
         """using Test""",
         """importall Test""",
-        
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-
 
 facts("test bitstype expression") do
     exprs = [
