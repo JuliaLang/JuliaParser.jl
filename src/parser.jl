@@ -1364,42 +1364,39 @@ function parse_dict_comprehension(ts::TokenStream, frst, closer)
     end
 end
 
-function parse_matrix(ts::TokenStream, frst, closer) 
-    
-    function fix(head, v)
-        unshift!(reverse(v), head)
-    end
 
-    function update_outer(v, outer)
-        if v == nothing
-            return outer
-        elseif isempty(v.args)
-            return unshift!(outer, v.head)
-        else
-            return unshift!(outer, fix(:row, v))
-        end
+function parse_matrix(ts::TokenStream, frst, closer)
+
+    update_outer!(v, outer) = begin
+        len = length(v)
+        len == 0 && return outer
+        len == 1 && return push!(outer, v[1])
+        row = Expr(:row); row.args = v
+        return push!(outer, row) 
     end
 
     semicolon = peek_token(ts) === ';'
-    vec   = Expr(frst)
+    vec   = {frst}
     outer = {}
     while true 
         t::Token = peek_token(ts) === '\n' ? '\n' : require_token(ts)
         if t === closer
             take_token(ts)
-            if isa(outer, Expr) && length(outer.args) == 1
-                return fix(:vcat, update_outer(vec, outer))
-            elseif isempty(vec) || (isa(vec, Expr) && isempty(vec.args))
+            local ex::Expr
+            if !isempty(outer)
+                ex = Expr(:vcat); ex.args = update_outer!(vec, outer)
+            elseif length(vec) <= 1
                 # [x] => (vcat x)
-                return fix(:vcat, vec)
+                ex = Expr(:vcat); ex.args = vec
             else
                 # [x y] => (hcat x y)
-                return fix(:hcat, vec)
+                ex = Expr(:hcat); ex.args = vec
             end
+            return ex
         end
         if t === ';' || t === '\n'
             take_token(ts)
-            outer = update_outer(vec, outer)
+            outer = update_outer!(vec, outer)
             vec   = {}
             continue
         elseif t === ','
@@ -1414,7 +1411,7 @@ function parse_matrix(ts::TokenStream, frst, closer)
                 error("invalid comprehension syntax")
             end
         else
-            unshift!(vec, parse_eqs(ts))
+            push!(vec, parse_eqs(ts))
             continue
         end
     end
