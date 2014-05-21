@@ -251,6 +251,19 @@ facts("test tuple expressions") do
     @fact_throws Parser.parse(code)
 end
 
+facts("test parse block") do
+    exprs = [
+        "begin
+            x + 1
+        end",
+        "(x + 1; nothing)",
+        "(x(); nothing)",
+    ]
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+    end
+end
+
 facts("test range expressions") do
     exprs = [
         "1:2", 
@@ -271,6 +284,7 @@ end
 facts("parse symbol / expression quote") do 
     exprs = [
         ":a",
+        "a :b",
         ":(a + 1)"
     ]
     for ex in exprs
