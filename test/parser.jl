@@ -24,13 +24,14 @@ without_linenums(ex::Expr) = begin
             push!(args, without_linenums(a))
         else
             isa(a, LineNumberNode) && continue
-            push!(args, a)
+            push!(args, without_linenums(a))
         end
     end
     return Expr(ex.head, args...)
 end
 
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
+without_linenums(ex) = ex
 
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
@@ -463,7 +464,10 @@ facts("test function expressions") do
 end
 
 facts("test macro expressions") do
-    exprs = ["macro x(body) end",
+    exprs = ["""macro x(body) end""",
+            """macro x(body)
+                \$body
+            end""",
              """macro x()
                 quote
                     x + 1

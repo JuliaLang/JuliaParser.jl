@@ -325,13 +325,12 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
             if !(Lexer.eof(t) || t === '\n' || ',' in ops || t in closers)
                 error("extra token \"$t\" after end of expression")
             end
-            if isempty(args) || length(args[2:end]) == 2 || !isfirst
+            #TODO: length(args) is probably wrong, need to test
+            if isempty(args) || length(args) >= 2 || !isfirst
                 # {} => Expr(:head)
                 # {ex1, ex2} => Expr(head, ex1, ex2)
                 # (ex1) if operator appeared => Expr(head,ex1) (handles "x;")
-                ex = Expr(head)
-                append!(ex.args, args)
-                return ex 
+                return Expr(head, args...)
             else
                 # {ex1} => ex1
                 return first(args)
@@ -1013,10 +1012,10 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     x = name === :x ? :y : :x
                     push!(block.args, 
                         Expr(:(=), Expr(:call, :eval, x),
-                                   Expr(:call, Expr(:(.), Expr(:top, :Core), :eval), name, x)))
+                                   Expr(:call, Expr(:(.), TopNode(:Core), QuoteNode(:eval)), name, x)))
                     push!(block.args,
                         Expr(:(=), Expr(:call, :eval, :m, :x),
-                                   Expr(:call, Expr(:(.), Expr(:top, :Core), :eval), :m, :x)))
+                                   Expr(:call, Expr(:(.), TopNode(:Core), QuoteNode(:eval)), :m, :x)))
                     append!(block.args, body.args)
                     body = block
                 end
@@ -1697,7 +1696,8 @@ function _parse_atom(ts::TokenStream)
             return :(:)
         else
             ex = _parse_atom(ts)
-            return isa(ex, Symbol) ? QuoteNode(ex) : Expr(:quote, ex)
+            #error("symbol expression quote")
+            return QuoteNode(ex) #isa(ex, Symbol) ? QuoteNode(ex) : Expr(:quote, ex)
         end
     
     # misplaced =
