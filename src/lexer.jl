@@ -175,26 +175,29 @@ function read_operator(io::IO, c::Char)
         error("use \"^\" instead of \"**\"")
     end
     # 1 char operator
-    if eof(pc) || !is_opchar(pc)
+    if eof(pc) || !is_opchar(pc) || (c === ':' && pc === '-')
         return symbol(c)
     end
     str = Char[c]
     c   = pc 
-    while !eof(c) && is_opchar(c)
-        push!(str, c)
-        newop = utf32(str)
-        opsym = symbol(newop)
-        if is_operator(opsym) #|| opsym === :(//)
-            skip(io, 1)
-            c = peekchar(io)
-            continue
-        #TODO: this is wrong
-        elseif c == '.'
-            skip(io, 1)
+    while true
+        if !eof(c) && is_opchar(c)
+            push!(str, c)
+            newop = utf32(str)
+            opsym = symbol(newop)
+            if is_operator(opsym) 
+                skip(io, 1)
+                c = peekchar(io)
+                continue
+            #TODO: this is wrong
+            elseif c == '.'
+                skip(io, 1)
+            else
+                return symbol(utf32(str))
+            end
         end
-        break
+        return symbol(utf32(str))
     end
-    return symbol(utf32(str))
 end
 
 
