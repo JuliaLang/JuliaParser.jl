@@ -33,6 +33,7 @@ end
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 without_linenums(ex) = ex
 
+#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -204,14 +205,13 @@ facts("test parse single operator") do
         end
         code = string(op) 
         try
-            ex   = Base.parse(code)
+            ex = Base.parse(code)
             @fact Parser.parse(code) => ex
         catch
             # do nothing if base cannot parse operator
         end
     end
     @fact_throws Parser.parse("'")
-    @fact_throws Parser.parse("::")
 end
 
 facts("test tuple expressions") do
@@ -763,5 +763,96 @@ facts("test string interpolation") do
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
+facts("parse argument list") do
+    exprs = [
+        """
+        function test(x, y, z)
+        end""",
+        """function test(x,y=10,z)
+        end""",
+        """function test(x, y=10; z=10)
+        end""",
+        """+{T}(x::T, y::T) = x + y""",
+        """function test{T<:Int}(::Type{T}, x::T, y::Int=7)
+        end""",
+        """test{T<:Int}(::Type{T}, x::T, y::Int=7) = begin
+        end""",
+        """function test(;x=10,y=10,z=10)
+        end""",
+        """function test(x,
+                         y;
+                         z=10)
+        end""",
+        """test(x,y,z) = begin 
+        end""",
+        """test(x,y=10;z=10) = begin
+        end""",
+        """test(;x=10,y=10,z=10) = begin
+        end"""
+    ]
+    
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+    end
+end
+=#
+
+facts("parse test functions") do
+    exprs = ["""
+        test(x) = println(\"hello world! \$x\")
+    """,
+    """
+       function test{T<:Int}(x::T, y::T=zero(T); z::T=one(T))
+           return (true, x + y + z)
+       end""",
+    ]
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+    end
+end
+
+facts("parse test module") do
+    exprs = ["""
+        module Test
+            abstract AbstractTest
+
+            type Test <: AbstractTest
+                a
+                b
+                c
+            end
+
+            immutable Test{T<:Int32}
+                x::T
+                y::T
+            end
+            
+            const X = 10
+            const Y = [[1,2,3] 
+                       [1,2,3]] 
+            
+            let x = 10, y = 10
+                test(z::Int) = x + y + z
+            end
+
+            test(x) = begin
+                println(\"hello world! \$x\")
+            end 
+
+            function test{T<:Int}(x::T, y::T=zero(T); z::T=one(T))
+                return x + y + z
+            end
+            
+            function test(x)
+                x + 2 
+            end 
+
+        end"""
+    ]
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end

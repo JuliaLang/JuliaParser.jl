@@ -29,11 +29,11 @@ macro with_normal_ops(ts, body)
         $tmp2 = $(esc(ts)).space_sensitive
         try
             $(esc(ts)).range_colon_enabled = true
-            $(esc(ts)).space_sensitive = false
+            $(esc(ts)).space_sensitive     = false
             $(esc(body))
         finally
             $(esc(ts)).range_colon_enabled = $tmp1
-            $(esc(ts)).space_sensitive = $tmp2
+            $(esc(ts)).space_sensitive     = $tmp2
         end
     end
 end
@@ -61,12 +61,12 @@ macro with_inside_vec(ts, body)
         $tmp3 = $(esc(ts)).whitespace_newline
         try
             $(esc(ts)).space_sensitive = true
-            $(esc(ts)).inside_vector = true
+            $(esc(ts)).inside_vector   = true
             $(esc(ts)).whitespace_newline = false
             $(esc(body))
         finally
             $(esc(ts)).space_sensitive = $tmp1
-            $(esc(ts)).inside_vector = $tmp2
+            $(esc(ts)).inside_vector   = $tmp2
             $(esc(ts)).whitespace_newline = $tmp3
         end
     end
@@ -122,7 +122,7 @@ macro space_sensitive(ts, body)
             $(esc(ts)).whitespace_newline = false
             $(esc(body))
         finally 
-            $(esc(ts)).space_sensitive = $tmp1
+            $(esc(ts)).space_sensitive    = $tmp1
             $(esc(ts)).whitespace_newline = $tmp2
         end
     end
@@ -147,7 +147,7 @@ end
 short_form_function_loc(ex, lno) = begin
     if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
        block = Expr(:block, Expr(:line, lno, current_filename))
-       append!(bl.args, ex.args[2:end])
+       append!(block.args, ex.args[2:end])
        return Expr(:(=), ex.args[1], block) 
     else
         return ex
@@ -578,7 +578,7 @@ function parse_unary(ts::TokenStream)
     elseif nt === '{'
         # this case is +{T}(x::T)
         put_back!(ts, op)
-        return pase_factor(ts)
+        return parse_factor(ts)
     else
         arg = parse_unary(ts)
         if isa(arg, Expr) && arg.head === :tuple
@@ -720,7 +720,12 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
         elseif t === '{'
             take_token(ts)
             args = map(subtype_syntax, parse_arglist(ts, '}'))
-            ex = Expr(:curly, ex, args...)
+            # ::Type{T}
+            if isa(ex, Expr) && ex.head == :(::)
+                ex = Expr(:(::), Expr(:curly, first(ex.args), args...))
+            else
+                ex = Expr(:curly, ex, args...)
+            end
             continue
 
         elseif t === '"'
@@ -1229,7 +1234,10 @@ has_parameters(lst) = length(lst) == 2 &&
                       length(lst[1]) == 2 &&
                       lst[1][1] === :params
 
-to_kws(lst) = map((x) -> Lexer.is_assignment(x) ? Expr(:kw, x[2:end]...) : x, lst)
+is_assignment(ex::Expr) = ex.head === :(=) && length(ex.args) == 2
+is_assignment(ex) = false
+
+to_kws(lst) = map((ex) -> is_assignment(ex) ? Expr(:kw, ex.args...) : ex, lst)
 
 # handle function call argument list, or any comma-delimited list
 # * an extra comma at the end is allowed
@@ -1248,10 +1256,8 @@ function _parse_arglist(ts::TokenStream, closer::Token)
             # allow f(a, b; )
             peek_token(ts) === closer && continue
             params = parse_arglist(ts, closer)
-            if closer === ')'
-                lst = to_kws(lst)
-            end
-            return append!(unshift!(params, :parameters), lst)
+            lst = closer === ')' ? to_kws(lst) : lst
+            return unshift!(lst, Expr(:parameters, params...))
         end
         nxt = parse_eqs(ts)
         nt  = require_token(ts)
@@ -1720,7 +1726,7 @@ function _parse_atom(ts::TokenStream)
                 elseif peek_token(ts) in Lexer.syntactic_ops
                     # allow (=) etc.
                     t = take_token(ts)
-                    if require_token(ts) != ')'
+                    if require_token(ts) !== ')'
                         error("invalid identifier name \"$t\"")
                     end
                     take_token(ts)

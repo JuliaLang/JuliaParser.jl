@@ -46,10 +46,10 @@ const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
                                    :(\=),  :(.\=), :(^=),   :(.^=), :(%=),
                                    :(.%=), :(|=),  :(&=),   :($=),  :(=>),
                                    :(<<=), :(>>=), :(>>>=), :(->),  :(-->),
-                                   :(||),   :(&&),  :(::),   :(.),   :(...),
-                                   :(.+=), :(.-=)])
+                                   :(||),  :(&&),  :(.),    :(...), :(.+=), 
+                                   :(.-=)])
 
-const syntactic_unary_ops = Set{Symbol}([:($), :(&)])
+const syntactic_unary_ops = Set{Symbol}([:($), :(&), :(::)])
 
 const transpose_op  = symbol(".'")
 const ctranspose_op = symbol("'")
@@ -67,12 +67,14 @@ const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
 
 
 #= Helper functions =#
-is_assignment(ex::Expr) = ex.head === :(=) && length(ex.args) == 1
-is_assignment(ex) = false
+#TODO: this is redefined in Parser
+#is_assignment(ex::Expr) = ex.head === :(=) && length(ex.args) == 2
+#is_assignment(ex) = false
 
 is_assignment_like(ex) = length(expr) == 2 && in(first(expr), assignment_ops)
 
-is_kwarg(l) = length(ex) == 2 && first(l) == :(kw)
+is_kwarg(ex::Expr) = ex.head === :kw
+is_kwarg(ex) = false
 
 is_syntactic_op(op::Symbol) = in(op, syntactic_ops)
 is_syntactic_op(op) = false
