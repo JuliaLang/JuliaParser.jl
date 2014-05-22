@@ -33,7 +33,6 @@ end
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 without_linenums(ex) = ex
 
-
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -42,7 +41,6 @@ facts("test TokenStream constructor") do
     catch
         @fact false => false
     end
-
 end
 
 facts("test set_token! / last_token") do
@@ -766,6 +764,25 @@ facts("test string interpolation") do
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
+facts("test parse do") do
+    exprs = [
+        """
+        test(x) do
+            x + 1
+        end
+        """,
+        """
+        test(open(\"test.txt\")) do x, y, z
+            ret = x + y + z
+            return ret
+        end
+        """
+    ]
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
 
