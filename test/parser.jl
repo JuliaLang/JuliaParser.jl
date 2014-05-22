@@ -33,7 +33,7 @@ end
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 without_linenums(ex) = ex
 
-#=
+
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -138,6 +138,7 @@ facts("test special case all whitespace") do
     @fact res => nothing
 end
 
+#=
 facts("test is_juxtaposed") do 
     ex = Expr(:call, :+, 1)
     @fact Parser.is_juxtaposed(ex, :+) => false
@@ -150,6 +151,7 @@ facts("test is_juxtaposed") do
     @fact Parser.is_juxtaposed(1, 1) => true
     @fact Parser.is_juxtaposed(1, '(') => true
 end
+=#
 
 facts("test simple numeric expressions") do
     exprs = ["1 + 1",
@@ -527,6 +529,7 @@ facts("test unary negate") do
         "-10",
         "x -y",
         "-2x",
+        "-2^x"
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
@@ -798,7 +801,6 @@ facts("parse argument list") do
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
-=#
 
 facts("parse test functions") do
     exprs = ["""
@@ -843,14 +845,24 @@ facts("parse test module") do
             end 
 
             function test{T<:Int}(x::T, y::T=zero(T); z::T=one(T))
-                return x + y + z
+                (x + y + z;)
             end
             
             function test(x)
                 x + 2 
             end 
 
-        end"""
+        end
+        """
+
+        """
+        baremodule Test
+            function test1(x)
+                (x;)
+            end
+            function test2(y) y end
+        end
+        """
     ]
     for ex in exprs
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
