@@ -786,6 +786,17 @@ facts("test parse do") do
     end
 end
 
+facts("test parse formula") do
+    exprs = [
+        """y ~ x""",
+        """y ~ x + log(y)""",
+        """y ~ x += 2""",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
 facts("parse argument list") do
     exprs = [
         """

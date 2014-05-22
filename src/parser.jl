@@ -240,9 +240,8 @@ function parse_LtoR(ts::TokenStream, down::Function, ops)
     end
 end
 
-function parse_RtoL(ts::TokenStream, down::Function, ops)
+function parse_RtoL(ts::TokenStream, down::Function, ops, ex=down(ts))
     while true 
-        ex = down(ts)
         t  = peek_token(ts)
         !(t in ops) && return ex
         take_token(ts)
@@ -255,9 +254,12 @@ function parse_RtoL(ts::TokenStream, down::Function, ops)
             return Expr(t, ex, parse_RtoL(ts, down, ops))
         elseif t === :(~)
             args = parse_chain(ts, down, :(~))
-            if peek_token(ts) in ops
-                #XXX: this is wrong
-                return Expr(:macrocall, symbol("@~"), ex, args[1:end-1]...)
+            nt   = peek_token(ts)
+            if isa(nt, CharSymbol) && nt in ops
+                ex = Expr(:macrocall, symbol("@~"), ex)
+                append!(ex.args, args[1:end-1])
+                push!(ex.args, parse_RtoL(ts, down, ops, args[end]))
+                return ex 
             else
                 return Expr(:macrocall, symbol("@~"), ex, args...)
             end
