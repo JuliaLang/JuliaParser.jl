@@ -1753,7 +1753,7 @@ function _parse_atom(ts::TokenStream)
                 #XXX transpose to storage order
                 return ex
             else
-                fn = (x) -> isa(x, Expr) && ex.head === :row
+                fn = (x) -> isa(x, Expr) && x.head === :row
                 if any(fn, vex.args[2:end])
                     error("inconsistent shape in cell expression")
                 end
