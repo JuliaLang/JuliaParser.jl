@@ -1741,30 +1741,25 @@ function _parse_atom(ts::TokenStream)
             append!(ex.args, vex.args)
             return ex
         else # vcat(...)
-            if length(vex.args) == 1 && vex.args[1].head === :row
+            if isa(vex.args[1], Expr) && vex.args[1].head === :row
                 nr = length(vex.args)
                 nc = length(vex.args[1].args)
                 # make sure all rows are the same length
-                fn = (x::Expr) -> x.head === :row && 
-                                  length(x.args) == 1 && 
-                                  length(x.args) == nc
-
-                if !(all(fn, vex.args[1].args))
+                fn = (x) -> isa(x, Expr) && x.head === :row && length(x.args) == nc
+                if !(all(fn, vex.args[2:end]))
                     error("inconsistent shape in cell expression")
                 end
                 ex = Expr(:cell2d, nr, nc)
                 #XXX transpose to storage order
                 return ex
-             end
-             if any(x -> begin isa(x, Expr) && 
-                               length(x.args) == 1 && 
-                               x.args[1].head === :row
-                         end, vex.args[2:end])
-                error("inconsistent shape in cell expression")
-             end
-             ex = Expr(:cell1d)
-             append!(ex.args, vex.args)
-             return ex
+            else
+                fn = (x) -> isa(x, Expr) && ex.head === :row
+                if any(fn, vex.args[2:end])
+                    error("inconsistent shape in cell expression")
+                end
+                ex = Expr(:cell1d); ex.args = vex.args
+                return ex
+            end
         end
 
     # cat expression
