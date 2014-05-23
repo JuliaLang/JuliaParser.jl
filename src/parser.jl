@@ -24,110 +24,85 @@ const end_symbol = false
 const whitespace_newline = false
 =#
 
-macro with_normal_ops(ts, body)
-    tmp1 = gensym("range_colon_enabled")
-    tmp2 = gensym("space_sensitive")
-    quote
-        $tmp1 = $(esc(ts)).range_colon_enabled
-        $tmp2 = $(esc(ts)).space_sensitive
-        try
-            $(esc(ts)).range_colon_enabled = true
-            $(esc(ts)).space_sensitive     = false
-            $(esc(body))
-        finally
-            $(esc(ts)).range_colon_enabled = $tmp1
-            $(esc(ts)).space_sensitive     = $tmp2
-        end
+with_normal_ops(f::Function, ts::TokenStream) = begin
+    tmp1 = ts.range_colon_enabled
+    tmp2 = ts.space_sensitive
+    try
+        ts.range_colon_enabled = true
+        ts.space_sensitive     = false
+        f()
+    finally
+        ts.range_colon_enabled = tmp1
+        ts..space_sensitive = tmp2
     end
 end
 
-macro without_range_colon(ts, body) 
-    tmp1 = gensym("range_colon_enabled")
-    quote
-        $tmp1 = $(esc(ts)).range_colon_enabled
-        try
-            $(esc(ts)).range_colon_enabled = false
-            $(esc(body))
-        finally
-            $(esc(ts)).range_colon_enabled = $tmp1
-        end
+without_range_colon(f::Function, ts::TokenStream) = begin
+    tmp = ts.range_colon_enabled
+    try
+        ts.range_colon_enabled = false
+        f()
+    finally
+        ts.range_colon_enabled = tmp
+    end
+end 
+
+with_inside_vec(f::Function, ts::TokenStream) = begin
+    tmp1 = ts.space_sensitive
+    tmp2 = ts.inside_vector
+    tmp3 = ts.whitespace_newline
+    try
+        ts.space_sensitive = true
+        ts.inside_vector   = true
+        ts.whitespace_newline = false
+        f()
+    finally
+        ts.space_sensitive = tmp1
+        ts.inside_vector = tmp2
+        ts.whitespace_newline = tmp3
     end
 end
 
-macro with_inside_vec(ts, body)
-    tmp1 = gensym("space_sensitive")
-    tmp2 = gensym("inside_vector")
-    tmp3 = gensym("whitespace_newline")
-    quote
-        $tmp1 = $(esc(ts)).space_sensitive
-        $tmp2 = $(esc(ts)).inside_vector
-        $tmp3 = $(esc(ts)).whitespace_newline
-        try
-            $(esc(ts)).space_sensitive = true
-            $(esc(ts)).inside_vector   = true
-            $(esc(ts)).whitespace_newline = false
-            $(esc(body))
-        finally
-            $(esc(ts)).space_sensitive = $tmp1
-            $(esc(ts)).inside_vector   = $tmp2
-            $(esc(ts)).whitespace_newline = $tmp3
-        end
+with_end_symbol(f::Function, ts::TokenStream) = begin
+    tmp = ts.end_symbol
+    try
+        ts.end_symbol = true
+        f()
+    finally
+        ts.end_symbol = tmp
     end
 end
 
-macro with_end_symbol(ts, body)
-    tmp1 = gensym("end_symbol")
-    quote
-        $tmp1 = $(esc(ts)).end_symbol
-        try
-            $(esc(ts)).end_symbol = true
-            $(esc(body))
-        finally
-            $(esc(ts)).end_symbol = $tmp1
-        end
+with_whitespace_newline(f::Function, ts::TokenStream) = begin
+    tmp = ts.whitespace_newline
+    try
+        ts.whitespace_newline = true
+        f()
+    finally
+        ts.whitespace_newline = tmp
     end
 end
 
-macro with_whitespace_newline(ts, body)
-    tmp1 = gensym("whitespace_newline")
-    quote
-        $tmp1 = $(esc(ts)).whitespace_newline
-        try
-            $(esc(ts)).whitespace_newline = true
-            $(esc(body))
-        finally
-            $(esc(ts)).whitespace_newline = $tmp1
-        end
+without_whitespace_newline(f::Function, ts::TokenStream) = begin
+    tmp = ts.whitespace_newline
+    try
+        ts.whitespace_newline = false
+        f()
+    finally
+        ts.whitespace_newline = tmp
     end
 end
 
-macro without_whitespace_newline(ts, body)
-    tmp1 = gensym("whitespace_newline")
-    quote
-        $tmp1 = $(esc(ts)).whitespace_newline
-        try
-            $(esc(ts)).whitespace_newline = false
-            $(esc(body))
-        finally
-            $(esc(ts)).whitespace_newline = $tmp1
-        end
-    end
-end
-
-macro space_sensitive(ts, body)
-    tmp1 = gensym("space_sensitive")
-    tmp2 = gensym("whitespace_newline")
-    quote
-        $tmp1 = $(esc(ts)).space_sensitive
-        $tmp2 = $(esc(ts)).whitespace_newline
-        try 
-            $(esc(ts)).space_sensitive = true
-            $(esc(ts)).whitespace_newline = false
-            $(esc(body))
-        finally 
-            $(esc(ts)).space_sensitive    = $tmp1
-            $(esc(ts)).whitespace_newline = $tmp2
-        end
+with_space_sensitive(f::Function, ts::TokenStream) = begin
+    tmp1 = ts.space_sensitive
+    tmp2 = ts.whitespace_newline
+    try
+        ts.space_sensitive = true
+        ts.whitespace_newline = false
+        f()
+    finally
+        ts.space_sensitive = tmp1
+        ts.space_sensitive = tmp2
     end
 end
 
@@ -147,7 +122,7 @@ end
 
 # insert line/file for short form function defs,
 # otherwise leave alone
-short_form_function_loc(ex, lno) = begin
+function short_form_function_loc(ex, lno)
     if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
        block = Expr(:block, Expr(:line, lno, current_filename))
        append!(block.args, ex.args[2:end])
@@ -273,7 +248,7 @@ function parse_cond(ts::TokenStream)
     ex = parse_or(ts)
     if peek_token(ts) === :(?)
         take_token(ts)
-        then = @without_range_colon ts begin
+        then = without_range_colon(ts) do
             parse_eq(ts)
         end
         take_token(ts) === :(:) || error("colon expected in \"?\" expression")
@@ -645,7 +620,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
         elseif t === '['
             take_token(ts)
             # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
-            al = @with_end_symbol ts begin
+            al = with_end_symbol(ts) do 
                 parse_cat(ts, ']')
             end
             if al == nothing
@@ -753,8 +728,8 @@ parse_subtype_spec(ts::TokenStream) = subtype_syntax(parse_ineq(ts))
 # parse expressions or blocks introduced by syntatic reserved words
 function parse_resword(ts::TokenStream, word::Symbol)
     expect_end_current_line = curline(ts)
-    @with_normal_ops ts begin
-        @without_whitespace_newline ts begin
+    with_normal_ops(ts) do
+        without_whitespace_newline(ts) do
             @assert ts.range_colon_enabled
             @assert !ts.space_sensitive
             @assert !ts.whitespace_newline
@@ -1155,7 +1130,7 @@ function parse_comma_sep_iters(ts::TokenStream)
 end
        
 function parse_space_separated_exprs(ts::TokenStream)
-    @space_sensitive ts begin
+    with_space_sensitive(ts) do
         @assert ts.space_sensitive == true
         exprs = {}
         while true 
@@ -1222,16 +1197,14 @@ end
 #fixed types with {} arguments newline error, warrents further investigation
 #into what is going on and why the ts is being set incorrectly
 function parse_arglist(ts::TokenStream, closer::Token)
-    local ex::Vector{Any}
-    @with_normal_ops ts begin
-        @with_whitespace_newline ts begin
+    with_normal_ops(ts) do
+        with_whitespace_newline(ts) do
             @assert ts.range_colon_enabled
             @assert !ts.space_sensitive
             @assert ts.whitespace_newline
-            ex = _parse_arglist(ts, closer)
+            _parse_arglist(ts, closer)
         end
     end
-    return ex
 end
 
 # parse [] concatenation expres and {} cell expressions
@@ -1370,8 +1343,8 @@ function peek_non_newline_token(ts::TokenStream)
 end
 
 function parse_cat(ts::TokenStream, closer)
-    @with_normal_ops ts begin
-        @with_inside_vec ts begin 
+    with_normal_ops(ts) do
+        with_inside_vec(ts) do
             @assert ts.range_colon_enabled
             @assert ts.space_sensitive
             @assert !ts.whitespace_newline
@@ -1648,9 +1621,8 @@ function _parse_atom(ts::TokenStream)
     # parens or tuple
     elseif t === '('
         take_token(ts)
-        local ret
-        @with_normal_ops ts begin
-            @with_whitespace_newline ts begin
+        with_normal_ops(ts) do
+            with_whitespace_newline(ts) do
                 @assert ts.range_colon_enabled 
                 @assert !ts.space_sensitive
                 @assert ts.whitespace_newline
@@ -1658,7 +1630,7 @@ function _parse_atom(ts::TokenStream)
                     # empty tuple
                     take_token(ts)
                     #return Expr(:tuple)
-                    ret = Expr(:tuple)
+                    return Expr(:tuple)
                 elseif peek_token(ts) in Lexer.syntactic_ops
                     # allow (=) etc.
                     t = take_token(ts)
@@ -1666,7 +1638,7 @@ function _parse_atom(ts::TokenStream)
                         error("invalid identifier name \"$t\"")
                     end
                     take_token(ts)
-                    ret = t
+                    return t
                 else
                     # here we parse the first subexpression separately,
                     # so we can look for a comma to see if it is a tuple
@@ -1677,21 +1649,21 @@ function _parse_atom(ts::TokenStream)
                         take_token(ts)
                         if isa(ex, Expr) && length(ex.args) == 1 && ex.head === :(...)
                             # (ex...)
-                            ret = Expr(:tuple, ex)
+                            return Expr(:tuple, ex)
                         else
                             # value in parens (x)
-                            ret = ex
+                            return ex
                         end
                     elseif t === ','
                         # tuple (x,) (x,y) (x...) etc
-                        ret = parse_tuple(ts, ex)
+                        return parse_tuple(ts, ex)
                     elseif t === ';'
                         #parenthesized block (a;b;c)
                         take_token(ts)
                         if require_token(ts) === ')'
                             # (ex;)
                             take_token(ts)
-                            ret = Expr(:block, ex)
+                            return Expr(:block, ex)
                         else
                             blk = parse_stmts_within_expr(ts)
                             tok = require_token(ts)
@@ -1701,7 +1673,7 @@ function _parse_atom(ts::TokenStream)
                                 error("missing separator in statement block")
                             end
                             take_token(ts)
-                            ret = Expr(:block, ex, blk)
+                            return Expr(:block, ex, blk)
                         end
                     elseif t === ']' || t === '}'
                         error("unexpected \"$t\" in tuple")
@@ -1711,7 +1683,6 @@ function _parse_atom(ts::TokenStream)
                 end
             end
         end
-        return ret
    
     # cell expression
     elseif t === '{'
@@ -1784,7 +1755,7 @@ function _parse_atom(ts::TokenStream)
     # macrocall
     elseif t === '@'
         take_token(ts)
-        @space_sensitive ts begin
+        with_space_sensitive(ts) do
             @assert ts.space_sensitive
             head = parse_unary_prefix(ts)
             t = peek_token(ts)
