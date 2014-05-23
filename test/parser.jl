@@ -630,6 +630,18 @@ facts("test try, catch, finally expression") do
     end
 end
 
+facts("test ternary operator") do
+    exprs = [
+        "x::Bool = z == 10 ? true : false",
+        """x = z == 10 ? true :
+                         false
+        """
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+
 facts("test return expression") do
     exprs = [
         "return",

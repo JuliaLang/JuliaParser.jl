@@ -271,12 +271,12 @@ end
 
 function parse_cond(ts::TokenStream)
     ex = parse_or(ts)
-    if peek_token(ts) === '?'
+    if peek_token(ts) === :(?)
         take_token(ts)
         then = @without_range_colon ts begin
             parse_eq(ts)
         end
-        take_token(ts) === ':' || error("colon expected in \"?\" expression")
+        take_token(ts) === :(:) || error("colon expected in \"?\" expression")
         return Expr(:if, ex, then, parse_cond(ts))
     end
     #=
@@ -428,16 +428,16 @@ is_large_number(n::Number) = false
 function maybe_negate(op, num)
     op !== :(-) && return num
     if is_large_number(num)
-        if num[3] == "-170141183460469231731687303715884105728"
-            return BigInt(170141183460469231731687303715884105728)
-        else
+        #if num[3] == "-170141183460469231731687303715884105728"
+        #    return BigInt(170141183460469231731687303715884105728)
+        #else
             # return tail of string
             return Expr(num[1], num[2], num[3][2:end]...)
-        end
+        #end
     end
-    if num == -9223372036854775808
-        return int128(9223372036854775808)
-    end
+    #if num == -9223372036854775808
+    #    return int128(9223372036854775808)
+    #end
     return Expr(:-, num)
 end
 
@@ -1552,7 +1552,7 @@ function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom
                 write(b, '\\')
             end
             write(b, nxch)
-            c = readchar(ts.io)
+            c = Lexer.readchar(ts.io)
             quotes = 0
             continue
         elseif c === '$' && !custom
