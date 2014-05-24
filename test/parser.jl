@@ -301,6 +301,7 @@ facts("test char literal expression") do
         "'a'",
         "'1'",
         "'\n'",
+        #TODO: "\\", literal
         "'$(char(256))'",
     ]
     for ex in exprs
