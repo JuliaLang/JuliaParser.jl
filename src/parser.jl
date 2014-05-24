@@ -33,7 +33,7 @@ with_normal_ops(f::Function, ts::TokenStream) = begin
         f()
     finally
         ts.range_colon_enabled = tmp1
-        ts..space_sensitive = tmp2
+        ts.space_sensitive = tmp2
     end
 end
 
@@ -109,16 +109,8 @@ end
 filename(ts::TokenStream) = "test.jl"
 curline(ts::TokenStream)  = 0
 
-function line_number_node(ts)
-    line = curline(ts)
-    return Expr(:line, curline)
-end
-
-function line_number_filename_node(ts::TokenStream)
-    line  = curline(ts)
-    fname = filename(ts) 
-    return Expr(:line, line, fname) 
-end
+line_number_node(ts) = Expr(:line, curline(ts))
+line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts)) 
 
 # insert line/file for short form function defs,
 # otherwise leave alone
@@ -200,10 +192,9 @@ function parse_with_chains(ts::TokenStream, down::Function, ops, chain_op)
     end
 end
 
-function parse_LtoR(ts::TokenStream, down::Function, ops)
-    ex = down(ts)
-    t  = peek_token(ts)
+function parse_LtoR(ts::TokenStream, down::Function, ops, ex=down(ts))
     while true 
+        t  = peek_token(ts)
         !(t in ops) && return ex
         take_token(ts)
         if Lexer.is_syntactic_op(t) || t === :(in)
@@ -351,7 +342,7 @@ function parse_stmts(ts::TokenStream)
     return ex
 end
 
-parse_eq(ts::TokenStream) = begin 
+function parse_eq(ts::TokenStream) 
     lno = curline(ts)
     ex  = parse_RtoL(ts, parse_comma, Lexer.precedent_ops(1))
     return short_form_function_loc(ex, lno)
@@ -854,13 +845,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 return ex
 
             elseif word === :bitstype
-                ss = ts.space_sensitive
-                local stmnt
-                try
-                    ts.space_sensitive = true
-                    stmnt = parse_cond(ts)
-                finally
-                    ts.space_sensitive = ss
+                stmnt = with_space_sensitive(ts) do
+                    parse_cond(ts)
                 end
                 return Expr(:bitstype, stmnt, parse_subtype_spec(ts))
 
@@ -1202,12 +1188,12 @@ function parse_arglist(ts::TokenStream, closer::Token)
             @assert ts.range_colon_enabled
             @assert !ts.space_sensitive
             @assert ts.whitespace_newline
-            _parse_arglist(ts, closer)
+            return _parse_arglist(ts, closer)
         end
     end
 end
 
-# parse [] concatenation expres and {} cell expressions
+# parse [] concatenation exprs and {} cell exprs
 function parse_vcat(ts::TokenStream, frst, closer)
     lst = {}
     nxt = frst
@@ -1215,8 +1201,7 @@ function parse_vcat(ts::TokenStream, frst, closer)
         t = require_token(ts)
         if t === closer
             take_token(ts)
-            ex = Expr(:vcat)
-            append!(ex.args, reverse!(unshift!(lst, nxt)))
+            ex = Expr(:vcat); ex.args = push!(lst, nxt)
             return ex
         end
         if t === ','
@@ -1224,11 +1209,10 @@ function parse_vcat(ts::TokenStream, frst, closer)
             if require_token(ts) === closer
                 # allow ending with ,
                 take_token(ts)
-                ex = Expr(:vcat)
-                append!(ex.args, reverse!(unshift!(lst, nxt)))
+                ex = Expr(:vcat); ex.args = push!(lst, nxt)
                 return ex
             end
-            lst = unshift!(lst, nxt)
+            lst = push!(lst, nxt) 
             nxt = parse_eqs(ts)
             continue
         elseif t === ';'
@@ -1694,8 +1678,7 @@ function _parse_atom(ts::TokenStream)
         vex = parse_cat(ts, '}')
         if isempty(vex.args)
             return Expr(:cell1d)
-        end
-        if vex.head === :comprehension
+        elseif vex.head === :comprehension
             ex = Expr(:typed_comprehension, TopNode(:Any))
             append!(ex.args, vex.args)
             return ex
