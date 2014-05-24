@@ -654,12 +654,9 @@ function next_token(ts::TokenStream)
     return EOF
 end
 
-set_token!(ts::TokenStream, t::Token) = begin
-    ts.lasttoken = t
-    return ts
-end
-
 last_token(ts::TokenStream) = ts.lasttoken
+
+set_token!(ts::TokenStream, t::Token) = (ts.lasttoken = t; ts)
 
 function put_back!(ts::TokenStream, t::Token)
     if ts.putback !== nothing
