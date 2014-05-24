@@ -312,7 +312,6 @@ end
 facts("test string literal expression") do
     exprs = [
         "\"test\""
-        #TODO: string interpolation
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
