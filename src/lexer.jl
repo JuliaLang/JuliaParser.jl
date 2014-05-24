@@ -165,14 +165,14 @@ end
 #= Lexer =#
 
 function skip_to_eol(io::IO)
-   while !eof(io)
-       readchar(io) == '\n' && break
+    while !eof(io)
+        readchar(io) == '\n' && break
     end
     return io
 end
 
 function read_operator(io::IO, c::Char)
-    pc = peekchar(io)
+    pc::Char = peekchar(io)
     if (c == '*') && (pc == '*')
         error("use \"^\" instead of \"**\"")
     end
@@ -180,28 +180,23 @@ function read_operator(io::IO, c::Char)
     if eof(pc) || !is_opchar(pc) || (c === ':' && pc === '-')
         return symbol(c)
     end
-    str = Char[c]
-    c   = pc 
+    str = [c]
+    c   = pc
+    opsym  = symbol(utf32(str))
     while true
         if !eof(c) && is_opchar(c)
             push!(str, c)
-            newop = utf32(str)
-            opsym = symbol(newop)
-            if is_operator(opsym) 
+            newop = symbol(utf32(str))
+            if is_operator(newop)
                 skip(io, 1)
+                opsym = newop
                 c = peekchar(io)
                 continue
-            #TODO: this is wrong
-            elseif c == '.'
-                skip(io, 1)
-            else
-                return symbol(utf32(str))
             end
         end
-        return symbol(utf32(str))
+        return opsym
     end
 end
-
 
 #=============#
 # Read Number

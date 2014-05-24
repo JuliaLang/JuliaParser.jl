@@ -391,22 +391,6 @@ end
 is_large_number(n::BigInt) = true
 is_large_number(n::Number) = false
 
-function maybe_negate(op, num)
-    op !== :(-) && return num
-    if is_large_number(num)
-        #if num[3] == "-170141183460469231731687303715884105728"
-        #    return BigInt(170141183460469231731687303715884105728)
-        #else
-            # return tail of string
-            return Expr(num[1], num[2], num[3][2:end]...)
-        #end
-    end
-    #if num == -9223372036854775808
-    #    return int128(9223372036854775808)
-    #end
-    return Expr(:-, num)
-end
-
 const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
 
     is_juxtaposed(ts::TokenStream, ex, t::Token) = begin
@@ -494,6 +478,7 @@ function parse_decl(ts::TokenStream)
     end
 end
 
+# handle ^ and .^
 function parse_factorh(ts::TokenStream, down::Function, ops)
     ex = down(ts)
     nt = peek_token(ts)
@@ -503,7 +488,9 @@ function parse_factorh(ts::TokenStream, down::Function, ops)
     return Expr(:call, nt, ex, pf)
 end
 
-parse_factor(ts::TokenStream) = parse_factorh(ts, parse_decl, Lexer.precedent_ops(12))
+# -2^3 is parsed as -(2^3) so call parse-decl for the first arg,
+# and parse unary from then on (handles 2^-3)
+parse_factor(ts::TokenStream) = parse_factorh(ts, parse_decl, Lexer.precedent_ops(13))
 
 function parse_unary(ts::TokenStream)
     t = require_token(ts)
@@ -522,7 +509,7 @@ function parse_unary(ts::TokenStream)
         num = parse_juxtaposed(ts, n)
         if peek_token(ts) in (:(^), :(.^))
             # -2^x parsed as (- (^ 2 x))
-            put_back!(ts, maybe_negate(op, num))
+            put_back!(ts, op === :(-) ? -num : num)
             return Expr(:call, op, parse_factor(ts))
         else
             return num
@@ -721,10 +708,6 @@ function parse_resword(ts::TokenStream, word::Symbol)
     expect_end_current_line = curline(ts)
     with_normal_ops(ts) do
         without_whitespace_newline(ts) do
-            @assert ts.range_colon_enabled
-            @assert !ts.space_sensitive
-            @assert !ts.whitespace_newline
-            
             if word === :quote || word === :begin
                 Lexer.skip_ws_and_comments(ts.io)
                 loc = line_number_filename_node(ts)
@@ -976,18 +959,15 @@ function add_filename_to_block!(body::Expr, loc)
 end
 
 function parse_do(ts::TokenStream)
-    # TODO: bindings
-    local doargs
     doargs = Lexer.isnewline(peek_token(ts)) ? {} : parse_comma_sep(ts, parse_range)
     loc = line_number_filename_node(ts)
-    blk = add_filename_to_block!(parse_block(ts), loc)
+    blk = parse_block(ts)
+    add_filename_to_block!(blk, loc)
     expect_end(ts, :do)
     return Expr(:(->), Expr(:tuple, doargs...), blk)
 end
 
-function macrocall_to_atsym(ex)
-    return isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : ex
-end
+macrocall_to_atsym(ex) = isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : ex
 
 function parse_imports(ts::TokenStream, word::Symbol)
     frst = {parse_import(ts, word)}
@@ -1004,7 +984,7 @@ function parse_imports(ts::TokenStream, word::Symbol)
     else
         done = false
     end
-    rest = done ? {} : parse_comma_sep(ts, (ts) -> parse_import(ts, word))
+    rest = done? {} : parse_comma_sep(ts, (ts) -> parse_import(ts, word))
     if from
         module_sym = frst[1].args[1]
         imports = Expr[]
@@ -1058,18 +1038,17 @@ function parse_import(ts::TokenStream, word::Symbol)
     path = parse_import_dots(ts)
     while true
         nxt = peek_token(ts)
-        if nxt === :(.)
+        if Lexer.eof(nxt) || (isa(nxt, CharSymbol) && nxt in ('\n', ';', ',', :(:)))
+            ex = Expr(word); ex.args = path
+            return ex
+        elseif nxt === :(.)
             take_token(ts)
             push!(path, macrocall_to_atsym(parse_atom(ts)))
             continue
-        elseif nxt in ('\n', ';', ',', :(:)) || Lexer.eof(nxt)
-            # reverse path
-            ex = Expr(word); ex.args = path
-            return ex
         elseif first(string(nxt)) === '.'
-            Lexer.take_token(ts)
+            take_token(ts)
             push!(path, symbol(string(nxt)[2:end]))
-        continue
+            continue
         else
             error("invalid \"$word\" statement")
         end
@@ -1117,7 +1096,6 @@ end
        
 function parse_space_separated_exprs(ts::TokenStream)
     with_space_sensitive(ts) do
-        @assert ts.space_sensitive == true
         exprs = {}
         while true 
             nt = peek_token(ts)
@@ -1185,9 +1163,6 @@ end
 function parse_arglist(ts::TokenStream, closer::Token)
     with_normal_ops(ts) do
         with_whitespace_newline(ts) do
-            @assert ts.range_colon_enabled
-            @assert !ts.space_sensitive
-            @assert ts.whitespace_newline
             return _parse_arglist(ts, closer)
         end
     end
@@ -1231,11 +1206,10 @@ function parse_dict(ts::TokenStream, frst, closer)
     local alldl::Bool
     for arg in v.args
         alldl = is_dict_literal(arg)
-        !alldl && break
+        alldl || break
     end
     if alldl
-        ex = Expr(:dict)
-        ex.args = v.args 
+        ex = Expr(:dict); ex.args = v.args 
         return ex
     else
         error("invalid dict literal")
@@ -1243,12 +1217,10 @@ function parse_dict(ts::TokenStream, frst, closer)
 end
 
 function parse_comprehension(ts::TokenStream, frst, closer)
-    rs = parse_comma_sep_iters(ts)
-    rt = require_token(ts)
-    rt === closer ? take_token(ts) : error("expected $closer")
-    ex = Expr(:comprehension, frst)
-    append!(ex.args, rs)
-    return ex
+    itrs = parse_comma_sep_iters(ts)
+    t = require_token(ts)
+    t === closer ? take_token(ts) : error("expected $closer")
+    return Expr(:comprehension, frst, itrs...)
 end
 
 function parse_dict_comprehension(ts::TokenStream, frst, closer)
@@ -1329,10 +1301,6 @@ end
 function parse_cat(ts::TokenStream, closer)
     with_normal_ops(ts) do
         with_inside_vec(ts) do
-            @assert ts.range_colon_enabled
-            @assert ts.space_sensitive
-            @assert !ts.whitespace_newline
-            @assert ts.inside_vector 
             if require_token(ts) === closer
                 take_token(ts)
                 if closer === '}'
@@ -1373,9 +1341,7 @@ function parse_tuple(ts::TokenStream, frst)
         t = require_token(ts)
         if t === ')'
             take_token(ts)
-            push!(args, nxt)
-            ex = Expr(:tuple)
-            ex.args = args
+            ex = Expr(:tuple); ex.args = push!(args, nxt)
             return ex
         end
         if t === ','
@@ -1383,9 +1349,7 @@ function parse_tuple(ts::TokenStream, frst)
             if require_token(ts) === ')'
                 # allow ending with ,
                 take_token(ts)
-                push!(args, nxt)
-                ex = Expr(:tuple)
-                ex.args = args
+                ex = Expr(:tuple); ex.args = push!(args, nxt)
                 return ex
             end
             args = push!(args, nxt) 
@@ -1404,23 +1368,17 @@ end
 # TODO: these are unnecessary and the fact that base/client.jl code
 # relies on parsing the exact string is troubling
 function not_eof_1(c)
-    if Lexer.eof(c)
-        error("incomplete: invalid character literal")
-    end
+    Lexer.eof(c) && error("incomplete: invalid character literal")
     return c
 end
 
 function not_eof_2(c)
-    if Lexer.eof(c)
-        error("incomplete: invalid \"`\" syntax")
-    end
+    Lexer.eof(c) && error("incomplete: invalid \"`\" syntax")
     return c
 end
 
 function not_eof_3(c)
-    if Lexer.eof(c)
-        error("incomplete: invalid string syntax")
-    end
+    Lexer.eof(c) && error("incomplete: invalid string syntax")
     return c
 end 
 
@@ -1454,13 +1412,9 @@ function parse_interpolate(ts::TokenStream)
     elseif c === '('
         Lexer.readchar(ts.io)
         ex = parse_eqs(ts)
-        t  = require_token(ts)
-        if t === ')'
-            take_token(ts)
-            return ex
-        else
-            error("invalid interpolation syntax")
-        end
+        require_token(ts) === ')' || error("invalid interpolation syntax")
+        take_token(ts)
+        return ex
     else
         error("invalid interpolation syntax: \"$c\"")
     end
@@ -1468,11 +1422,11 @@ end
 
 function tostr(buf::IOBuffer, custom::Bool)
     str = bytestring(buf)
-    custom && return str
-    str = unescape_string(str)
-    if !is_valid_utf8(str)
-        error("invalid UTF-8 sequence")
+    if custom
+        return str
     end
+    str = unescape_string(str)
+    !is_valid_utf8(str) && error("invalid UTF-8 sequence")
     return  str
 end
 
@@ -1574,7 +1528,7 @@ function _parse_atom(ts::TokenStream)
             str = unescape_string(bytestring(b))
             if length(str) == 1
                 # one byte e.g. '\xff' maybe not valid UTF-8
-                # but we watn to use the raw value as a codepoint in this case
+                # but we want to use the raw value as a codepoint in this case
                 #wchar str[0] #this would throw an error during the conversion above
                 if length(str) != 1  || is_valid_utf8(str)
                     error("invalid character literal")
@@ -1589,9 +1543,7 @@ function _parse_atom(ts::TokenStream)
         if is_closing_token(ts, peek_token(ts))
             return :(:)
         else
-            ex = _parse_atom(ts)
-            #error("symbol expression quote")
-            return QuoteNode(ex) #isa(ex, Symbol) ? QuoteNode(ex) : Expr(:quote, ex)
+            return QuoteNode(_parse_atom(ts)) 
         end
     
     # misplaced =
@@ -1607,20 +1559,14 @@ function _parse_atom(ts::TokenStream)
         take_token(ts)
         with_normal_ops(ts) do
             with_whitespace_newline(ts) do
-                @assert ts.range_colon_enabled 
-                @assert !ts.space_sensitive
-                @assert ts.whitespace_newline
                 if require_token(ts) === ')'
                     # empty tuple
                     take_token(ts)
-                    #return Expr(:tuple)
                     return Expr(:tuple)
                 elseif peek_token(ts) in Lexer.syntactic_ops
                     # allow (=) etc.
                     t = take_token(ts)
-                    if require_token(ts) !== ')'
-                        error("invalid identifier name \"$t\"")
-                    end
+                    require_token(ts) !== ')' && error("invalid identifier name \"$t\"")
                     take_token(ts)
                     return t
                 else
@@ -1704,7 +1650,7 @@ function _parse_atom(ts::TokenStream)
                     error("inconsistent shape in cell expression")
                 end
                 ex = Expr(:cell2d, nr, nc)
-                #XXX transpose to storage order
+                #TODO: transpose to storage order
                 return ex
             else
                 fn = (x) -> isa(x, Expr) && x.head === :row
@@ -1739,7 +1685,6 @@ function _parse_atom(ts::TokenStream)
     elseif t === '@'
         take_token(ts)
         with_space_sensitive(ts) do
-            @assert ts.space_sensitive
             head = parse_unary_prefix(ts)
             t = peek_token(ts)
             if ts.isspace

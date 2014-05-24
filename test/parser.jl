@@ -527,7 +527,13 @@ facts("test unary negate") do
         "-10",
         "x -y",
         "-2x",
-        "-2^x"
+        "-x",
+        "-2^x",
+        "-2^-3",
+        "2^(-x)",
+        "-x.^-y",
+        "2^-x",
+        "-2^-x"
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)
@@ -723,6 +729,9 @@ facts("test import / using / importall expressions") do
         """import ...Test""",
         """import ....Test""",
         """import .....Test""",
+        """import ......Test""",
+        """import .......Test""",
+        """import ........Test""",
         """import Test1, Test2""",
         """import Test: a, b, c""",
         """import Test: a, b,\nc,d""",
