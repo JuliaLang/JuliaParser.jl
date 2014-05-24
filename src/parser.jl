@@ -1529,11 +1529,12 @@ function _parse_atom(ts::TokenStream)
             if length(str) == 1
                 # one byte e.g. '\xff' maybe not valid UTF-8
                 # but we want to use the raw value as a codepoint in this case
-                #wchar str[0] #this would throw an error during the conversion above
-                if length(str) != 1  || is_valid_utf8(str)
+                # wchar str[0] 
+                # XXX: this would throw an error during the conversion above
+                if length(str) != 1  || !is_valid_utf8(str)
                     error("invalid character literal")
                 end
-                return str[0]
+                return str[1]
             end
         end
 
