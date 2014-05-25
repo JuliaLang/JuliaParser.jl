@@ -421,6 +421,9 @@ facts("test for loop expression") do
         """for i = 1:10
             x + 1
          end""",
+         """for i=1:10,j=1:10,k=1:10
+             i + j + k
+         end""" 
     ]
     for ex in exprs
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))

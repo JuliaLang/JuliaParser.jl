@@ -716,15 +716,25 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 return ex
 
             elseif word === :for
-                ranges = parse_comma_sep_iters(ts)
-                body   = parse_block(ts)
+                ranges  = parse_comma_sep_iters(ts)
+                nranges = length(ranges) 
+                body = parse_block(ts)
                 expect_end(ts, word)
-                #r = nothing
-                #if r == nothing
-                #    return body
-                #else
-                return Expr(:for, ranges[1], body) 
-                #end
+                if nranges == 1
+                    return Expr(:for, ranges[1], body)
+                else
+                    # handles forms such as for i=1:10,j=1:10...
+                    ex = Expr(:for, ranges[1])
+                    lastex = ex
+                    for i=2:nranges
+                        push!(lastex.args, Expr(:for, ranges[i]))
+                        lastex = lastex.args[end]
+                        if i == nranges
+                            push!(lastex.args, body)
+                        end
+                    end
+                    return ex
+                end
 
             elseif word === :if
                 test = parse_cond(ts)
