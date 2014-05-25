@@ -245,19 +245,6 @@ function parse_cond(ts::TokenStream)
         take_token(ts) === :(:) || error("colon expected in \"?\" expression")
         return Expr(:if, ex, then, parse_cond(ts))
     end
-    #=
-    elseif isa(ex, String)
-        args = ex.args
-        while true #!eof(ts)
-            nxt = peek_token(ts)
-            if Lexer.eof(nxt) || is_closing_token(nxt) || Lexer.isnewline(nxt)
-                ex = Expr(:call, :(top), :string)
-                append!(ex.args, args)
-                return ex
-            end
-            push!(args, parse_or(ts))
-        end
-    =#
     return ex
 end
 
@@ -632,14 +619,14 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 ex = Expr(:(.), ex, parse_atom(ts))
             elseif nt === :($)
                 dollar_ex = parse_unary(ts)
-                call_ex   = Expr(:call, Expr(:top,:Expr), Expr(:quote,:quote), dollar_ex.args[1])
+                call_ex   = Expr(:call, TopNode(:Expr), QuoteNode(:quote), dollar_ex.args[1])
                 ex = Expr(:macrocall, ex, Expr(:($), call_ex))
             else
                 name = parse_atom(ts)
                 if isa(name, Expr) && name.head === :macrocall
-                    ex = Expr(:macrocall, :(.), ex, Expr(:quote, name.args[1]), name.args[2:end]...)
+                    ex = Expr(:macrocall, :(.), ex, QuoteNode(name.args[1]), name.args[2:end]...)
                 else
-                    ex = Expr(:(.), ex, Expr(:quote, name))
+                    ex = Expr(:(.), ex, QuoteNode(name))
                 end
             end
             continue
@@ -754,9 +741,9 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     blk = Expr(:block, line_number_node(ts), parse_resword(ts, :if))
                     return Expr(:if, test, then, blk)
                 elseif nxt === sym_else
-                    if peek_token(ts) === :if
-                        error("use elseif instead of else if")
-                    end
+                    #sym_elseif peek_token(ts) === :if
+                    #    error("use elseif instead of else if")
+                    #end
                     blk = parse_block(ts)
                     ex = Expr(:if, test, then, blk) 
                     expect_end(ts, word)
@@ -1674,10 +1661,10 @@ function _parse_atom(ts::TokenStream)
         take_token(ts)
         ps = parse_string_literal(ts, false)
         if triplequote_string_literal(ps)
-            ex = Expr(:macrocall, symbol("@mstr"), ps.args...)
-            return ex
-        elseif interpolate_string_literal(ps)
-            return Expr(:string, filter((s) -> !(isa(s, String) && length(s) == 0), ps.args)...)
+            return Expr(:macrocall, symbol("@mstr"), ps.args...)
+        elseif interpolate_string_literal(ps) 
+            zlenstr = (s) -> !(isa(s, String) && length(s) == 0)
+            return Expr(:string, filter(zlenstr, ps.args)...)
         else
             return ps.args[1]
         end
@@ -1727,18 +1714,19 @@ end
 function is_valid_modref(ex::Expr)
     return length(ex.args) == 2 &&
            ex.head === :(.) &&
-           isa(ex.args[2], Expr) && 
-           ex.args[2].head === :quote &&
-           isa(ex.args[2].args[1], Symbol) &&
-           (isa(ex.args[1], Symbol) || valid_modref(ex.args[1]))
+           ((isa(ex.args[2], Expr) && 
+             ex.args[2].head === :quote && 
+             isa(ex.args[2].args[1], Symbol)) ||
+            (isa(ex.args[2], QuoteNode) &&
+             isa(ex.args[2].value, Symbol))) &&
+           (isa(ex.args[1], Symbol) || is_valid_modref(ex.args[1]))
 end
 
 function macroify_name(ex)
     if isa(ex, Symbol)
         return symbol(string('@', ex))
     elseif is_valid_modref(ex)
-        return Expr(:(.), ex.args[1], 
-                    Expr(:quote, macroify_name(ex.args[2].args[1])))
+        return Expr(:(.), ex.args[1], QuoteNode(macroify_name(ex.args[2].args[1])))
     else
         error("invalid macro use \"@($ex)")
     end
