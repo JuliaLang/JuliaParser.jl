@@ -328,7 +328,6 @@ facts("test prefixed string literals") do
         @fact Parser.parse(ex) => Base.parse(ex)
     end
 end
-error()
 
 facts("test cell expressions") do
     exprs = [
@@ -498,6 +497,25 @@ facts("test function expressions") do
               """function x()
                   return x + 1
               end"""]
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+    end
+end
+
+facts("test function return tuple") do
+    exprs = ["""function test(x)
+                    return (x, next(x))
+                end
+            """,
+            """
+            # from Iterators.jl parse failure
+            function next(it::Take, state)
+                n, xs_state = state
+                v, xs_state = next(it.xs, xs_state)
+                return v, (n - 1, xs_state)
+            end
+            """
+    ]
     for ex in exprs
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end

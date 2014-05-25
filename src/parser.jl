@@ -159,8 +159,8 @@ function parse_chain(ts::TokenStream, down::Function, op)
         t = peek_token(ts)
         t !== op && return chain
         take_token(ts)
-        if (ts.space_sensitive && isspace(ts) && 
-            (t in Lexer.unary_and_binary_ops) &&
+        if (ts.space_sensitive && ts.isspace && 
+            (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts.io) != '\\')
             # here we have "x -y"
             put_back!(ts, t) 
@@ -410,10 +410,13 @@ function parse_range(ts::TokenStream)
         end
         if ts.range_colon_enabled && t === :(:)
             take_token(ts)
-            if ts.space_sensitive && ts.isspace && (peek_token(ts) || true) && !ts.isspace
-                # "a :b" in space sensitive mode
-                put_back!(ts, :(:))
-                return ex
+            if ts.space_sensitive && ts.isspace
+                peek_token(ts)
+                if !ts.isspace
+                    # "a :b" in space sensitive mode
+                    put_back!(ts, :(:))
+                    return ex
+                end
             end
             if is_closing_token(ts, peek_token(ts))
                 error("deprecated syntax x[i:]")
@@ -870,9 +873,9 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 end
 
             elseif word === :return
-                t = peek_token(ts)
+                t  = peek_token(ts)
                 return Lexer.isnewline(t) || is_closing_token(ts, t) ? Expr(:return, nothing) :
-                                                                       Expr(:return, parse_eqs(ts))
+                                                                       Expr(:return, parse_eq(ts))
             elseif word === :break || word === :continue
                 return Expr(word)
 
