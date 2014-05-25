@@ -161,7 +161,7 @@ function parse_chain(ts::TokenStream, down::Function, op)
         take_token(ts)
         if (ts.space_sensitive && ts.isspace && 
             (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts.io) != '\\')
+            Lexer.peekchar(ts.io) != ' ')
             # here we have "x -y"
             put_back!(ts, t) 
             return chain
@@ -180,7 +180,7 @@ function parse_with_chains(ts::TokenStream, down::Function, ops, chain_op)
         take_token(ts)
         if (ts.space_sensitive && ts.isspace &&
             (t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts.io) != '\\')
+            Lexer.peekchar(ts.io) != ' ')
             # here we have "x -y"
             put_back!(ts, t)
             return ex
@@ -212,8 +212,8 @@ function parse_RtoL(ts::TokenStream, down::Function, ops, ex=down(ts))
         !(t in ops) && return ex
         take_token(ts)
         if (ts.space_sensitive && ts.isspace &&
-            (t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts.io) != '\\')
+            (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
+            Lexer.peekchar(ts.io) != ' ')
             put_back!(ts, t)
             return ex
         elseif Lexer.is_syntactic_op(t)
@@ -419,7 +419,7 @@ function parse_range(ts::TokenStream)
                 end
             end
             if is_closing_token(ts, peek_token(ts))
-                error("deprecated syntax x[i:]")
+                error("deprecated syntax arr[i:]") 
             elseif Lexer.isnewline(peek_token(ts))
                 error("line break in \":\" expression")
             end
@@ -589,7 +589,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             al = with_end_symbol(ts) do 
                 parse_cat(ts, ']')
             end
-            if al == nothing
+            if (al.head === :cell1d || al.head === :vcat) && isempty(al.args)
                 ex = is_dict_literal(ex) ? Expr(:typed_dict, ex) : Expr(:ref, ex)
                 continue
             end

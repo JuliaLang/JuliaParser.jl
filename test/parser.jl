@@ -33,6 +33,7 @@ end
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 without_linenums(ex) = ex
 
+
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -135,21 +136,6 @@ facts("test special case all whitespace") do
     @fact eof(io) => true
     @fact res => nothing
 end
-
-#=
-facts("test is_juxtaposed") do 
-    ex = Expr(:call, :+, 1)
-    @fact Parser.is_juxtaposed(ex, :+) => false
-    @fact Parser.is_juxtaposed(:+, 1)  => false
-    @fact Parser.is_juxtaposed(ex, :if) => false
-    @fact Parser.is_juxtaposed(ex, '\n') => false
-    @fact Parser.is_juxtaposed(Expr(:..., 1), 1) => false
-    @fact Parser.is_juxtaposed(ex, '(') => false
-    @fact Parser.is_juxtaposed(ex, 1) => true
-    @fact Parser.is_juxtaposed(1, 1) => true
-    @fact Parser.is_juxtaposed(1, '(') => true
-end
-=#
 
 facts("test simple numeric expressions") do
     exprs = ["1 + 1",
@@ -515,6 +501,20 @@ facts("test function return tuple") do
                 return v, (n - 1, xs_state)
             end
             """
+    ]
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+    end
+end
+
+facts("test array ref") do
+    exprs = [
+        """
+        # from Iterators.jl parse failure
+        for i in 1:overlap
+            p[i] = ans[iter.step + i]
+        end
+        """
     ]
     for ex in exprs
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
