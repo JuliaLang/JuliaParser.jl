@@ -253,7 +253,6 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
     t = require_token(ts)
     is_invalid_initial_token(t) && error("unexpected \"$t\"")
     # empty block
-    # Note: "\n" has a int value of 10 so we need a typecheck here
     if isa(t, CharSymbol) && t in closers
         return Expr(head)
     end
@@ -296,8 +295,7 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
            t = nt
            continue
         elseif '\n' in ops
-            loc = line_number_node(ts)
-            push!(args, loc)
+            push!(args, line_number_node(ts))
             push!(args, down(ts))
             t = peek_token(ts)
         else
@@ -562,10 +560,10 @@ function separate(f::Function, collection)
 end
 
 function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
-    temp = Set(['(', '[', '{', '\'', '"'])
     while true 
         t = peek_token(ts)
-        if (ts.space_sensitive && ts.isspace && (t in temp)) || (isa(ex, Number) && t === '(')
+        if (ts.space_sensitive && ts.isspace && (t in ('(', '[','{', '\'', '"')) || 
+           (isa(ex, Number) && t === '('))
             return ex
         end
         if t === '('
@@ -656,7 +654,6 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 suffix  = triplequote_strng_literal(str) ? :(_mstr) : :(_str)
                 macname = symbol(string('@', ex, suffix))
                 macstr  = str[2:end]
-                
                 if isa(nt, Symbol) && !Lexer.is_operator(nt) && !ts.isspace
                     # string literal suffix "s"x
                     ex = Expr(:macrocall, macname, macstr, string(take_token(ts)))
@@ -973,10 +970,10 @@ function parse_imports(ts::TokenStream, word::Symbol)
     end
     rest = done? {} : parse_comma_sep(ts, (ts) -> parse_import(ts, word))
     if from
-        module_sym = frst[1].args[1]
+        module_syms = frst[1].args
         imports = Expr[]
         for expr in rest
-            ex = Expr(expr.head, module_sym, expr.args...)
+            ex = Expr(expr.head, module_syms..., expr.args...)
             push!(imports, ex)
         end
         return imports
@@ -1025,16 +1022,14 @@ function parse_import(ts::TokenStream, word::Symbol)
     path = parse_import_dots(ts)
     while true
         nxt = peek_token(ts)
+        # split at char / symbols
         if Lexer.eof(nxt) || (isa(nxt, CharSymbol) && nxt in ('\n', ';', ',', :(:)))
             ex = Expr(word); ex.args = path
             return ex
+        # handles import Base.Pkg: ...
         elseif nxt === :(.)
             take_token(ts)
             push!(path, macrocall_to_atsym(parse_atom(ts)))
-            continue
-        elseif first(string(nxt)) === '.'
-            take_token(ts)
-            push!(path, symbol(string(nxt)[2:end]))
             continue
         else
             error("invalid \"$word\" statement")

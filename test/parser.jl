@@ -440,7 +440,7 @@ facts("test if condtion expression") do
         """if x == 1
            elseif x == 2
            else
-           end"""
+           end""",
     ]
     for ex in exprs
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
@@ -736,6 +736,7 @@ facts("test import / using / importall expressions") do
         """import Test: a, b, c""",
         """import Test: a, b,\nc,d""",
         """import Test: a, b; c, d""",
+        """import Test.Base: a, b, c, d""",
         """using Test""",
         """importall Test""",
     ]
