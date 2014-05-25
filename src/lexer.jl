@@ -557,16 +557,14 @@ function accum_julia_symbol(io::IO, c::Char)
 end
 
 function isuws(wc::Char)
-    return (wc==9 || wc==10 || wc==11 || wc==12 || wc==13 || wc==32 ||
-            wc==133 || wc==160 || wc==5760 || wc==6158 || wc==8192 ||
+    return (wc==9    || wc==10   || wc==11   || wc==12   || wc==13   || wc==32 ||
+            wc==133  || wc==160  || wc==5760 || wc==6158 || wc==8192 ||
             wc==8193 || wc==8194 || wc==8195 || wc==8196 || wc==8197 ||
             wc==8198 || wc==8199 || wc==8200 || wc==8201 || wc==8202 ||
             wc==8232 || wc==8233 || wc==8239 || wc==8287 || wc==12288)
 end
 
-function isbom(wc::Char)
-    return wc == 0xFEFF
-end
+isbom(wc::Char) = wc == 0xFEFF
 
 function _skipws(io::IO, newlines::Bool)
     nc = peekchar(io)
