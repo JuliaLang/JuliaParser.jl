@@ -738,9 +738,9 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     blk = Expr(:block, line_number_node(ts), parse_resword(ts, :if))
                     return Expr(:if, test, then, blk)
                 elseif nxt === sym_else
-                    #sym_elseif peek_token(ts) === :if
-                    #    error("use elseif instead of else if")
-                    #end
+                    if peek_token(ts) === :if
+                        error("use elseif instead of else if")
+                    end
                     blk = parse_block(ts)
                     ex = Expr(:if, test, then, blk) 
                     expect_end(ts, word)

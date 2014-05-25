@@ -33,6 +33,7 @@ end
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 without_linenums(ex) = ex
 
+#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -865,54 +866,62 @@ facts("parse test functions") do
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
-
+=#
 facts("parse test module") do
-    exprs = ["""
-        module Test
-            abstract AbstractTest
+    exprs = [
+"""
+module Test
+    abstract AbstractTest
 
-            type Test <: AbstractTest
-                a
-                b
-                c
-            end
+    type Test <: AbstractTest
+        a
+        b
+        c
+    end
 
-            immutable Test{T<:Int32}
-                x::T
-                y::T
-            end
-            
-            const X = 10
-            const Y = [[1,2,3] 
-                       [1,2,3]] 
-            
-            let x = 10, y = 10
-                test(z::Int) = x + y + z
-            end
+    immutable Test{T<:Int32}
+        x::T
+        y::T
+    end
+    
+    const X = 10
+    const Y = [[1,2,3] 
+               [1,2,3]] 
+    
+    let x = 10, y = 10
+        test(z::Int) = x + y + z
+    end
 
-            test(x) = begin
-                println(\"hello world! \$x\")
-            end 
+    test(x) = begin
+        println(\"hello world! \$x\")
+    end 
 
-            function test{T<:Int}(x::T, y::T=zero(T); z::T=one(T))
-                (x + y + z;)
-            end
-            
-            function test(x)
-                x + 2 
-            end 
+    function test{T<:Int}(x::T, y::T=zero(T); z::T=one(T))
+        (x + y + z;)
+    end
+    
+    function test(x)
+        x + 2 
+    end 
 
-        end
-        """
-
-        """
-        baremodule Test
-            function test1(x)
-                (x;)
-            end
-            function test2(y) y end
-        end
-        """
+end
+""",
+"""
+baremodule Test
+    function test1(x)
+        (x;)
+    end
+    function test2(y) y end
+end
+""",
+"""
+# don't consume newline char in skipping comments
+immutable RGB <: ColorValue
+    r::Float64 #cmt
+    g::Float64 #cmt
+    b::Float64
+end
+""",
     ]
     for ex in exprs
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))

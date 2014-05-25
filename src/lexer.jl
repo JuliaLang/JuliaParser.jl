@@ -67,9 +67,6 @@ const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
 
 
 #= Helper functions =#
-#TODO: this is redefined in Parser
-#is_assignment(ex::Expr) = ex.head === :(=) && length(ex.args) == 2
-#is_assignment(ex) = false
 
 is_assignment_like(ex) = length(expr) == 2 && in(first(expr), assignment_ops)
 
@@ -166,7 +163,10 @@ end
 
 function skip_to_eol(io::IO)
     while !eof(io)
-        readchar(io) == '\n' && break
+        if peekchar(io) === '\n'
+            break
+        end
+        readchar(io)
     end
     return io
 end
