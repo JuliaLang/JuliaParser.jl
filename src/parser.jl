@@ -651,14 +651,14 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 take_token(ts)
                 str = parse_string_literal(ts, true)
                 nt  = peek_token(ts)
-                suffix  = triplequote_strng_literal(str) ? :(_mstr) : :(_str)
+                suffix  = triplequote_string_literal(str) ? "_mstr" : "_str"
                 macname = symbol(string('@', ex, suffix))
-                macstr  = str[2:end]
+                macstr  = str.args[1]
                 if isa(nt, Symbol) && !Lexer.is_operator(nt) && !ts.isspace
                     # string literal suffix "s"x
                     ex = Expr(:macrocall, macname, macstr, string(take_token(ts)))
                 else
-                    ex = Expr(:macrocall, macrocall, macstr)
+                    ex = Expr(:macrocall, macname, macstr)
                 end
                 continue
             else

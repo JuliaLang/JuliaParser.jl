@@ -318,6 +318,18 @@ facts("test string literal expression") do
     end
 end
 
+facts("test prefixed string literals") do
+    exprs = [
+        """x\"test\"""",
+        """x\"\"\"test\"\"\"""",
+        """\"test\"x""",
+    ]
+    for ex in exprs
+        @fact Parser.parse(ex) => Base.parse(ex)
+    end
+end
+error()
+
 facts("test cell expressions") do
     exprs = [
         "{}",
