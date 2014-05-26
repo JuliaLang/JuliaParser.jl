@@ -119,9 +119,8 @@ function short_form_function_loc(ex, lno)
        block = Expr(:block, Expr(:line, lno, current_filename))
        append!(block.args, ex.args[2:end])
        return Expr(:(=), ex.args[1], block) 
-    else
-        return ex
-    end
+   end
+   return ex
 end
 
 const sym_do      = symbol("do")
@@ -274,7 +273,6 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
             if !(Lexer.eof(t) || t === '\n' || ',' in ops || t in closers)
                 error("extra token \"$t\" after end of expression")
             end
-            #TODO: length(args) is probably wrong, need to test
             if isempty(args) || length(args) >= 2 || !isfirst
                 # {} => Expr(:head)
                 # {ex1, ex2} => Expr(head, ex1, ex2)
@@ -391,9 +389,8 @@ end
 
 #= This handles forms such as 2x => Expr(:call, :*, 2, :x) =#
 function parse_juxtaposed(ts::TokenStream, ex) 
-    nt = peek_token(ts)
     # numeric literal juxtaposition is a unary operator
-    if is_juxtaposed(ts, ex, nt) && !ts.isspace
+    if is_juxtaposed(ts, ex, peek_token(ts)) && !ts.isspace
         return Expr(:call, :(*), ex, parse_unary(ts))
     end
     return ex
@@ -460,9 +457,8 @@ function parse_decl(ts::TokenStream)
             # -> is unusual it binds tightly on the left and loosely on the right
             lno = line_number_filename_node(ts)
             return Expr(:(->), ex, Expr(:block, lno, parse_eqs(ts)))
-        else
-            return ex
         end
+        return ex
     end
 end
 
@@ -499,9 +495,8 @@ function parse_unary(ts::TokenStream)
             # -2^x parsed as (- (^ 2 x))
             put_back!(ts, op === :(-) ? -num : num)
             return Expr(:call, op, parse_factor(ts))
-        else
-            return num
-        end
+        end 
+        return num
     end
     nt = peek_token(ts)
     if is_closing_token(ts, nt) || Lexer.isnewline(nt)
@@ -515,18 +510,16 @@ function parse_unary(ts::TokenStream)
         arg = parse_unary(ts)
         if isa(arg, Expr) && arg.head === :tuple
             return Expr(:call, op, arg.args[1])
-        else
-            return Expr(:call, op, arg)
-        end
+        end 
+        return Expr(:call, op, arg)
     end
 end
 
 function subtype_syntax(ex)
     if isa(ex, Expr) && ex.head === :comparison && length(ex.args) == 3 && ex.args[2] === :(<:)
         return Expr(:(<:), ex.args[1], ex.args[3])
-    else
-        return ex
     end
+    return ex
 end
 
 function parse_unary_prefix(ts::TokenStream)
@@ -599,11 +592,8 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 ex = Expr(:typed_hcat, ex, al.args...)
             elseif al.head === :vcat
                 istyped = (ex) -> isa(ex, Expr) && ex.head === :row && length(ex.args) == 1
-                if any(istyped, al.args)
-                    ex = Expr(:typed_vcat, ex, al.args...)
-                else
-                    ex = Expr(:ref, ex, al.args...)
-                end
+                ex = any(istyped, al.args) ? Expr(:typed_vcat, ex, al.args...) :
+                                             Expr(:ref, ex, al.args...)
             elseif al.head === :comprehension
                 ex = Expr(:typed_comprehension, ex, al.args...)
             elseif al.head === :dict_comprehension
@@ -664,12 +654,10 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                     ex = Expr(:macrocall, macname, macstr)
                 end
                 continue
-            else
-                return ex
             end
-        else
             return ex
         end
+        return ex
     end
 end 
 
@@ -724,8 +712,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     return Expr(:for, ranges[1], body)
                 else
                     # handles forms such as for i=1:10,j=1:10...
-                    ex = Expr(:for, ranges[1])
-                    lastex = ex
+                    ex = lastex = Expr(:for, ranges[1])
                     for i=2:nranges
                         push!(lastex.args, Expr(:for, ranges[i]))
                         lastex = lastex.args[end]
@@ -759,7 +746,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     expect_end(ts, word)
                     return ex
                 else
-                    error("unexpected $nxt")
+                    error("unexpected next token $nxt in if")
                 end
 
             elseif word === :let
@@ -813,11 +800,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
 
             elseif word === :type || word === :immutable
                 istype = word === :type
-                isimmutable = word === :immutable
-                if isimmutable && peek_token(ts) === :type
-                    # allow "immutable type"
-                    take_token(ts)
-                end
+                # allow "immutable type"
+                (!istype && peek_token(ts) === :type) && take_token(ts)
                 sig = parse_subtype_spec(ts)
                 blk = parse_block(ts)
                 ex  = Expr(:type, istype, sig, blk) 
@@ -919,9 +903,10 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 return Expr(:module, !isbare, name, body) 
 
             elseif word === :export
-                es = map(macrocall_to_atsym, parse_comma_sep(ts, parse_atom))
-                !all(x -> isa(x, Symbol), es) && error("invalid \"export\" statement")
-                return Expr(:export, es...)
+                exports = map(macrocall_to_atsym, parse_comma_sep(ts, parse_atom))
+                !all(x -> isa(x, Symbol), exports) && error("invalid \"export\" statement")
+                ex = Expr(:export); ex.args = exports
+                return ex
 
             elseif word === :import || word === :using || word === :importall
                 imports = parse_imports(ts, word)
@@ -936,7 +921,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     # place calling convenction at end of arglist
                     return Expr(:ccall, al[1], al[3:end]..., al[2])
                 end
-                return Expr(:ccall, al...)
+                ex = Expr(:ccall); ex.args = al
+                return ex
 
             elseif word === :do
                 error("invalid \"do\" syntax")
@@ -990,9 +976,8 @@ function parse_imports(ts::TokenStream, word::Symbol)
             push!(imports, ex)
         end
         return imports
-    else
-        return append!(frst, rest)
     end
+    return append!(frst, rest)
 end
 
 const sym_1dot  = symbol(".")
@@ -1024,10 +1009,8 @@ function parse_import_dots(ts::TokenStream)
             append!(l, {:(.), :(.), :(.), :(.)})
             t = peek_token(ts)
             continue
-        else
-            ex = macrocall_to_atsym(parse_atom(ts))
-            return push!(l, ex)
         end
+        return push!(l, macrocall_to_atsym(parse_atom(ts)))
     end
 end
 
@@ -1152,9 +1135,6 @@ function _parse_arglist(ts::TokenStream, closer::Token)
     end
 end
 
-#TODO: returning a local variable instead of inside the inner block
-#fixed types with {} arguments newline error, warrents further investigation
-#into what is going on and why the ts is being set incorrectly
 function parse_arglist(ts::TokenStream, closer::Token)
     with_normal_ops(ts) do
         with_whitespace_newline(ts) do
@@ -1282,11 +1262,10 @@ function parse_matrix(ts::TokenStream, frst, closer)
 end
 
 function peek_non_newline_token(ts::TokenStream)
-    t = peek_token(ts)
     while true
+        t = peek_token(ts)
         if Lexer.isnewline(t)
             take_token(ts)
-            t = peek_token(ts)
             continue
         end
         return t
@@ -1417,9 +1396,7 @@ end
 
 function tostr(buf::IOBuffer, custom::Bool)
     str = bytestring(buf)
-    if custom
-        return str
-    end
+    custom && return str
     str = unescape_string(str)
     !is_valid_utf8(str) && error("invalid UTF-8 sequence")
     return  str
@@ -1486,13 +1463,11 @@ function parse_string_literal(ts::TokenStream, custom)
         Lexer.takechar(ts.io)
         if Lexer.peekchar(ts.io) === '"'
             Lexer.takechar(ts.io)
-            return  _parse_string_literal(:triple_quoted_string, 2, ts, custom)
-        else
-            return Expr(:single_quoted_string, "")
+            return _parse_string_literal(:triple_quoted_string, 2, ts, custom)
         end
-    else
-        return _parse_string_literal(:single_quoted_string, 0, ts, custom)
+        return Expr(:single_quoted_string, "")
     end
+    return _parse_string_literal(:single_quoted_string, 0, ts, custom)
 end
 
 function _parse_atom(ts::TokenStream)
@@ -1502,7 +1477,7 @@ function _parse_atom(ts::TokenStream)
         return take_token(ts)
     
     # char literal
-    elseif t === '\''  || t === symbol("'")
+    elseif t === '\'' || t === symbol("'")
         take_token(ts)
         fch = Lexer.readchar(ts.io)
         fch === '\'' && error("invalid character literal")
@@ -1538,9 +1513,8 @@ function _parse_atom(ts::TokenStream)
         take_token(ts)
         if is_closing_token(ts, peek_token(ts))
             return :(:)
-        else
-            return QuoteNode(_parse_atom(ts)) 
         end
+        return QuoteNode(_parse_atom(ts)) 
     
     # misplaced =
     elseif t === :(=)
@@ -1671,8 +1645,8 @@ function _parse_atom(ts::TokenStream)
         if triplequote_string_literal(ps)
             return Expr(:macrocall, symbol("@mstr"), ps.args...)
         elseif interpolate_string_literal(ps) 
-            zlenstr = (s) -> !(isa(s, String) && length(s) == 0)
-            return Expr(:string, filter(zlenstr, ps.args)...)
+            notzerolen = (s) -> !(isa(s, String) && isempty(s))
+            return Expr(:string, filter(notzerolen, ps.args)...)
         else
             return ps.args[1]
         end
@@ -1760,6 +1734,6 @@ function parse(ts::TokenStream)
 end
 
 parse(io::IO) = parse(TokenStream(io))
-parse(str::String) = parse(TokenStream(IOBuffer(str)))
+parse(str::String)  = parse(TokenStream(IOBuffer(str)))
 
 end
