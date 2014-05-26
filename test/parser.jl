@@ -743,7 +743,7 @@ end
 facts("test export expression") do
     exprs = [
         """export a""",
-        """export a,b,c,
+        """export @a,b,c,
                 d""",
         
     ]
@@ -769,7 +769,7 @@ facts("test import / using / importall expressions") do
         """import Test: a, b, c""",
         """import Test: a, b,\nc,d""",
         """import Test: a, b; c, d""",
-        """import Test.Base: a, b, c, d""",
+        """import Test.Base: @a, b, c, d""",
         """using Test""",
         """importall Test""",
     ]
