@@ -617,7 +617,8 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             else
                 name = parse_atom(ts)
                 if isa(name, Expr) && name.head === :macrocall
-                    ex = Expr(:macrocall, :(.), ex, QuoteNode(name.args[1]), name.args[2:end]...)
+                    ex = Expr(:macrocall, Expr(:(.), ex, QuoteNode(name.args[1])))
+                    append!(ex.args, name.args[2:end])
                 else
                     ex = Expr(:(.), ex, QuoteNode(name))
                 end

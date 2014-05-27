@@ -971,8 +971,11 @@ ret=ccall(:GetEnvironmentVariableA,stdcall,Uint32,(Ptr{Uint8},Ptr{Uint8},Uint32)
 """
 writemime(io, ::MIME"text/plain", x) = showlimited(io, x)
 """,
+"""
+l = (Base.@_mod64 (length(a)-1)) + 1
+"""
 ]
-    for ex in [last(exprs)]
+    for ex in [exprs]
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
