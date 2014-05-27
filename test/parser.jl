@@ -967,7 +967,10 @@ end
 """,
 """
 ret=ccall(:GetEnvironmentVariableA,stdcall,Uint32,(Ptr{Uint8},Ptr{Uint8},Uint32),s,val,len)
+""",
 """
+writemime(io, ::MIME"text/plain", x) = showlimited(io, x)
+""",
 ]
     for ex in [last(exprs)]
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))

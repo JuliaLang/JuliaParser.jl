@@ -194,9 +194,11 @@ end
 function parse_LtoR(ts::TokenStream, down::Function, ops, ex=down(ts))
     while true 
         t  = peek_token(ts)
-        !(t in ops) && return ex
+        if !(t in ops)
+            return ex
+        end
         take_token(ts)
-        if Lexer.is_syntactic_op(t) || t === :(in)
+        if Lexer.is_syntactic_op(t) || t === :(in) || t === :(::)
             ex = Expr(t, ex, down(ts))
         else
             ex = Expr(:call, t, ex, down(ts))
@@ -528,7 +530,7 @@ function parse_unary_prefix(ts::TokenStream)
         take_token(ts)
         if is_closing_token(ts, peek_token(ts))
             return op
-        elseif op === :(&)
+        elseif op === :(&) || op === :(::)
             return Expr(op, parse_call(ts))
         else
             return Expr(op, parse_atom(ts))
