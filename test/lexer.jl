@@ -725,7 +725,10 @@ facts("test next_token") do
 
     toks = collect(tokens("function(x::Int)\n\treturn x^2\nend"))
     @fact toks => {:function, '(', :x, :(::), :Int, ')', '\n',
-                   :return , :x, :(^), uint(2), '\n',
+                   :return , :x, :(^), 2, '\n',
                    sym_end}
 
+    toks = collect(tokens("+(x::Bool, y::Bool) = int(x) + int(y)"))
+    @fact toks => {:+, '(', :x, :(::), :Bool, ',', :y, :(::), :Bool, ')',
+                   :(=), :int, '(', :x, ')', :+, :int, '(', :y, ')'}
 end

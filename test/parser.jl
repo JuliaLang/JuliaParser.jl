@@ -954,6 +954,9 @@ immutable RGB <: ColorValue
     b::Float64
 end
 """,
+"""
++(x::Bool, y::Bool) = int(x) + int(y)
+"""
     ]
     for ex in exprs
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))

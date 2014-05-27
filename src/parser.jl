@@ -493,7 +493,7 @@ function parse_unary(ts::TokenStream)
         num = parse_juxtaposed(ts, n)
         if peek_token(ts) in (:(^), :(.^))
             # -2^x parsed as (- (^ 2 x))
-            put_back!(ts, op === :(-) ? -num : num)
+            put_back!(ts, neg ? -num : num)
             return Expr(:call, op, parse_factor(ts))
         end 
         return num
@@ -509,7 +509,7 @@ function parse_unary(ts::TokenStream)
     else
         arg = parse_unary(ts)
         if isa(arg, Expr) && arg.head === :tuple
-            return Expr(:call, op, arg.args[1])
+            return Expr(:call, op, arg.args...)
         end 
         return Expr(:call, op, arg)
     end
