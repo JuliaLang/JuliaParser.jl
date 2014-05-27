@@ -120,10 +120,10 @@ pct = ptime / btime * 100.0
 
 if pct >= 100
     pctstr = @sprintf("%0.2f", pct-100)
-    println(bold("Parser is $pctstr% slower than base"))
+    println(bold("Parser is ~$pctstr% slower than base"))
 else
     pctstr = @sprintf("%0.2f", 100-pct)
-    println(bold("Parser is $pctstr% faster than base"))
+    println(bold("Parser is ~$pctstr% faster than base"))
 end
 
 exit(failed + errors)
