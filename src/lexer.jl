@@ -203,51 +203,46 @@ end
 # expressions starting with a numeric literal followed by e or E
 # are always floating point literals
 
-function string_to_number(tok::String)
-    len = length(tok)
-    len > 0 || error("invalid number token \"$tok\"")
+# TODO: overflow checking?  unsigned ints? this needs a lot of work
+function string_to_number(str::String)
+    len = length(str)
+    len > 0 || error("empty string")
     # NaN and Infinity
-    (tok == "NaN" || tok == "+NaN" || tok == "-NaN") && return NaN
-    (tok == "Inf" || tok == "+Inf" || tok == "-Inf") && return Inf
-    # XXX: Overflow checking?
+    (str == "NaN" || str == "+NaN" || str == "-NaN") && return NaN
+    (str == "Inf" || str == "+Inf" || str == "-Inf") && return Inf
     # floating point literals
-    is_float64 = false
-    is_float32 = false
     didx, fidx = 0, 0
+    isfloat32, isfloat64 = false, false
     for i=1:len 
-        c = tok[i]
-        if c == '.'
-            didx = i
-            is_float64 = true
-        end
-        is_float64 = is_float64 || c == 'e' || c == 'E' || c == 'p' || c == 'P'
-        if c == 'f'
-            is_float32 = i > didx && i != len ? 
-                true : error("invalid float32 token \"$tok\"")
-            fidx = i
+        c = str[i]
+        if c === '.'
+            didx, isfloat64 = i, true
+        elseif c === 'f'
+            if i > didx && i != len
+                fidx, isfloat32 = i, true
+            else
+                error("invalid float32 string \"$str\"")
+            end
+        elseif c === 'e' || c === 'E' || c === 'p' || c === 'P'
+            isfloat64 = true
         end
     end
-    if is_float32
-        #TODO: there must be a better way to do this
-        base = float32(tok[1:fidx-1])
-        expn = int(tok[fidx+1:end])
+    if isfloat32
+        base = float32(str[1:fidx-1])
+        expn = int(str[fidx+1:end])
         return base * 10.f0 ^ expn
-    elseif is_float64
-        return float64(tok)
+    elseif isfloat64
+        return float64(str)
+    else
+        return int64(str)
     end
-    # parse signed / unsigned integers
-    if tok[1] == '-'
-        return int64(tok)
-    end
-    #TODO: return uint64(tok)
-    return int64(tok)
 end
 
 function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
     if !leading_zero && c == '_'
-        return (utf32(""), false)
+        return (Char[], false)
     end
-    str = Char[]
+    charr = Char[]
     while true 
         if c == '_'
             skip(io, 1)
@@ -260,15 +255,13 @@ function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
             end
         elseif !eof(c) && pred(c)
             skip(io, 1)
-            push!(str, c)
+            push!(charr, c)
             c = peekchar(io)
             continue
-        else
-            break 
         end
+        break 
     end
-    #@assert length(str) > 0
-    return (utf32(str), true)
+    return (charr, true)
 end
 
 is_char_hex(c::Char) = isdigit(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
@@ -314,76 +307,71 @@ function is_within_int128(s::String)
                           s <= "170141183460469231731687303715884105727"
 end
 
+#TODO: neg seems like a conflation between the responsibilites of the parser vs lexer
 function read_number(io::IO, leading_dot::Bool, neg::Bool)
-    str = Char[] 
+    charr = Char[] 
     pred::Function = isdigit 
+
+    leading_zero = false
     is_float32_literal  = false
     is_hexfloat_literal = false
-    leading_zero = false
 
-    function allow(ch::Char)
+    allow!(ch::Char) = begin
         c = peekchar(io)
-        if c == ch
-            push!(str, readchar(io))
+        if c === ch
+            skip(io, 1)
+            push!(charr, c) 
             return true
         end
         return false
     end
 
-    function disallow_dot()
-        if peekchar(io) == '.'
+    disallow_dot() = begin
+        if peekchar(io) === '.'
             skip(io, 1)
             if is_dot_opchar(peekchar(io))
                 skip(io, -1)
             else
-                error("invalid numeric constant \"$(utf32(str))."\"")
+                error("invalid numeric constant \"$(utf32(charr))."\"")
             end
         end
     end
 
-    function read_digits(leading_zero::Bool)
-        digits, ok = accum_digits(io, pred, peekchar(io), 
-                                  leading_zero)
-        if !ok
-            error("invalid numeric constant \"$digits\"")
-        end
-        if isempty(digits)
-            return false
-        end
-        for c in digits
-            push!(str, c)
-        end
-        return true
+    read_digits!(leading_zero::Bool) = begin
+        digits, ok = accum_digits(io, pred, peekchar(io), leading_zero)
+        ok || error("invalid numeric constant \"$digits\"")
+        return isempty(digits) ? false : (append!(charr, digits); true) 
     end
 
-    neg && push!(str, '-')
+    neg && push!(charr, '-')
     if leading_dot
-        push!(str, '.')
+        push!(charr, '.')
+    else
         if peekchar(io) == '0'
-            push!(str, readchar(io))
+            push!(charr, readchar(io))
             leading_zero = true
-            if allow('x')
+            if allow!('x')
                 leading_zero = false
                 pred = is_char_hex
-            elseif allow('o')
+            elseif allow!('o')
                 leading_zero = false
                 pred = is_char_oct
-            elseif allow('b')
+            elseif allow!('b')
                 leading_zero = false
                 pred = is_char_bin
             end
         else
-            allow('.')
+            allow!('.')
         end
     end
-    read_digits(leading_zero)
+    read_digits!(leading_zero)
     if peekchar(io) == '.'
         skip(io, 1)
         if is_dot_opchar(peekchar(io))
             skip(io, -1)
         else
-            push!(str, '.')
-            read_digits(false)
+            push!(charr, '.')
+            read_digits!(false)
             disallow_dot()
         end
     end
@@ -391,54 +379,54 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     if c == 'e' || c == 'E' || c == 'f' || c == 'p' || c == 'P'
         skip(io, 1)
         nc = peekchar(io)
-        if !eof(nc) && (isdigit(nc) || nc == '+' || nc == '-')
-            is_float32_literal  = (c == 'f')
-            is_hexfloat_literal = (c == 'p' || c == 'P')
-            push!(str, c)
-            push!(str, readchar(io))
-            read_digits(false)
+        if !eof(nc) && (isdigit(nc) || nc === '+' || nc === '-')
+            is_float32_literal  = (c === 'f')
+            is_hexfloat_literal = (c === 'p' || c === 'P')
+            push!(charr, c)
+            push!(charr, readchar(io))
+            read_digits!(false)
             disallow_dot()
         else
             skip(io, -1)
         end
     # disallow digits after binary or octal literals, e.g. 0b12
     elseif (pred == is_char_bin || pred == is_char_oct) && !eof(c) && isdigit(c)
-        push!(str, c)
-        error("invalid numeric constant \"$(utf32(str))\"")
+        push!(charr, c)
+        error("invalid numeric constant \"$(utf32(charr))\"")
     end
-    s = utf32(str)
-    r = pred == is_char_hex ? 16 : 
-        pred == is_char_oct ? 8  :
-        pred == is_char_bin ? 2  : 10
+    str = utf32(charr)
+    radix = pred == is_char_hex ? 16 : 
+            pred == is_char_oct ? 8  :
+            pred == is_char_bin ? 2  : 10
     # for an unsigned literal starting with -, 
     # remove the - and parse instead as a call to unary -
-    s = (neg && !(r == 10) && !is_hexfloat_literal) ? s[2:end] : s
-    n = string_to_number(s)
+    str = (neg && radix != 10 && !is_hexfloat_literal) ? str[2:end] : str
+    n = string_to_number(str)
     # n is false for integers > typemax(Uint64)
     if is_hexfloat_literal
         return float64(n)
     elseif pred == is_char_hex
-        return fix_uint_neg(neg, sized_uint_literal(n, s, 4))
+        return fix_uint_neg(neg, sized_uint_literal(n, str, 4))
     elseif pred == is_char_oct
-        return fix_uint_neg(neg, sized_uint_oct_literal(n, s))
+        return fix_uint_neg(neg, sized_uint_oct_literal(n, str))
     elseif pred == is_char_bin
-        return fix_uint_neg(neg, sized_uint_literal(n, s, 1))
+        return fix_uint_neg(neg, sized_uint_literal(n, str, 1))
     elseif is_float32_literal
         return float32(n)
+    #TODO: THIS IS WRONG!!!
     elseif bool(n)
         if isinteger(n) && (n > 9223372036854775807)
             return int128(n)
         else
             return n
         end
-    elseif is_within_int128(s)
-        return int128(s)
+    elseif is_within_int128(str)
+        return int128(str)
     else
-        return BigInt(s)
+        return BigInt(str)
     end
 end
 
-           
 #============================#
 # Skip whitespace / comments
 #============================#

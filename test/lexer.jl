@@ -173,7 +173,7 @@ facts("test string_to_number") do
         s = "1"
         n = Lexer.string_to_number(s)
         @fact n => 1
-        @fact typeof(n) => Uint64
+        @fact typeof(n) => Int64
 
         s = "-1"
         n = Lexer.string_to_number(s)
@@ -188,7 +188,7 @@ facts("test string_to_number") do
         s = repr(typemax(Int64))
         n = Lexer.string_to_number(s)
         @fact n => typemax(Int64)
-        @fact typeof(n) => Uint64
+        @fact typeof(n) => Int64
         
         #=
         s = repr(typemax(Uint64))
@@ -200,7 +200,7 @@ facts("test string_to_number") do
         s = "0b010101"
         n = Lexer.string_to_number(s)
         @fact n => 21
-        @fact typeof(n) => Uint64
+        @fact typeof(n) => Int64
 
         s = "-0b010101"
         n = Lexer.string_to_number(s)
@@ -210,7 +210,7 @@ facts("test string_to_number") do
         s = "0x15"
         n = Lexer.string_to_number(s)
         @fact n => 21
-        @fact typeof(n) => Uint64
+        @fact typeof(n) => Int64
 
         s = "-0x15"
         n = Lexer.string_to_number(s)
@@ -240,7 +240,7 @@ facts("test is char oct") do
         if i < 8
             @fact Lexer.is_char_oct(first("$i")) => true
         else
-	    @fact Lexer.is_char_oct(first("$i")) => false
+	        @fact Lexer.is_char_oct(first("$i")) => false
         end
     end
 end
@@ -254,10 +254,8 @@ end
 
 
 facts("test uint neg") do
-    n = eval(Lexer.fix_uint_neg(true,  1))
-    p = eval(Lexer.fix_uint_neg(false, 1))
-    @fact n => -1 
-    @fact p =>  1 
+    @fact eval(Lexer.fix_uint_neg(true,  1)) => -1
+    @fact eval(Lexer.fix_uint_neg(false, 1)) => 1
 end
 
 
@@ -361,13 +359,13 @@ facts("test accum_digits") do
     io = IOBuffer("1_000_000")
     c = Lexer.readchar(io)
     digits, success = Lexer.accum_digits(io, pred, c, false)
-    @fact digits => "1000000"
+    @fact digits => [c for c in "1000000"]
     @fact success => true
    
     io = IOBuffer("01_000_000")
     c = Lexer.peekchar(io)
     digits, success = Lexer.accum_digits(io, pred, c, false)
-    @fact digits => "01000000"
+    @fact digits => [c for c in "01000000"]
     @fact success => true
 
 
@@ -429,23 +427,23 @@ facts("test readnumber") do
         io = IOBuffer("100") 
         n = Lexer.read_number(io, false, false)
         @fact n => 100
-        @fact typeof(n) => Uint
+        @fact typeof(n) => Int64
 
         io = IOBuffer("100_000_000")
         n = Lexer.read_number(io, false, false)
         @fact n => 100_000_000
-        @fact typeof(n) => Uint
+        @fact typeof(n) => Int64
 
         io = IOBuffer("-100")
         skip(io, 1)
         n = Lexer.read_number(io, false, true)
         @fact n => -100
-        @fact typeof(n) => Int
+        @fact typeof(n) => Int64
 
         io = IOBuffer("00100")
         n = Lexer.read_number(io, false,  false)
         @fact n => 100
-        @fact typeof(n) => Uint
+        @fact typeof(n) => Int64
     end
 
     context("decimal") do
@@ -544,7 +542,7 @@ facts("test readnumber") do
     end
 
     context("binary") do
-        io = IOBuffer(string("0b", bin(10), " "))
+        io = IOBuffer(string("0b", bin(10)))
         n = Lexer.read_number(io, false, false)
         @fact n => 10
         #@show typeof(n)  
