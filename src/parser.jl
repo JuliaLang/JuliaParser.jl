@@ -1602,7 +1602,7 @@ function _parse_atom(ts::TokenStream)
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :dict_comprehension
-            ex = Expr(:typed_comprehension, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
+            ex = Expr(:typed_dict_comprehension, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :dict
