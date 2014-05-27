@@ -6,11 +6,12 @@ const Lexer = JuliaParser.Lexer
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
     Lexer.skip_to_eol(io)
-    @fact position(io) => 5
-    skip(io, 2)
+    @fact position(io) => 4
+    skip(io, 3)
     @fact position(io) => 7
     Lexer.skip_to_eol(io)
-    @fact position(io) => 10 
+    @fact position(io) => 9
+    Lexer.readchar(io)
     @fact eof(io) => true
 
     context("no line break in buffer") do 
@@ -27,18 +28,16 @@ facts("test skip to end of line") do
     end
 end
 
-
 facts("test read operator") do
     for op in Lexer.operators
-        str = " $(string(op)) "
+        str = "$(string(op))"
         io = IOBuffer(str)
-        _ = Lexer.readchar(io)
         c = Lexer.readchar(io)
         res = Lexer.read_operator(io, c)
         @fact res => op
+        @fact eof(io) => true
     end
 end
-
 
 facts("test string_to_number") do
    
@@ -582,11 +581,11 @@ end
 facts("test skip comment") do
     io = IOBuffer("#test\n")
     Lexer.skipcomment(io)
-    @fact position(io) => 6
+    @fact position(io) => 5
 
     io = IOBuffer("# \ntest")
     Lexer.skipcomment(io)
-    @fact position(io) => 3
+    @fact position(io) => 2
 
     io = IOBuffer("#")
     Lexer.skipcomment(io)
@@ -652,6 +651,7 @@ facts("test skip ws and comment") do
 
     io = IOBuffer("  # test comment\n")
     Lexer.skip_ws_and_comments(io)
+    @fact Lexer.readchar(io) => '\n'
     @fact eof(io) => true
 
     io = IOBuffer("    #= test comment \n
@@ -661,6 +661,7 @@ facts("test skip ws and comment") do
 
     io = IOBuffer(" # a comment\ntest")
     Lexer.skip_ws_and_comments(io)
+    @fact Lexer.readchar(io) => '\n'
     @fact Lexer.readchar(io) => 't'
 end
 
@@ -690,7 +691,7 @@ facts("test next_token") do
     @fact toks => {'[', 10.0, ',', 2.0, ']'}
 
     toks = collect(tokens("#test\n{10,};"))
-    @fact toks => {'{', 10, ',', '}', ';'}
+    @fact toks => {'\n', '{', 10, ',', '}', ';'}
 
     toks = collect(tokens("#=test1\ntest2\n=#@test\n"))
     @fact toks => {'@', :test, '\n'}
