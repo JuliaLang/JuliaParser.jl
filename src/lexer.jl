@@ -463,7 +463,7 @@ function skip_multiline_comment(io::IO, count::Int)
     start = -1
     while !eof(io)
         c = readchar(io)
-        # if "=#" token, decement the count.
+        # if "=#" token, decrement the count.
         # If count is zero, break out of the loop
         if c == '='
            if start < 0 
