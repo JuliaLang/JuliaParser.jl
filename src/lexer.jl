@@ -81,8 +81,7 @@ is_syntactic_unary_op(op) = false
 
 is_dict_literal(l) = length(l) == 3 && first(l) === :(=>) 
 
-const is_special_char = let 
-    chars = Set{Char}("()[]{},;\"`@")
+const is_special_char = let chars = Set{Char}("()[]{},;\"`@")
     is_special_char(c::Char)  = in(c, chars)
 end
 
@@ -151,13 +150,10 @@ end
 
 eof(io::IO)  = Base.eof(io)
 eof(c::Char) = is(c, EOF)
-eof(c) = false
+eof(c)       = false
 
 readchar(io::IO) = eof(io) ? EOF : read(io, Char)
-takechar(io::IO) = begin
-    readchar(io)
-    return io
-end
+takechar(io::IO) = (readchar(io); io)
 
 #= Lexer =#
 
@@ -173,7 +169,7 @@ end
 
 function read_operator(io::IO, c::Char)
     pc::Char = peekchar(io)
-    if (c == '*') && (pc == '*')
+    if (c === '*') && (pc === '*')
         error("use \"^\" instead of \"**\"")
     end
     # 1 char operator
@@ -204,7 +200,7 @@ end
 
 # Notes:
 # expressions starting with 0x are always hexadecimal literals
-# expressiosn starting with a numeric literal followed by e or E
+# expressions starting with a numeric literal followed by e or E
 # are always floating point literals
 
 function string_to_number(tok::String)
@@ -303,10 +299,8 @@ function sized_uint_oct_literal(n::Real, s::String)
 end
 
 function compare_num_strings(s1::String, s2::String)
-    s1 = lstrip(s1, '0')
-    s2 = lstrip(s2, '0') 
-    l1 = length(s1)
-    l2 = length(s2)
+    s1, s2 = lstrip(s1, '0'), lstrip(s2, '0') 
+    l1, l2 = length(s1), length(s2)
     return l1 == l2 ? s1 <= s2 : l1 <= l2
 end
    
@@ -459,29 +453,23 @@ end
 #  ^              ^               ^        ^
 # cnt 0           cnt 1         cnt 2    cnt 1
 function skip_multiline_comment(io::IO, count::Int)
-    unterminated = true
-    start = -1
+    start, unterminated = -1, true
     while !eof(io)
         c = readchar(io)
         # if "=#" token, decrement the count.
         # If count is zero, break out of the loop
-        if c == '='
-           if start < 0 
-                start = position(io)
-            end
-            if peekchar(io) == '#' && position(io) != start
+        if c === '='
+            start > 0 || (start = position(io))
+            if peekchar(io) === '#' && position(io) != start
                 skip(io, 1)
-                if count > 1
-                    count -= 1
-                    continue
-                end
+                count <= 1 || (count -= 1; continue) 
                 unterminated = false
                 break
             end
             continue
         # if "#=" token increase count
-        elseif c == '#'
-            count = peekchar(io) == '=' ? count + 1 : count
+        elseif c === '#' && peekchar(io) === '='
+            count += 1
         end
     end
     if unterminated
@@ -537,21 +525,18 @@ const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false") 
 
 function accum_julia_symbol(io::IO, c::Char)
-    # preallocate to a typical size?
-    str = Char[]
-    nc  = c 
+    nc, charr = c, Char[]
     while is_julia_id_char(nc)
+        c, nc = readchar(io), peekchar(io)
         # make sure that != is always an operator
-        c  = readchar(io)
-        nc = peekchar(io)
-        if c == '!' && nc == '='
+        if c === '!' && nc === '='
             skip(io, -1)
             break
         end
-        push!(str, c)
+        push!(charr, c)
         eof(nc) && break
     end
-    str = normalize_string(utf32(str), :NFC)
+    str = normalize_string(utf32(charr), :NFC)
     sym = symbol(str)
     return sym === SYM_TRUE ? true : sym === SYM_FALSE ? false : sym
 end
@@ -612,24 +597,25 @@ function next_token(ts::TokenStream)
     ts.isspace = _skipws(ts.io, ts.whitespace_newline)
     while !eof(ts.io)
         c = peekchar(ts.io)
-        if c == ' ' || c == '\t'
+        if eof(c)
+            ts.ateof = true
+            return EOF
+        elseif c === ' ' || c === '\t'
             skip(ts.io, 1)
             continue
         elseif c == '#'
             skipcomment(ts.io)
             continue
-        elseif eof(c) || isnewline(c)
+        elseif isnewline(c)
             return readchar(ts.io)
         elseif is_special_char(c)
             return readchar(ts.io)
         elseif isdigit(c)
             return read_number(ts.io, false, false)
         elseif c == '.'
-            c  = readchar(ts.io)
+            skip(ts.io, 1)
             nc = peekchar(ts.io)
-            if eof(nc)
-                return EOF
-            elseif isdigit(nc)
+            if isdigit(nc)
                 return read_number(ts.io, true, false)
             elseif is_opchar(nc)
                 op = read_operator(ts.io, c)
