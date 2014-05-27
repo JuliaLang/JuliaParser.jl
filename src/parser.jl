@@ -919,7 +919,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 al = parse_arglist(ts, ')')
                 if length(al) > 1 && al[2] in (:cdecl, :stdcall, :fastcall, :thiscall)
                     # place calling convenction at end of arglist
-                    return Expr(:ccall, al[1], al[3:end]..., al[2])
+                    return Expr(:ccall, al[1], al[3:end]..., Expr(al[2]))
                 end
                 ex = Expr(:ccall); ex.args = al
                 return ex

@@ -946,6 +946,14 @@ baremodule Test
     function test2(y) y end
 end
 """,
+    ]
+    for ex in exprs
+        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+    end
+end
+
+facts("parser failures") do
+    exprs = [
 """
 # don't consume newline char in skipping comments
 immutable RGB <: ColorValue
@@ -956,9 +964,12 @@ end
 """,
 """
 +(x::Bool, y::Bool) = int(x) + int(y)
+""",
 """
-    ]
-    for ex in exprs
+ret=ccall(:GetEnvironmentVariableA,stdcall,Uint32,(Ptr{Uint8},Ptr{Uint8},Uint32),s,val,len)
+"""
+]
+    for ex in [last(exprs)]
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
