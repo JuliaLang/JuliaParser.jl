@@ -273,21 +273,21 @@ fix_uint_neg(neg::Bool, n::Real) = neg ? Expr(:call, :- , n) : n
 function sized_uint_literal(n::Real, s::String, b::Integer)
     i = s[1] == '-' ? 3 : 2
     l = (length(s) - i) * b
-    l <= 8   && return uint8(n)
-    l <= 16  && return uint16(n)
-    l <= 32  && return uint32(n)
-    l <= 64  && return uint64(n)
-    l <= 128 && return uint128(n)
-    return BigInt(n)
+    l <= 8   && return uint8(s)
+    l <= 16  && return uint16(s)
+    l <= 32  && return uint32(s)
+    l <= 64  && return uint64(s)
+    l <= 128 && return uint128(s)
+    return BigInt(s)
 end
 
 function sized_uint_oct_literal(n::Real, s::String)
     contains(s, "o0") && return sized_uint_literal(n, s, 3)
-    n <= typemax(Uint8)   && return uint8(n)
-    n <= typemax(Uint16)  && return uint16(n)
-    n <= typemax(Uint32)  && return uint32(n)
-    n <= typemax(Uint64)  && return uint64(n)
-    n <= typemax(Uint128) && return uint128(n)
+    n <= typemax(Uint8)   && return uint8(s)
+    n <= typemax(Uint16)  && return uint16(s)
+    n <= typemax(Uint32)  && return uint32(s)
+    n <= typemax(Uint64)  && return uint64(s)
+    n <= typemax(Uint128) && return uint128(s)
     return BigInt(n)
 end
 
@@ -298,7 +298,7 @@ function compare_num_strings(s1::String, s2::String)
 end
    
 function is_oct_within_uint128(s::String)
-    s = s[1] === '-' ? s[2:end] : s[1:end]
+    s[1] === '-' && (s = s[2:end])
     return s <= "0o3777777777777777777777777777777777777777777"
 end
 
@@ -400,7 +400,7 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
             pred == is_char_bin ? 2  : 10
     # for an unsigned literal starting with -, 
     # remove the - and parse instead as a call to unary -
-    str = (neg && radix != 10 && !is_hexfloat_literal) ? str[2:end] : str
+    (neg && radix != 10 && !is_hexfloat_literal) && (str = str[2:end])
     n = string_to_number(str)
     # n is false for integers > typemax(Uint64)
     if is_hexfloat_literal

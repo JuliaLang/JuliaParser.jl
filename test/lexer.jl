@@ -552,7 +552,10 @@ facts("test readnumber") do
         io = IOBuffer(string("0x", hex(10), " "))
         n = Lexer.read_number(io, false, false)
         @fact n => 10 
-        #@show typeof(n)
+        
+        io = IOBuffer("0xffff7f000001")
+        n = Lexer.read_number(io, false, false)
+        @fact n => 0xffff7f000001
     end
 end
 
