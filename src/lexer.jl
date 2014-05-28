@@ -1,34 +1,77 @@
-# Lexer for Julia
-
 module Lexer
 
-# we need to special case this becasue otherwise Julia's 
-# parser thinks this is a quote node
-const rsubtype = symbol(">:")
-const lsubtype = symbol("<:")
+import Base.UTF8proc
+
+include("utf8.jl") 
 
 const ops_by_precedent =  {
-               [:(=),   :(:=),   :(+=),   :(-=),  :(*=),
-                :(/=),  :(//=),  :(.//=), :(.*=), :(./=),
-                :(\=),  :(.\=),  :(^=),   :(.^=), :(%=),
-                :(.%=), :(|=),   :(&=),   :($=),  :(=>),
-                :(<<=), :(>>=),  :(>>>=), :(~),   :(.+=),
-                :(.-=)],
+               [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=), 
+                :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=), 
+                :(|=),  :(&=),  :($=), :(=>),  :(<<=), :(>>=),  :(>>>=), :(~),
+                :(.+=), :(.-=)],
                [:(?)],
                [:(||)],
                [:(&&)],
-               [:(--), :(-->)],
-               [:(>),   :(<),   :(>=),  :(<=),  :(==), 
-                :(===), :(!=),  :(!==), :(.>),  :(.<),
-                :(.>=), :(.<=), :(.==), :(.!=), :(.=),
-                :(.!),  lsubtype,  rsubtype],
+               [:(--), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦), 
+                :(↮), :(⇎), :(⇏), :(⇒), :(⇔), :(⇴), :(⇶), :(⇷), :(⇸), :(⇹), 
+                :(⇺), :(⇻), :(⇼), :(⇽), :(⇾), :(⇿), :(⟵), :(⟶), :(⟷), :(⟷), 
+                :(⟹), :(⟺), :(⟻), :(⟼), :(⟽), :(⟾), :(⟿), :(⤀), :(⤁), :(⤂), 
+                :(⤃), :(⤄), :(⤅), :(⤆), :(⤇), :(⤌), :(⤍), :(⤎), :(⤏), :(⤐),
+                :(⤑), :(⤔), :(⤕), :(⤖), :(⤗), :(⤘), :(⤝), :(⤞), :(⤟), :(⤠), 
+                :(⥄), :(⥅), :(⥆), :(⥇), :(⥈), :(⥊), :(⥋), :(⥎), :(⥐), :(⥒), 
+                :(⥓), :(⥖), :(⥗), :(⥚), :(⥛), :(⥞), :(⥟), :(⥢), :(⥤), :(⥦), 
+                :(⥧), :(⥨), :(⥩), :(⥪), :(⥫), :(⥬), :(⥭), :(⥰), :(⧴), :(⬱), 
+                :(⬰), :(⬲), :(⬳), :(⬴), :(⬵), :(⬶), :(⬷), :(⬸), :(⬹), :(⬺), 
+                :(⬻), :(⬼), :(⬽), :(⬾), :(⬿), :(⭀), :(⭁), :(⭂), :(⭃), :(⭄), 
+                :(⭇), :(⭈), :(⭉), :(⭊), :(⭋), :(⭌), :(￩), :(￫)],
+               [:(>), :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡), 
+                :(!=), :(≠), :(!==), :(≢), :(.>), :(.<), :(.>=), :(.≥), :(.<=), 
+                :(.≤), :(.==), :(.!=), :(.≠), :(.=), :(.!), :(<:), :(>:), :(∈), 
+                :(∉), :(∋), :(∌), :(⊆), :(⊈), :(⊂), :(⊄), :(⊊), :(∝), :(∊), :(∍), 
+                :(∥), :(∦), :(∷), :(∺), :(∻), :(∽), :(∾), :(≁), :(≃), :(≄), :(≅), 
+                :(≆), :(≇), :(≈), :(≉), :(≊), :(≋), :(≌), :(≍), :(≎), :(≐), :(≑), 
+                :(≒), :(≓), :(≔), :(≕), :(≖), :(≗), :(≘), :(≙), :(≚), :(≛), :(≜), 
+                :(≝), :(≞), :(≟), :(≣), :(≦), :(≧), :(≨), :(≩), :(≪), :(≫), :(≬), 
+                :(≭), :(≮), :(≯), :(≰), :(≱), :(≲), :(≳), :(≴), :(≵), :(≶), :(≷), 
+                :(≸), :(≹), :(≺), :(≻), :(≼), :(≽), :(≾), :(≿), :(⊀), :(⊁), :(⊃), 
+                :(⊅), :(⊇), :(⊉), :(⊋), :(⊏), :(⊐), :(⊑), :(⊒), :(⊜), :(⊩), :(⊬), 
+                :(⊮), :(⊰), :(⊱), :(⊲), :(⊳), :(⊴), :(⊵), :(⊶), :(⊷), :(⋍), :(⋐), 
+                :(⋑), :(⋕), :(⋖), :(⋗), :(⋘), :(⋙), :(⋚), :(⋛), :(⋜), :(⋝), :(⋞), 
+                :(⋟), :(⋠), :(⋡), :(⋢), :(⋣), :(⋤), :(⋥), :(⋦), :(⋧), :(⋨), :(⋩), 
+                :(⋪), :(⋫), :(⋬), :(⋭), :(⋲), :(⋳), :(⋴), :(⋵), :(⋶), :(⋷), :(⋸), 
+                :(⋹), :(⋺), :(⋻), :(⋼), :(⋽), :(⋾), :(⋿), :(⟈), :(⟉), :(⟒), :(⦷), 
+                :(⧀), :(⧁), :(⧡), :(⧣), :(⧤), :(⧥), :(⩦), :(⩧), :(⩪), :(⩫), :(⩬), 
+                :(⩭), :(⩮), :(⩯), :(⩰), :(⩱), :(⩲), :(⩳), :(⩴), :(⩵), :(⩶), :(⩷), 
+                :(⩸), :(⩹), :(⩺), :(⩻), :(⩼), :(⩽), :(⩾), :(⩿), :(⪀), :(⪁), :(⪂), 
+                :(⪃), :(⪄), :(⪅), :(⪆), :(⪇), :(⪈), :(⪉), :(⪊), :(⪋), :(⪌), :(⪍), 
+                :(⪎), :(⪏), :(⪐), :(⪑), :(⪒), :(⪓), :(⪔), :(⪕), :(⪖), :(⪗), :(⪘), 
+                :(⪙), :(⪚), :(⪛), :(⪜), :(⪝), :(⪞), :(⪟), :(⪠), :(⪡), :(⪢), :(⪣), 
+                :(⪤), :(⪥), :(⪦), :(⪧), :(⪨), :(⪩), :(⪪), :(⪫), :(⪬), :(⪭), :(⪮), 
+                :(⪯), :(⪰), :(⪱), :(⪲), :(⪳), :(⪴), :(⪵), :(⪶), :(⪷), :(⪸), :(⪹), 
+                :(⪺), :(⪻), :(⪼), :(⪽), :(⪾), :(⪿), :(⫀), :(⫁), :(⫂), :(⫃), :(⫄), 
+                :(⫅), :(⫆), :(⫇), :(⫈), :(⫉), :(⫊), :(⫋), :(⫌), :(⫍), :(⫎), :(⫏), 
+                :(⫐), :(⫑), :(⫒), :(⫓), :(⫔), :(⫕), :(⫖), :(⫗), :(⫘), :(⫙), :(⫷), 
+                :(⫸), :(⫹), :(⫺)],
                [:(|>),  :(<|)],
                [:(:), :(..)],
-               [:(+),  :(-),  :(.+),  :(.-),  :(|),   :($)],
+               [:(+), :(-), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪), :(∨), 
+                :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽), 
+                :(⋎), :(⋓), :(⧺), :(⧻), :(⨈), :(⨢), :(⨣), :(⨤), :(⨥), :(⨦), :(⨧), 
+                :(⨨), :(⨩), :(⨪), :(⨫), :(⨬), :(⨭), :(⨮), :(⨹), :(⨺), :(⩁), :(⩂),
+                :(⩅), :(⩊), :(⩌), :(⩏), :(⩐), :(⩒), :(⩔), :(⩖), :(⩗), :(⩛), :(⩝),
+                :(⩡), :(⩢), :(⩣)],
                [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
-               [:(*),  :(/),  :(./),  :(%),   :(.%),  :(&), :(.*), :(\), :(.\)],
+               [:(*), :(/), :(./), :(÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*), :(\), :(.\), 
+                :(&), :(∩), :(∧), :(⊗), :(⊘), :(⊙), :(⊚), :(⊛), :(⊠), :(⊡), :(⊓), :(∗), 
+                :(∙), :(∤), :(⅋), :(≀), :(⊼), :(⋄), :(⋆), :(⋇), :(⋉), :(⋊), :(⋋), :(⋌), 
+                :(⋏), :(⋒), :(⟑), :(⦸), :(⦼), :(⦾), :(⦿), :(⧶), :(⧷), :(⨇), :(⨰), :(⨱), 
+                :(⨲), :(⨳), :(⨴), :(⨵), :(⨶), :(⨷), :(⨸), :(⨻), :(⨼), :(⨽), :(⩀), :(⩃), 
+                :(⩄), :(⩋), :(⩍), :(⩎), :(⩑), :(⩓), :(⩕), :(⩘), :(⩚), :(⩜), :(⩞), :(⩟), 
+                :(⩠), :(⫛), :(⊍)],
                [:(//), :(.//)],
-               [:(^),  :(.^)],
+               [:(^), :(.^), :(↑), :(↓), :(⇵), :(⟰), :(⟱), :(⤈), :(⤉), :(⤊), :(⤋), 
+                :(⤒), :(⤓),  :(⥉), :(⥌), :(⥍), :(⥏), :(⥑), :(⥔), :(⥕), :(⥘), :(⥙), 
+                :(⥜), :(⥝),  :(⥠), :(⥡), :(⥣), :(⥥), :(⥮), :(⥯), :(￪), :(￬)],
                [:(::)],
                [:(.)]}
 
@@ -36,7 +79,7 @@ precedent_ops(n::Integer) = ops_by_precedent[n]::Vector{Symbol}
 
 const assignment_ops = ops_by_precedent[1]::Vector{Symbol}
 
-const unary_ops = Set{Symbol}([:(+), :(-), :(!), :(~), :(<:), :(>:)])
+const unary_ops = Set{Symbol}([:(+), :(-), :(!), :(~), :(<:), :(>:), :(√), :(∛), :(∜)])
 
 const unary_and_binary_ops = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
 
@@ -55,8 +98,9 @@ const transpose_op  = symbol(".'")
 const ctranspose_op = symbol("'")
 const vararg_op     = :(...)
 
-const operators = union(Set([:(~), :(!), :(->), ctranspose_op, transpose_op, vararg_op]), 
-			                [Set(ops) for ops in ops_by_precedent]...)
+const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜),
+                             transpose_op, ctranspose_op, vararg_op]), 
+			                 [Set(ops) for ops in ops_by_precedent]...)
 
 const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
                                     :break, :continue, :function, :macro, :quote,
@@ -88,13 +132,94 @@ end
 isnewline(c::Char) = c === '\n''
 isnewline(c) = false
 
+is_zero_width_space(c::Char) = c === '\u200b' || c === '\u2060' || c === '\ufeff'
+
+is_ignorable_char(c::Char) = is_zero_width_space(c) ||
+                             ('\u200c' <= c <= '\u200f') ||
+                             (c === '\u00ad' || c === '\u2061' || c === '\u115f')
+
+function is_cat_id_start(c::Char, cat::Integer)
+    return (cat == UTF8PROC_CATEGORY_LU || cat == UTF8PROC_CATEGORY_LL ||
+            cat == UTF8PROC_CATEGORY_LT || cat == UTF8PROC_CATEGORY_LM ||
+            cat == UTF8PROC_CATEGORY_LO || cat == UTF8PROC_CATEGORY_NL ||
+            cat == UTF8PROC_CATEGORY_SC ||  # allow currency symbols
+            cat == UTF8PROC_CATEGORY_SO ||  # other symbols
+
+            # math symbol (category Sm) whitelist
+            (c >= 0x2140 && c <= 0x2a1c &&
+             ((c >= 0x2140 && c <= 0x2144) || # ⅀, ⅁, ⅂, ⅃, ⅄
+              c == 0x223f || c == 0x22be || c == 0x22bf || # ∿, ⊾, ⊿
+              (c >= 0x22ee && c <= 0x22f1) || # ⋮, ⋯, ⋰, ⋱
+
+              (c >= 0x2202 && c <= 0x2233 &&
+               (c == 0x2202 || c == 0x2205 || c == 0x2206 || # ∂, ∅, ∆
+                c == 0x2207 || c == 0x220e || c == 0x220f || # ∇, ∎, ∏
+                c == 0x2210 || c == 0x2211 || # ∐, ∑
+                c == 0x221e || c == 0x221f || # ∞, ∟
+                c >= 0x222b)) || # ∫, ∬, ∭, ∮, ∯, ∰, ∱, ∲, ∳
+
+              (c >= 0x22c0 && c <= 0x22c3) ||  # N-ary big ops: ⋀, ⋁, ⋂, ⋃
+              (c >= 0x25F8 && c <= 0x25ff) ||  # ◸, ◹, ◺, ◻, ◼, ◽, ◾, ◿
+
+              (c >= 0x266f &&
+               (c == 0x266f || c == 0x27d8 || c == 0x27d9 || # ♯, ⟘, ⟙
+                (c >= 0x27c0 && c <= 0x27c2) ||  # ⟀, ⟁, ⟂
+                (c >= 0x29b0 && c <= 0x29b4) ||  # ⦰, ⦱, ⦲, ⦳, ⦴
+                (c >= 0x2a00 && c <= 0x2a06) ||  # ⨀, ⨁, ⨂, ⨃, ⨄, ⨅, ⨆
+                (c >= 0x2a09 && c <= 0x2a16) ||  # ⨉, ⨊, ⨋, ⨌, ⨍, ⨎, ⨏, ⨐, ⨑, ⨒, 
+                                                 # ⨓, ⨔, ⨕, ⨖
+                c == 0x2a1b || c == 0x2a1c)))) || # ⨛, ⨜
+
+            (c >= 0x1d6c1 && # variants of \nabla and \partial
+             (c == 0x1d6c1 || c == 0x1d6db ||
+              c == 0x1d6fb || c == 0x1d715 ||
+              c == 0x1d735 || c == 0x1d74f ||
+              c == 0x1d76f || c == 0x1d789 ||
+              c == 0x1d7a9 || c == 0x1d7c3)) ||
+
+            # super- and subscript +-=()
+            (c >= 0x207a && c <= 0x207e) ||
+            (c >= 0x208a && c <= 0x208e) ||
+
+            # angle symbols
+            (c >= 0x2220 && c <= 0x2222) || # ∠, ∡, ∢
+            (c >= 0x299b && c <= 0x29af) || # ⦛, ⦜, ⦝, ⦞, ⦟, ⦠, ⦡, ⦢, ⦣, ⦤, ⦥, 
+                                              # ⦦, ⦧, ⦨, ⦩, ⦪, ⦫, ⦬, ⦭, ⦮, ⦯
+            # Other_ID_Start
+            c == 0x2118 || c == 0x212E || # ℘, ℮
+            (c >= 0x309B && c <= 0x309C)) # katakana-hiragana sound marks
+end
+    
 function is_identifier_char(c::Char)
-   return (('A' <= c <= 'Z') ||
-           ('a' <= c <= 'z') ||
-           ('0' <= c <= '0') ||
-           ('\uA1' <= c) ||
-           ('\_' === c))
-end 
+    if ((c >= 'A' && c <= 'Z') || 
+        (c >= 'a' && c <= 'z') || c == '_' ||
+        (c >= '0' && c <= '9') || c == '!')
+        return true
+    elseif (c < 0xA1 || c > 0x10ffff)
+        return false
+    end
+    cat = UTF8proc.category_code(c)
+    is_cat_id_start(c, cat) && return true
+    if cat == UTF8PROC_CATEGORY_MN || cat == UTF8PROC_CATEGORY_MC ||
+       cat == UTF8PROC_CATEGORY_ND || cat == UTF8PROC_CATEGORY_PC ||
+       cat == UTF8PROC_CATEGORY_SK || cat == UTF8PROC_CATEGORY_ME ||
+       cat == UTF8PROC_CATEGORY_NO || 
+       (0x2032 <= c <= 0x2034) || # primes
+       c == 0x0387 || c == 0x19da || 
+       (0x1369 <= c <= 0x1371)
+       return true
+    end
+    return false
+end
+
+function is_identifier_start_char(c::Char)
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_')
+        return true
+    elseif (c < 0xA1 || c > 0x10ffff)
+        return false
+    end
+    return is_cat_id_start(c, UTF8proc.category_code(c))
+end
 
 #= Characters that can be in an operator =#
 const operator_chars = union([Set(string(op)) for op in operators]...)
@@ -518,18 +643,12 @@ function skip_ws_and_comments(io::IO)
     return io
 end
 
-function is_julia_id_char(c::Char)
-    return ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-            (c >= '0' && c <= '9') || (c >= 0xA1) ||
-            c == '!' || c == '_')
-end
-
 const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false") 
 
 function accum_julia_symbol(io::IO, c::Char)
     nc, charr = c, Char[]
-    while is_julia_id_char(nc)
+    while is_identifier_char(nc)
         c, nc = readchar(io), peekchar(io)
         # make sure that != is always an operator
         if c === '!' && nc === '='
@@ -544,24 +663,23 @@ function accum_julia_symbol(io::IO, c::Char)
     return sym === SYM_TRUE ? true : sym === SYM_FALSE ? false : sym
 end
 
-function isuws(wc::Char)
-    return (wc==9    || wc==10   || wc==11   || wc==12   || wc==13   || wc==32 ||
-            wc==133  || wc==160  || wc==5760 || wc==6158 || wc==8192 ||
-            wc==8193 || wc==8194 || wc==8195 || wc==8196 || wc==8197 ||
-            wc==8198 || wc==8199 || wc==8200 || wc==8201 || wc==8202 ||
-            wc==8232 || wc==8233 || wc==8239 || wc==8287 || wc==12288)
+function isuws(c::Char)
+    return (c==9    || c==10   || c==11   || c==12   || c==13   || c==32 ||
+            c==133  || c==160  || c==5760 || c==6158 || c==8192 ||
+            c==8193 || c==8194 || c==8195 || c==8196 || c==8197 ||
+            c==8198 || c==8199 || c==8200 || c==8201 || c==8202 ||
+            c==8232 || c==8233 || c==8239 || c==8287 || c==12288)
 end
 
-isbom(wc::Char) = wc == 0xFEFF
+isbom(c::Char) = c == 0xFEFF
 
 function _skipws(io::IO, newlines::Bool)
     nc = peekchar(io)
     nc === EOF && return EOF
     skipped = false
     while !eof(io) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
-        skipped = true
         takechar(io)
-        nc = peekchar(io)
+        nc, skipped = peekchar(io), true
     end
     return skipped
 end
@@ -606,7 +724,7 @@ function next_token(ts::TokenStream)
         elseif c === ' ' || c === '\t'
             skip(ts.io, 1)
             continue
-        elseif c == '#'
+        elseif c === '#'
             skipcomment(ts.io)
             continue
         elseif isnewline(c)
@@ -615,7 +733,7 @@ function next_token(ts::TokenStream)
             return readchar(ts.io)
         elseif isdigit(c)
             return read_number(ts.io, false, false)
-        elseif c == '.'
+        elseif c === '.'
             skip(ts.io, 1)
             nc = peekchar(ts.io)
             if isdigit(nc)
@@ -626,15 +744,19 @@ function next_token(ts::TokenStream)
                     error(string("invalid operator \"", op, peekchar(ts.io), "\""))
                 end
                 return op
-            else
-                return :(.)
             end
+            return :(.)
         elseif is_opchar(c)
             return read_operator(ts.io, readchar(ts.io))
-        elseif is_identifier_char(c)
+        elseif is_identifier_start_char(c)
             return accum_julia_symbol(ts.io, c)
         else
-            error(string("invalid character \"", readchar(ts.io), "\""))
+            readchar(ts.io)
+            if is_ignorable_char(c)
+                error("invisible character \\u$(hex(c))")
+            else
+                error("invalid character \"$c\"")
+            end
         end
     end
     ts.ateof = true
