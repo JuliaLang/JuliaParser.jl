@@ -35,8 +35,7 @@ function testall(srcdir::String)
     global ptime
     global btime 
 
-    dirs  = {}
-    files = {}
+    dirs, files = {}, {}
 
     for fname in sort(readdir(srcdir))
         path = joinpath(srcdir, fname) 
@@ -54,7 +53,9 @@ function testall(srcdir::String)
         println(bold("test $srcdir"))
         
         for jlpath in files 
+            
             fname = splitdir(jlpath)[end]
+            
             buf = IOBuffer()
             write(buf, "begin\n")
             write(buf, open(readall, jlpath))
@@ -91,11 +92,11 @@ function testall(srcdir::String)
     end
 end
 
-testall(joinpath(BASEPATH, "base"))
+testall(joinpath(BASEPATH, "examples"))
 testall(joinpath(BASEPATH, "test"))
+testall(joinpath(BASEPATH, "base"))
 
-println()
-println()
+println("\n"^2)
 println(bold("TOTAL: $(passed + failed + errors)")) 
 println(green("Passed:\t$passed"))
 println(red("Failed:\t$failed"))
