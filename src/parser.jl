@@ -593,7 +593,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             elseif al.head === :hcat
                 ex = Expr(:typed_hcat, ex, al.args...)
             elseif al.head === :vcat
-                istyped = (ex) -> isa(ex, Expr) && ex.head === :row && length(ex.args) == 1
+                istyped = (ex) -> isa(ex, Expr) && ex.head === :row
                 ex = any(istyped, al.args) ? Expr(:typed_vcat, ex, al.args...) :
                                              Expr(:ref, ex, al.args...)
             elseif al.head === :comprehension
@@ -1342,8 +1342,7 @@ function parse_tuple(ts::TokenStream, frst)
     end
 end
 
-# TODO: these are unnecessary and the fact that base/client.jl code
-# relies on parsing the exact string is troubling
+# TODO: these are unnecessary if base/client.jl didn't need to parse error string
 function not_eof_1(c)
     Lexer.eof(c) && error("incomplete: invalid character literal")
     return c
@@ -1411,7 +1410,7 @@ function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom
     ex = Expr(head)
     quotes = 0
     while true 
-        if c === '"'
+        if c == '"'
             if quotes < n
                 c = Lexer.readchar(ts.io)
                 quotes += 1
@@ -1461,8 +1460,7 @@ interpolate_string_literal(ex) = isa(ex, Expr) && length(ex.args) > 1
 triplequote_string_literal(ex) = isa(ex, Expr) && ex.head === :triple_quoted_string
 
 function parse_string_literal(ts::TokenStream, custom)
-    pc = Lexer.peekchar(ts.io)
-    if pc === '"'
+    if Lexer.peekchar(ts.io)  === '"'
         Lexer.takechar(ts.io)
         if Lexer.peekchar(ts.io) === '"'
             Lexer.takechar(ts.io)
@@ -1480,17 +1478,17 @@ function _parse_atom(ts::TokenStream)
         return take_token(ts)
     
     # char literal
-    elseif t === '\'' || t === symbol("'")
+    elseif t === symbol("'")
         take_token(ts)
         fch = Lexer.readchar(ts.io)
         fch === '\'' && error("invalid character literal")
-        if fch != '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts.io) === '\''
+        Lexer.peekchar(ts.io)
+        if fch !== '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts.io) === '\''
             # easy case 1 char no \
             Lexer.takechar(ts.io)
             return fch
         else
-            b = IOBuffer()
-            c = fch
+            c, b = fch, IOBuffer()
             while true
                 c === '\'' && break
                 write(b, not_eof_1(c))
@@ -1504,6 +1502,8 @@ function _parse_atom(ts::TokenStream)
                 # but we want to use the raw value as a codepoint in this case
                 # wchar str[0] 
                 # XXX: this would throw an error during the conversion above
+                return str[1] 
+            else
                 if length(str) != 1  || !is_valid_utf8(str)
                     error("invalid character literal")
                 end
@@ -1650,9 +1650,8 @@ function _parse_atom(ts::TokenStream)
         elseif interpolate_string_literal(ps) 
             notzerolen = (s) -> !(isa(s, String) && isempty(s))
             return Expr(:string, filter(notzerolen, ps.args)...)
-        else
-            return ps.args[1]
         end
+        return ps.args[1]
 
     # macrocall
     elseif t === '@'
