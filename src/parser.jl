@@ -860,7 +860,8 @@ function parse_resword(ts::TokenStream, word::Symbol)
                         else
                             var   = parse_eqs(ts)
                             isvar = nl == false && isa(var, Symbol)
-                            catch_block = t === sym_finally ? Expr(:block) : parse_block(ts)
+                            catch_block = require_token(ts) === sym_finally ? Expr(:block) : 
+                                                                                    parse_block(ts)
                             t = require_token(ts)
                             catchb = isvar ? catch_block : Expr(:block, var, catch_block.args...)
                             catchv = isvar ? var : false
@@ -902,10 +903,12 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     x = name === :x ? :y : :x
                     push!(block.args, 
                         Expr(:(=), Expr(:call, :eval, x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core), Expr(:quote, :eval)), name, x)))
+                                   Expr(:call, Expr(:(.), TopNode(:Core), 
+                                               Expr(:quote, :eval)), name, x)))
                     push!(block.args,
                         Expr(:(=), Expr(:call, :eval, :m, :x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core), Expr(:quote, :eval)), :m, :x)))
+                                   Expr(:call, Expr(:(.), TopNode(:Core),
+                                               Expr(:quote, :eval)), :m, :x)))
                     append!(block.args, body.args)
                     body = block
                 end
@@ -927,7 +930,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 take_token(ts)
                 al = parse_arglist(ts, ')')
                 if length(al) > 1 && al[2] in (:cdecl, :stdcall, :fastcall, :thiscall)
-                    # place calling convenction at end of arglist
+                    # place calling convention at end of arglist
                     return Expr(:ccall, al[1], al[3:end]..., Expr(al[2]))
                 end
                 ex = Expr(:ccall); ex.args = al
@@ -1026,16 +1029,17 @@ end
 function parse_import(ts::TokenStream, word::Symbol)
     path = parse_import_dots(ts)
     while true
-        nxt = peek_token(ts)
-        # split at char / symbols
-        if Lexer.eof(nxt) || (isa(nxt, CharSymbol) && nxt in ('\n', ';', ',', :(:)))
-            ex = Expr(word); ex.args = path
-            return ex
-        # handles import Base.Pkg: ...
-        elseif nxt === :(.)
-            take_token(ts)
+        # this handles cases such as Base.* where .* is a valid operator token
+        nc = Lexer.peekchar(ts.io)
+        if nc === '.'
+            Lexer.takechar(ts.io)
             push!(path, macrocall_to_atsym(parse_atom(ts)))
             continue
+        end
+        nt = peek_token(ts)
+        if Lexer.eof(nt) || (isa(nt, CharSymbol) && nt in ('\n', ';', ',', :(:)))
+            ex = Expr(word); ex.args = path
+            return ex
         else
             error("invalid \"$word\" statement")
         end
