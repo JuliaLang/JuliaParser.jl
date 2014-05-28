@@ -960,6 +960,18 @@ l = (Base.@_mod64 (length(a)-1)) + 1
 """,
 """
 prepend!(LOAD_PATH, split(ENV[\"JULIA_LOAD_PATH\"], @windows? ';' : ':'))
+""",
+"""
+try
+    error(" ")
+catch
+    test()
+finally
+    after = 1
+end
+""",
+"""
+import Base.*
 """
 ]
     for ex in [last(exprs)]
