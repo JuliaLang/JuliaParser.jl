@@ -4,7 +4,7 @@ module Lexer
 
 # we need to special case this becasue otherwise Julia's 
 # parser thinks this is a quote node
-const rsubtype = symbol(":>")
+const rsubtype = symbol(">:")
 const lsubtype = symbol("<:")
 
 const ops_by_precedent =  {
@@ -234,7 +234,15 @@ function string_to_number(str::String)
     elseif isfloat64
         return float64(str)
     else
-        return int64(str)
+        try
+            return int64(str)
+        catch
+            try 
+                return int128(str)
+            catch
+                return BigInt(str)
+            end
+        end
     end
 end
 
@@ -270,7 +278,7 @@ is_char_bin(c::Char) = c == '0' || c == '1'
 
 fix_uint_neg(neg::Bool, n::Real) = neg ? Expr(:call, :- , n) : n
 
-function sized_uint_literal(n::Real, s::String, b::Integer)
+function sized_uint_literal(s::String, b::Integer)
     i = s[1] == '-' ? 3 : 2
     l = (length(s) - i) * b
     l <= 8   && return uint8(s)
@@ -281,14 +289,15 @@ function sized_uint_literal(n::Real, s::String, b::Integer)
     return BigInt(s)
 end
 
-function sized_uint_oct_literal(n::Real, s::String)
-    contains(s, "o0") && return sized_uint_literal(n, s, 3)
-    n <= typemax(Uint8)   && return uint8(s)
-    n <= typemax(Uint16)  && return uint16(s)
-    n <= typemax(Uint32)  && return uint32(s)
-    n <= typemax(Uint64)  && return uint64(s)
-    n <= typemax(Uint128) && return uint128(s)
-    return BigInt(n)
+function sized_uint_oct_literal(n::Integer, s::String)
+    contains(s, "o0") && return sized_uint_literal(s, 3)
+    len = length(s)
+    len <= 5  && s <= "0o377" && return uint8(s)
+    len <= 8  && s <= "0o177777" && return uint16(s)
+    len <= 13 && s <= "0o37777777777" && return uint32(s)
+    len <= 24 && s <= "0o1777777777777777777777" && uint64(s)
+    len <= 45 && s <= "0o3777777777777777777777777777777777777777777" && return uint128(s)
+    return BigInt(s)
 end
 
 function compare_num_strings(s1::String, s2::String)
@@ -303,8 +312,12 @@ function is_oct_within_uint128(s::String)
 end
 
 function is_within_int128(s::String)
-    return s[1] === '-' ? s <= "-170141183460469231731687303715884105728" :
-                          s <= "170141183460469231731687303715884105727"
+    len = length(s)
+    if s[1] === '-' 
+        return len > 40 ? false : s <= "-170141183460469231731687303715884105728"
+    else
+        return len > 39 ? false : s <= "170141183460469231731687303715884105727"
+    end
 end
 
 #TODO: neg seems like a conflation between the responsibilites of the parser vs lexer
@@ -401,29 +414,31 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     # for an unsigned literal starting with -, 
     # remove the - and parse instead as a call to unary -
     (neg && radix != 10 && !is_hexfloat_literal) && (str = str[2:end])
-    n = string_to_number(str)
     # n is false for integers > typemax(Uint64)
     if is_hexfloat_literal
-        return float64(n)
+        #n = string_to_number(str)
+        return float64(str)
     elseif pred == is_char_hex
-        return fix_uint_neg(neg, sized_uint_literal(n, str, 4))
+        return fix_uint_neg(neg, sized_uint_literal(str, 4))
     elseif pred == is_char_oct
-        return fix_uint_neg(neg, sized_uint_oct_literal(n, str))
+        #n = string_to_number(str)
+        return fix_uint_neg(neg, sized_uint_oct_literal(0, str))
     elseif pred == is_char_bin
-        return fix_uint_neg(neg, sized_uint_literal(n, str, 1))
+        return fix_uint_neg(neg, sized_uint_literal(str, 1))
     elseif is_float32_literal
+        n = string_to_number(str)
         return float32(n)
-    #TODO: THIS IS WRONG!!!
-    #elseif bool(n)
-    #    if isinteger(n) && (n > 9223372036854775807)
-    #        return int128(n)
     else
+        try
+            n = string_to_number(str)
             return n
-    #    end
-    #elseif is_within_int128(str)
-    #    return int128(str)
-    #else
-    #    return BigInt(str)
+        catch ex
+            if is_within_int128(str)
+                return int128(str)
+            else
+                return BigInt(str)
+            end
+        end
     end
 end
 

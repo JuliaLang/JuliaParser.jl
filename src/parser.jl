@@ -418,8 +418,14 @@ function parse_range(ts::TokenStream)
                 end
             end
             if is_closing_token(ts, peek_token(ts))
-                error("deprecated syntax arr[i:]") 
-            elseif Lexer.isnewline(peek_token(ts))
+                # handles :(>:) case
+                if isa(ex, Symbol) && Lexer.is_operator(ex)
+                    op = symbol(string(ex, t))
+                    Lexer.is_operator(op) && return op
+                end
+                error("deprecated syntax arr[i:]")
+            end
+            if Lexer.isnewline(peek_token(ts))
                 error("line break in \":\" expression")
             end
             arg = parse_expr(ts)

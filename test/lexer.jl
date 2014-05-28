@@ -264,7 +264,7 @@ facts("test sized uint literal") do
     context("hexadecimal") do
         s  = "0x0"
         sn = int(s)
-        n  = Lexer.sized_uint_literal(sn, s, 4)
+        n  = Lexer.sized_uint_literal(s, 4)
         @fact sn => n
         @fact typeof(n) => Uint8
         
@@ -272,7 +272,7 @@ facts("test sized uint literal") do
             @eval begin
                 s = repr(typemax($ty))
                 sn = uint128(s)
-                n  = Lexer.sized_uint_literal(sn, s, 4)
+                n  = Lexer.sized_uint_literal(s, 4)
                 @fact sn => n
                 @fact typeof(n) => $ty
                 # parse / eval output (128 bit integers and BigInts
@@ -285,7 +285,7 @@ facts("test sized uint literal") do
         
         s  = string(repr(typemax(Uint128)), "f")
         sn = BigInt(s) 
-        n  = Lexer.sized_uint_literal(sn, s, 4)
+        n  = Lexer.sized_uint_literal(s, 4)
         @fact sn == n => true
         @fact typeof(n) => BigInt
 
@@ -331,7 +331,7 @@ facts("test sized uint literal") do
     context("binary") do
         s  = "0b0"
         sn = int(s)
-        n  = Lexer.sized_uint_literal(sn, s, 1)
+        n  = Lexer.sized_uint_literal(s, 1)
         @fact sn => n
         @fact typeof(n) => Uint8
         
@@ -339,7 +339,7 @@ facts("test sized uint literal") do
             @eval begin
                 s = string("0b", bin(typemax($ty)))
                 sn = uint128(s)
-                n  = Lexer.sized_uint_literal(sn, s, 1)
+                n  = Lexer.sized_uint_literal(s, 1)
                 @fact sn => n
                 @fact typeof(n) => $ty
             end
@@ -347,7 +347,7 @@ facts("test sized uint literal") do
         
         s  = string("0b", bin(typemax(Uint128)), "1")
         sn = BigInt(s) 
-        n  = Lexer.sized_uint_literal(sn, s, 1)
+        n  = Lexer.sized_uint_literal(s, 1)
         @fact sn => n
         @fact typeof(n) => BigInt
     end
@@ -556,6 +556,13 @@ facts("test readnumber") do
         io = IOBuffer("0xffff7f000001")
         n = Lexer.read_number(io, false, false)
         @fact n => 0xffff7f000001
+    end
+
+    context("bigint") do
+        io = IOBuffer("15732444386908125794514089057706229429197107928209")
+        n  = Lexer.read_number(io, false, false)
+        @fact n => "15732444386908125794514089057706229429197107928209"
+        @fact typeof(n) => BigInt
     end
 end
 

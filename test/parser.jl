@@ -33,7 +33,7 @@ end
 without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
 without_linenums(ex) = ex
 
-
+#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -951,7 +951,7 @@ end
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
-
+=#
 facts("parser failures") do
     exprs = [
 """
@@ -973,9 +973,12 @@ writemime(io, ::MIME"text/plain", x) = showlimited(io, x)
 """,
 """
 l = (Base.@_mod64 (length(a)-1)) + 1
+""",
+"""
+prepend!(LOAD_PATH, split(ENV[\"JULIA_LOAD_PATH\"], @windows? ';' : ':'))
 """
 ]
-    for ex in [exprs]
+    for ex in [last(exprs)]
         @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
     end
 end
