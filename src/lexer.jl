@@ -228,9 +228,9 @@ function string_to_number(str::String)
         end
     end
     if isfloat32
-        base = float32(str[1:fidx-1])
+        base = float64(str[1:fidx-1])
         expn = int(str[fidx+1:end])
-        return base * 10.f0 ^ expn
+        return float32(base * 10.0 ^ expn)
     elseif isfloat64
         return float64(str)
     else
@@ -414,16 +414,16 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     elseif is_float32_literal
         return float32(n)
     #TODO: THIS IS WRONG!!!
-    elseif bool(n)
-        if isinteger(n) && (n > 9223372036854775807)
-            return int128(n)
-        else
-            return n
-        end
-    elseif is_within_int128(str)
-        return int128(str)
+    #elseif bool(n)
+    #    if isinteger(n) && (n > 9223372036854775807)
+    #        return int128(n)
     else
-        return BigInt(str)
+            return n
+    #    end
+    #elseif is_within_int128(str)
+    #    return int128(str)
+    #else
+    #    return BigInt(str)
     end
 end
 
