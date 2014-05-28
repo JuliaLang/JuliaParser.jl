@@ -1350,7 +1350,7 @@ end
 
 # TODO: these are unnecessary if base/client.jl didn't need to parse error string
 function not_eof_1(c)
-    Lexer.eof(c) && error("incomplete: invalid character literal")
+    Lexer.eof(c) && error("incomplete: invalid character literal 1")
     return c
 end
 
@@ -1487,7 +1487,7 @@ function _parse_atom(ts::TokenStream)
     elseif t === symbol("'")
         take_token(ts)
         fch = Lexer.readchar(ts.io)
-        fch === '\'' && error("invalid character literal")
+        fch === '\'' && error("invalid character literal 2")
         Lexer.peekchar(ts.io)
         if fch !== '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts.io) === '\''
             # easy case 1 char no \
@@ -1507,16 +1507,15 @@ function _parse_atom(ts::TokenStream)
                 # one byte e.g. '\xff' maybe not valid UTF-8
                 # but we want to use the raw value as a codepoint in this case
                 # wchar str[0] 
-                # XXX: this would throw an error during the conversion above
                 return str[1] 
             else
                 if length(str) != 1  || !is_valid_utf8(str)
-                    error("invalid character literal")
+                    error("invalid character literal 3")
                 end
                 return str[1]
             end
         end
-
+    
     # symbol / expression quote
     elseif t === :(:)
         take_token(ts)
