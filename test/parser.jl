@@ -13,25 +13,9 @@ tokens(ts::TokenStream) = begin
     end
     return toks
 end
-
 tokens(str::String) = tokens(TokenStream(str))
 
-without_linenums(ex::Expr) = begin
-    args = {}
-    for a in ex.args
-        if isa(a, Expr)
-            a.head === :line && continue
-            push!(args, without_linenums(a))
-        else
-            isa(a, LineNumberNode) && continue
-            push!(args, without_linenums(a))
-        end
-    end
-    return Expr(ex.head, args...)
-end
-
-without_linenums(ex::QuoteNode) = QuoteNode(without_linenums(ex.value))
-without_linenums(ex) = ex
+include("ast.jl") 
 
 #=
 facts("test TokenStream constructor") do
