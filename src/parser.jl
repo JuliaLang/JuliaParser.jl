@@ -618,15 +618,15 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
                 ex = Expr(:(.), ex, parse_atom(ts))
             elseif nt === :($)
                 dollar_ex = parse_unary(ts)
-                call_ex   = Expr(:call, TopNode(:Expr), QuoteNode(:quote), dollar_ex.args[1])
+                call_ex   = Expr(:call, TopNode(:Expr), Expr(:quote, :quote), dollar_ex.args[1])
                 ex = Expr(:macrocall, ex, Expr(:($), call_ex))
             else
                 name = parse_atom(ts)
                 if isa(name, Expr) && name.head === :macrocall
-                    ex = Expr(:macrocall, Expr(:(.), ex, QuoteNode(name.args[1])))
+                    ex = Expr(:macrocall, Expr(:(.), ex, Expr(:quote, name.args[1])))
                     append!(ex.args, name.args[2:end])
                 else
-                    ex = Expr(:(.), ex, QuoteNode(name))
+                    ex = Expr(:(.), ex, Expr(:quote, name))
                 end
             end
             continue
@@ -705,7 +705,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                 else
                     ex = blk
                 end
-                return word === :quote ? QuoteNode(ex) : ex
+                return word === :quote ? Expr(:quote, ex) : ex
 
             elseif word === :while
                 ex = Expr(:while, parse_cond(ts), parse_block(ts))
@@ -902,10 +902,10 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     x = name === :x ? :y : :x
                     push!(block.args, 
                         Expr(:(=), Expr(:call, :eval, x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core), QuoteNode(:eval)), name, x)))
+                                   Expr(:call, Expr(:(.), TopNode(:Core), Expr(:quote, :eval)), name, x)))
                     push!(block.args,
                         Expr(:(=), Expr(:call, :eval, :m, :x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core), QuoteNode(:eval)), :m, :x)))
+                                   Expr(:call, Expr(:(.), TopNode(:Core), Expr(:quote, :eval)), :m, :x)))
                     append!(block.args, body.args)
                     body = block
                 end
@@ -1522,7 +1522,7 @@ function _parse_atom(ts::TokenStream)
         if is_closing_token(ts, peek_token(ts))
             return :(:)
         end
-        return QuoteNode(_parse_atom(ts)) 
+        return Expr(:quote, _parse_atom(ts)) 
     
     # misplaced =
     elseif t === :(=)
@@ -1715,7 +1715,7 @@ function macroify_name(ex)
     if isa(ex, Symbol)
         return symbol(string('@', ex))
     elseif is_valid_modref(ex)
-        return Expr(:(.), ex.args[1], QuoteNode(macroify_name(ex.args[2].args[1])))
+        return Expr(:(.), ex.args[1], Expr(:quote, macroify_name(ex.args[2].args[1])))
     else
         error("invalid macro use \"@($ex)")
     end
