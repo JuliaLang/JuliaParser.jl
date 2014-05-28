@@ -314,7 +314,7 @@ end
 function is_within_int128(s::String)
     len = length(s)
     if s[1] === '-' 
-        return len > 40 ? false : s <= "-170141183460469231731687303715884105728"
+        return len > 40 ? false : s[2:end] <= "170141183460469231731687303715884105728"
     else
         return len > 39 ? false : s <= "170141183460469231731687303715884105727"
     end
