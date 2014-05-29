@@ -693,7 +693,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
     with_normal_ops(ts) do
         without_whitespace_newline(ts) do
             if word === :quote || word === :begin
-                Lexer.skip_ws_and_comments(ts.io)
+                Lexer.skipws_and_comments(ts.io)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ts)
                 expect_end(ts, word)
@@ -797,7 +797,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                         error("expected \"(\" in $word definition")
                     end
                 end
-                peek_token(ts) !== sym_end && Lexer.skip_ws_and_comments(ts.io)
+                peek_token(ts) !== sym_end && Lexer.skipws_and_comments(ts.io)
                 loc = line_number_filename_node(ts)
                 body = parse_block(ts)
                 expect_end(ts, word)
@@ -1090,7 +1090,8 @@ function parse_space_separated_exprs(ts::TokenStream)
         exprs = {}
         while true 
             nt = peek_token(ts)
-            if is_closing_token(ts,nt) || Lexer.isnewline(nt) || (ts.inside_vector && nt === :for)
+            if is_closing_token(ts,nt) || Lexer.isnewline(nt) || 
+               (ts.inside_vector && nt === :for)
                 return exprs
             end
             ex = parse_eq(ts)
@@ -1730,7 +1731,7 @@ end
 #========================#
 
 function parse(ts::TokenStream)
-    Lexer.skip_ws_and_comments(ts.io)
+    Lexer.skipws_and_comments(ts.io)
     t::Token = next_token(ts)
     while true
         Lexer.eof(t) && return nothing
