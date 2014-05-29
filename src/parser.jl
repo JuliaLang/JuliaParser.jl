@@ -241,7 +241,7 @@ function parse_cond(ts::TokenStream)
     if peek_token(ts) === :(?)
         take_token(ts)
         then = without_range_colon(ts) do
-            parse_eq(ts)
+            parse_eqs(ts)
         end
         take_token(ts) === :(:) || error("colon expected in \"?\" expression")
         return Expr(:if, ex, then, parse_cond(ts))
@@ -1355,7 +1355,7 @@ end
 
 # TODO: these are unnecessary if base/client.jl didn't need to parse error string
 function not_eof_1(c)
-    Lexer.eof(c) && error("incomplete: invalid character literal 1")
+    Lexer.eof(c) && error("incomplete: invalid character literal")
     return c
 end
 
@@ -1492,8 +1492,7 @@ function _parse_atom(ts::TokenStream)
     elseif t === symbol("'")
         take_token(ts)
         fch = Lexer.readchar(ts.io)
-        fch === '\'' && error("invalid character literal 2")
-        Lexer.peekchar(ts.io)
+        fch === '\'' && error("invalid character literal")
         if fch !== '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts.io) === '\''
             # easy case 1 char no \
             Lexer.takechar(ts.io)
@@ -1514,8 +1513,9 @@ function _parse_atom(ts::TokenStream)
                 # wchar str[0] 
                 return str[1] 
             else
+                #TODO: this does not make any sense
                 if length(str) != 1  || !is_valid_utf8(str)
-                    error("invalid character literal 3")
+                    error("invalid character literal, got \'$str\'")
                 end
                 return str[1]
             end
@@ -1668,8 +1668,7 @@ function _parse_atom(ts::TokenStream)
         take_token(ts)
         with_space_sensitive(ts) do
             head = parse_unary_prefix(ts)
-            t = peek_token(ts)
-            if ts.isspace
+            if (peek_token(ts); ts.isspace)
                 ex = Expr(:macrocall, macroify_name(head))
                 append!(ex.args, parse_space_separated_exprs(ts))
                 return ex
