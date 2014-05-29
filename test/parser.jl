@@ -17,7 +17,6 @@ tokens(str::String) = tokens(TokenStream(str))
 
 include("ast.jl") 
 
-#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -168,15 +167,13 @@ end
 
 facts("test parse single operator") do
     for op in Lexer.operators
-        if op === symbol("'")  || 
-           op === symbol("::") ||
-           op === symbol(":>")
+        if op === symbol("'")
             continue
         end
         code = string(op) 
         try
             ex = Base.parse(code)
-            @fact Parser.parse(code) => ex
+            @fact Parser.parse(code) => symbol("$ex")
         catch
             # do nothing if base cannot parse operator
         end
@@ -230,7 +227,7 @@ facts("test parse block") do
         "(x(); nothing)",
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -245,7 +242,7 @@ facts("test range expressions") do
         "10:-1:-10",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
     @fact_throws Parser.parse("1:end")
     @fact_throws Parser.parse("1:2:end")
@@ -258,7 +255,7 @@ facts("parse symbol / expression quote") do
         ":(a + 1)"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -271,7 +268,7 @@ facts("test char literal expression") do
         "'a'",
         "'1'",
         "'\n'",
-        #TODO: "\\", literal
+        "\\", 
         "'$(char(256))'",
     ]
     for ex in exprs
@@ -313,7 +310,7 @@ facts("test cell expressions") do
         "{i for i=1:10}",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -331,7 +328,7 @@ facts("test cat expressions") do
         "[i for i=1:10]"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -375,13 +372,7 @@ facts("test quote/begin expression") do
         """
     ]
     for ex in exprs
-        pex = Parser.parse(ex)
-        bex = Base.parse(ex) 
-        if isa(pex, QuoteNode) && isa(bex, QuoteNode)
-            pex, bex = pex.value, bex.value
-        end
-        @fact pex.head => bex.head
-        @fact Base.without_linenums(pex.args) => Base.without_linenums(bex.args)
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -395,7 +386,7 @@ facts("test while expression") do
         """
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -410,7 +401,7 @@ facts("test for loop expression") do
          end""" 
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -427,7 +418,7 @@ facts("test if condtion expression") do
            end""",
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
     # else if should throw and error => use elseif 
     @fact_throws Parser.parse("""if x == 1
@@ -445,7 +436,7 @@ facts("test let expression") do
         end"""
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -471,7 +462,7 @@ facts("test function expressions") do
                   return x + 1
               end"""]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -490,7 +481,7 @@ facts("test function return tuple") do
             """
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -504,7 +495,7 @@ facts("test array ref") do
         """
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -522,7 +513,7 @@ facts("test macro expressions") do
                   :(x + 1)
               end"""]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -622,7 +613,7 @@ facts("test type / immutable expression") do
         end""",
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -649,7 +640,7 @@ facts("test try, catch, finally expression") do
         end""",
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -676,7 +667,6 @@ facts("test return expression") do
 end
 
 facts("test break / continue expression") do
-    #TODO: single line statments still fail 
     exprs = [
         "break", 
         "continue",
@@ -688,7 +678,7 @@ facts("test break / continue expression") do
         end"""
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -720,7 +710,7 @@ facts("test module expressions") do
         end"""
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -790,7 +780,7 @@ facts("test ccall expression") do
      "ccall((:testUcharX, \"./libccalltest\"), :stdcall, Int32, (Uint8,), x)"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 
 end
@@ -821,7 +811,7 @@ facts("test parse do") do
         """
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -865,7 +855,7 @@ facts("parse argument list") do
     ]
     
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -879,7 +869,7 @@ facts("parse test functions") do
        end""",
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
 
@@ -932,10 +922,10 @@ end
 """,
     ]
     for ex in exprs
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
-=#
+
 facts("parser failures") do
     exprs = [
 """
@@ -974,7 +964,7 @@ end
 import Base.*
 """
 ]
-    for ex in [last(exprs)]
-        @fact without_linenums(Parser.parse(ex)) => without_linenums(Base.parse(ex))
+    for ex in exprs
+        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
