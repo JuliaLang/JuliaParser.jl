@@ -268,7 +268,6 @@ is_operator(op) = false
 
 #= Implement peekchar for IOBuffer and IOStream =#
 
-
 # modified version from Base to give the same
 # semantics as the IOStream implementation
 
@@ -350,12 +349,53 @@ end
 # Read Number
 #=============#
 
+function sized_uint_literal(s::String, b::Integer)
+    i = s[1] == '-' ? 3 : 2
+    l = (length(s) - i) * b
+    l <= 8   && return parseint(Uint8,   s)
+    l <= 16  && return parseint(Uint16,  s)
+    l <= 32  && return parseint(Uint32,  s)
+    l <= 64  && return parseint(Uint64,  s)
+    l <= 128 && return parseint(Uint128, s)
+    return BigInt(s)
+end
+
+function sized_uint_oct_literal(n::Integer, s::String)
+    contains(s, "o0") && return sized_uint_literal(s, 3)
+    len, n = length(s), s[3:end]
+    (len <= 5  && n <= "377") && return uint8(s)
+    (len <= 8  && n <= "177777") && return uint16(s)
+    (len <= 13 && n <= "37777777777") && return uint32(s)
+    (len <= 24 && n <= "1777777777777777777777") && uint64(s)
+    (len <= 45 && n <= "3777777777777777777777777777777777777777777") && return uint128(s)
+    return BigInt(s)
+end
+
+function compare_num_strings(s1::String, s2::String)
+    s1, s2 = lstrip(s1, '0'), lstrip(s2, '0') 
+    l1, l2 = length(s1), length(s2)
+    return l1 == l2 ? s1 <= s2 : l1 <= l2
+end
+   
+function is_oct_within_uint128(s::String)
+    max = "3777777777777777777777777777777777777777777"
+    return s[1] === '-' ? s[4:end] <= max : s[3:end] <= max
+end
+
+function is_within_int128(s::String)
+    len = length(s)
+    if s[1] === '-' 
+        return len > 40 ? false : s[2:end] <= "170141183460469231731687303715884105728"
+    else
+        return len > 39 ? false : s <= "170141183460469231731687303715884105727"
+    end
+end
+
 # Notes:
 # expressions starting with 0x are always hexadecimal literals
 # expressions starting with a numeric literal followed by e or E
 # are always floating point literals
 
-# TODO: overflow checking?  unsigned ints? this needs a lot of work
 function string_to_number(str::String)
     len = length(str)
     len > 0 || error("empty string")
@@ -388,7 +428,8 @@ function string_to_number(str::String)
     else
         try
             return int64(str)
-        catch
+        catch ex
+            !isa(ex, OverflowError) && rethrow(ex)
             if is_within_int128(str)
                 return int128(str)
             else
@@ -432,48 +473,6 @@ end
 #TODO: can we get rid of this? 
 fix_uint_neg(neg::Bool, n::Real) = neg ? Expr(:call, :- , n) : n
 
-function sized_uint_literal(s::String, b::Integer)
-    i = s[1] == '-' ? 3 : 2
-    l = (length(s) - i) * b
-    l <= 8   && return parseint(Uint8,   s)
-    l <= 16  && return parseint(Uint16,  s)
-    l <= 32  && return parseint(Uint32,  s)
-    l <= 64  && return parseint(Uint64,  s)
-    l <= 128 && return parseint(Uint128, s)
-    return BigInt(s)
-end
-
-function sized_uint_oct_literal(n::Integer, s::String)
-    contains(s, "o0") && return sized_uint_literal(s, 3)
-    len, n = length(s), s[3:end]
-    (len <= 5  && n <= "377") && return uint8(s)
-    (len <= 8  && n <= "177777") && return uint16(s)
-    (len <= 13 && n <= "37777777777") && return uint32(s)
-    (len <= 24 && n <= "1777777777777777777777") && uint64(s)
-    (len <= 45 && n <= "3777777777777777777777777777777777777777777") && return uint128(s)
-    return BigInt(s)
-end
-
-function compare_num_strings(s1::String, s2::String)
-    s1, s2 = lstrip(s1, '0'), lstrip(s2, '0') 
-    l1, l2 = length(s1), length(s2)
-    return l1 == l2 ? s1 <= s2 : l1 <= l2
-end
-   
-function is_oct_within_uint128(s::String)
-    max = "3777777777777777777777777777777777777777777"
-    return s[1] === '-' ? s[4:end] <= max : s[3:end] <= max
-end
-
-function is_within_int128(s::String)
-    len = length(s)
-    if s[1] === '-' 
-        return len > 40 ? false : s[2:end] <= "170141183460469231731687303715884105728"
-    else
-        return len > 39 ? false : s <= "170141183460469231731687303715884105727"
-    end
-end
-
 function disallow_dot!(io::IO)
     if peekchar(io) === '.'
         skip(io, 1)
@@ -493,7 +492,7 @@ function read_digits!(io::IO, pred::Function, charr::Vector{Char}, leading_zero:
     return true 
 end
 
-#TODO: neg seems like a conflation between the responsibilites of the parser vs lexer
+#TODO: try to remove neg as it is not needed for the lexer 
 function read_number(io::IO, leading_dot::Bool, neg::Bool)
     charr = Char[] 
     pred::Function = isdigit 
@@ -728,7 +727,7 @@ function next_token(ts::TokenStream)
         elseif is_identifier_start_char(c)
             return accum_julia_symbol(ts.io, c)
         else
-            readchar(ts.io)
+            @assert readchar(ts.io) === c
             if is_ignorable_char(c)
                 error("invisible character \\u$(hex(c))")
             else
