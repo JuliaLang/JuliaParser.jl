@@ -937,21 +937,27 @@ immutable RGB <: ColorValue
 end
 """,
 """
+# method declarsions with builtin operators with more than one argument
 +(x::Bool, y::Bool) = int(x) + int(y)
 """,
 """
+# calling convention is Expr(:stdcall) not QuoteNode(:stdcall)
 ret=ccall(:GetEnvironmentVariableA,stdcall,Uint32,(Ptr{Uint8},Ptr{Uint8},Uint32),s,val,len)
 """,
 """
+# type assert a string macro expression
 writemime(io, ::MIME"text/plain", x) = showlimited(io, x)
 """,
 """
+# Module.macro syntax
 l = (Base.@_mod64 (length(a)-1)) + 1
 """,
 """
+# invalid char literal after windows?
 prepend!(LOAD_PATH, split(ENV[\"JULIA_LOAD_PATH\"], @windows? ';' : ':'))
 """,
 """
+# try / catch / finally didn't parse correctly 
 try
     error(" ")
 catch
@@ -961,6 +967,7 @@ finally
 end
 """,
 """
+# lexer return .* as an operator (symbol)
 import Base.*
 """
 ]
