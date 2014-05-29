@@ -2,7 +2,14 @@ using JuliaParser
 using FactCheck
 
 const Lexer = JuliaParser.Lexer
-
+#=
+facts("test unicode operators") do
+    for c in Lexer.operator_chars
+        @fact Lexer.is_identifier_char(c) => true
+    end
+end
+error()
+=#
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
     Lexer.skip_to_eol(io)
@@ -568,20 +575,20 @@ end
 
 facts("test skipwhitespace") do
     io = IOBuffer("   abc")
-    Lexer.skipwhitespace(io)
+    Lexer.skipws(io)
     @fact position(io) => 3
 
     io = IOBuffer("abc")
-    Lexer.skipwhitespace(io)
+    Lexer.skipws(io)
     @fact position(io) => 0
 
     io = IOBuffer("  \n abc")
-    Lexer.skipwhitespace(io)
+    Lexer.skipws(io)
     @fact position(io) => 2
     @fact Lexer.readchar(io) => '\n'
 
     io = IOBuffer("")
-    Lexer.skipwhitespace(io)
+    Lexer.skipws(io)
     @fact position(io) => 0
 end
 
@@ -650,25 +657,25 @@ end
 
 facts("test skip ws and comment") do
     io = IOBuffer("")
-    Lexer.skip_ws_and_comments(io) 
+    Lexer.skipws_and_comments(io) 
     @fact eof(io) => true
 
     io = IOBuffer(" \n")
-    Lexer.skip_ws_and_comments(io) 
+    Lexer.skipws_and_comments(io) 
     @fact Lexer.readchar(io) => '\n'
 
     io = IOBuffer("  # test comment\n")
-    Lexer.skip_ws_and_comments(io)
+    Lexer.skipws_and_comments(io)
     @fact Lexer.readchar(io) => '\n'
     @fact eof(io) => true
 
     io = IOBuffer("    #= test comment \n
                   another comment =#a")
-    Lexer.skip_ws_and_comments(io)
+    Lexer.skipws_and_comments(io)
     @fact Lexer.readchar(io) => 'a'
 
     io = IOBuffer(" # a comment\ntest")
-    Lexer.skip_ws_and_comments(io)
+    Lexer.skipws_and_comments(io)
     @fact Lexer.readchar(io) => '\n'
     @fact Lexer.readchar(io) => 't'
 end
