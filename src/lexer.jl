@@ -2,84 +2,94 @@ module Lexer
 
 import Base.UTF8proc
 
+export Token, TokenStream, next_token, set_token!, last_token, 
+       put_back!, peek_token, take_token, require_token
+
 include("utf8.jl") 
 
+const SYM_TRUE  = symbol("true")
+const SYM_FALSE = symbol("false") 
+const SYM_CTRANSPOSE = symbol("'")
+
+const EOF = char(-1)
+
 const ops_by_precedent =  {
-               [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=), 
-                :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=), 
-                :(|=),  :(&=),  :($=), :(=>),  :(<<=), :(>>=),  :(>>>=), :(~),
-                :(.+=), :(.-=)],
-               [:(?)],
-               [:(||)],
-               [:(&&)],
-               [:(--), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦), 
-                :(↮), :(⇎), :(⇏), :(⇒), :(⇔), :(⇴), :(⇶), :(⇷), :(⇸), :(⇹), 
-                :(⇺), :(⇻), :(⇼), :(⇽), :(⇾), :(⇿), :(⟵), :(⟶), :(⟷), :(⟷), 
-                :(⟹), :(⟺), :(⟻), :(⟼), :(⟽), :(⟾), :(⟿), :(⤀), :(⤁), :(⤂), 
-                :(⤃), :(⤄), :(⤅), :(⤆), :(⤇), :(⤌), :(⤍), :(⤎), :(⤏), :(⤐),
-                :(⤑), :(⤔), :(⤕), :(⤖), :(⤗), :(⤘), :(⤝), :(⤞), :(⤟), :(⤠), 
-                :(⥄), :(⥅), :(⥆), :(⥇), :(⥈), :(⥊), :(⥋), :(⥎), :(⥐), :(⥒), 
-                :(⥓), :(⥖), :(⥗), :(⥚), :(⥛), :(⥞), :(⥟), :(⥢), :(⥤), :(⥦), 
-                :(⥧), :(⥨), :(⥩), :(⥪), :(⥫), :(⥬), :(⥭), :(⥰), :(⧴), :(⬱), 
-                :(⬰), :(⬲), :(⬳), :(⬴), :(⬵), :(⬶), :(⬷), :(⬸), :(⬹), :(⬺), 
-                :(⬻), :(⬼), :(⬽), :(⬾), :(⬿), :(⭀), :(⭁), :(⭂), :(⭃), :(⭄), 
-                :(⭇), :(⭈), :(⭉), :(⭊), :(⭋), :(⭌), :(￩), :(￫)],
-               [:(>), :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡), 
-                :(!=), :(≠), :(!==), :(≢), :(.>), :(.<), :(.>=), :(.≥), :(.<=), 
-                :(.≤), :(.==), :(.!=), :(.≠), :(.=), :(.!), :(<:), :(>:), :(∈), 
-                :(∉), :(∋), :(∌), :(⊆), :(⊈), :(⊂), :(⊄), :(⊊), :(∝), :(∊), :(∍), 
-                :(∥), :(∦), :(∷), :(∺), :(∻), :(∽), :(∾), :(≁), :(≃), :(≄), :(≅), 
-                :(≆), :(≇), :(≈), :(≉), :(≊), :(≋), :(≌), :(≍), :(≎), :(≐), :(≑), 
-                :(≒), :(≓), :(≔), :(≕), :(≖), :(≗), :(≘), :(≙), :(≚), :(≛), :(≜), 
-                :(≝), :(≞), :(≟), :(≣), :(≦), :(≧), :(≨), :(≩), :(≪), :(≫), :(≬), 
-                :(≭), :(≮), :(≯), :(≰), :(≱), :(≲), :(≳), :(≴), :(≵), :(≶), :(≷), 
-                :(≸), :(≹), :(≺), :(≻), :(≼), :(≽), :(≾), :(≿), :(⊀), :(⊁), :(⊃), 
-                :(⊅), :(⊇), :(⊉), :(⊋), :(⊏), :(⊐), :(⊑), :(⊒), :(⊜), :(⊩), :(⊬), 
-                :(⊮), :(⊰), :(⊱), :(⊲), :(⊳), :(⊴), :(⊵), :(⊶), :(⊷), :(⋍), :(⋐), 
-                :(⋑), :(⋕), :(⋖), :(⋗), :(⋘), :(⋙), :(⋚), :(⋛), :(⋜), :(⋝), :(⋞), 
-                :(⋟), :(⋠), :(⋡), :(⋢), :(⋣), :(⋤), :(⋥), :(⋦), :(⋧), :(⋨), :(⋩), 
-                :(⋪), :(⋫), :(⋬), :(⋭), :(⋲), :(⋳), :(⋴), :(⋵), :(⋶), :(⋷), :(⋸), 
-                :(⋹), :(⋺), :(⋻), :(⋼), :(⋽), :(⋾), :(⋿), :(⟈), :(⟉), :(⟒), :(⦷), 
-                :(⧀), :(⧁), :(⧡), :(⧣), :(⧤), :(⧥), :(⩦), :(⩧), :(⩪), :(⩫), :(⩬), 
-                :(⩭), :(⩮), :(⩯), :(⩰), :(⩱), :(⩲), :(⩳), :(⩴), :(⩵), :(⩶), :(⩷), 
-                :(⩸), :(⩹), :(⩺), :(⩻), :(⩼), :(⩽), :(⩾), :(⩿), :(⪀), :(⪁), :(⪂), 
-                :(⪃), :(⪄), :(⪅), :(⪆), :(⪇), :(⪈), :(⪉), :(⪊), :(⪋), :(⪌), :(⪍), 
-                :(⪎), :(⪏), :(⪐), :(⪑), :(⪒), :(⪓), :(⪔), :(⪕), :(⪖), :(⪗), :(⪘), 
-                :(⪙), :(⪚), :(⪛), :(⪜), :(⪝), :(⪞), :(⪟), :(⪠), :(⪡), :(⪢), :(⪣), 
-                :(⪤), :(⪥), :(⪦), :(⪧), :(⪨), :(⪩), :(⪪), :(⪫), :(⪬), :(⪭), :(⪮), 
-                :(⪯), :(⪰), :(⪱), :(⪲), :(⪳), :(⪴), :(⪵), :(⪶), :(⪷), :(⪸), :(⪹), 
-                :(⪺), :(⪻), :(⪼), :(⪽), :(⪾), :(⪿), :(⫀), :(⫁), :(⫂), :(⫃), :(⫄), 
-                :(⫅), :(⫆), :(⫇), :(⫈), :(⫉), :(⫊), :(⫋), :(⫌), :(⫍), :(⫎), :(⫏), 
-                :(⫐), :(⫑), :(⫒), :(⫓), :(⫔), :(⫕), :(⫖), :(⫗), :(⫘), :(⫙), :(⫷), 
-                :(⫸), :(⫹), :(⫺)],
-               [:(|>),  :(<|)],
-               [:(:), :(..)],
-               [:(+), :(-), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪), :(∨), 
-                :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽), 
-                :(⋎), :(⋓), :(⧺), :(⧻), :(⨈), :(⨢), :(⨣), :(⨤), :(⨥), :(⨦), :(⨧), 
-                :(⨨), :(⨩), :(⨪), :(⨫), :(⨬), :(⨭), :(⨮), :(⨹), :(⨺), :(⩁), :(⩂),
-                :(⩅), :(⩊), :(⩌), :(⩏), :(⩐), :(⩒), :(⩔), :(⩖), :(⩗), :(⩛), :(⩝),
-                :(⩡), :(⩢), :(⩣)],
-               [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
-               [:(*), :(/), :(./), :(÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*), :(\), :(.\), 
-                :(&), :(∩), :(∧), :(⊗), :(⊘), :(⊙), :(⊚), :(⊛), :(⊠), :(⊡), :(⊓), :(∗), 
-                :(∙), :(∤), :(⅋), :(≀), :(⊼), :(⋄), :(⋆), :(⋇), :(⋉), :(⋊), :(⋋), :(⋌), 
-                :(⋏), :(⋒), :(⟑), :(⦸), :(⦼), :(⦾), :(⦿), :(⧶), :(⧷), :(⨇), :(⨰), :(⨱), 
-                :(⨲), :(⨳), :(⨴), :(⨵), :(⨶), :(⨷), :(⨸), :(⨻), :(⨼), :(⨽), :(⩀), :(⩃), 
-                :(⩄), :(⩋), :(⩍), :(⩎), :(⩑), :(⩓), :(⩕), :(⩘), :(⩚), :(⩜), :(⩞), :(⩟), 
-                :(⩠), :(⫛), :(⊍)],
-               [:(//), :(.//)],
-               [:(^), :(.^), :(↑), :(↓), :(⇵), :(⟰), :(⟱), :(⤈), :(⤉), :(⤊), :(⤋), 
-                :(⤒), :(⤓),  :(⥉), :(⥌), :(⥍), :(⥏), :(⥑), :(⥔), :(⥕), :(⥘), :(⥙), 
-                :(⥜), :(⥝),  :(⥠), :(⥡), :(⥣), :(⥥), :(⥮), :(⥯), :(￪), :(￬)],
-               [:(::)],
-               [:(.)]}
+       [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=), 
+        :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=), 
+        :(|=),  :(&=),  :($=), :(=>),  :(<<=), :(>>=),  :(>>>=), :(~),
+        :(.+=), :(.-=)],
+       [:(?)],
+       [:(||)],
+       [:(&&)],
+       [:(--), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦), 
+        :(↮), :(⇎), :(⇏), :(⇒), :(⇔), :(⇴), :(⇶), :(⇷), :(⇸), :(⇹), 
+        :(⇺), :(⇻), :(⇼), :(⇽), :(⇾), :(⇿), :(⟵), :(⟶), :(⟷), :(⟷), 
+        :(⟹), :(⟺), :(⟻), :(⟼), :(⟽), :(⟾), :(⟿), :(⤀), :(⤁), :(⤂), 
+        :(⤃), :(⤄), :(⤅), :(⤆), :(⤇), :(⤌), :(⤍), :(⤎), :(⤏), :(⤐),
+        :(⤑), :(⤔), :(⤕), :(⤖), :(⤗), :(⤘), :(⤝), :(⤞), :(⤟), :(⤠), 
+        :(⥄), :(⥅), :(⥆), :(⥇), :(⥈), :(⥊), :(⥋), :(⥎), :(⥐), :(⥒), 
+        :(⥓), :(⥖), :(⥗), :(⥚), :(⥛), :(⥞), :(⥟), :(⥢), :(⥤), :(⥦), 
+        :(⥧), :(⥨), :(⥩), :(⥪), :(⥫), :(⥬), :(⥭), :(⥰), :(⧴), :(⬱), 
+        :(⬰), :(⬲), :(⬳), :(⬴), :(⬵), :(⬶), :(⬷), :(⬸), :(⬹), :(⬺), 
+        :(⬻), :(⬼), :(⬽), :(⬾), :(⬿), :(⭀), :(⭁), :(⭂), :(⭃), :(⭄), 
+        :(⭇), :(⭈), :(⭉), :(⭊), :(⭋), :(⭌), :(￩), :(￫)],
+       [:(>), :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡), 
+        :(!=), :(≠), :(!==), :(≢), :(.>), :(.<), :(.>=), :(.≥), :(.<=), 
+        :(.≤), :(.==), :(.!=), :(.≠), :(.=), :(.!), :(<:), :(>:), :(∈), 
+        :(∉), :(∋), :(∌), :(⊆), :(⊈), :(⊂), :(⊄), :(⊊), :(∝), :(∊), :(∍), 
+        :(∥), :(∦), :(∷), :(∺), :(∻), :(∽), :(∾), :(≁), :(≃), :(≄), :(≅), 
+        :(≆), :(≇), :(≈), :(≉), :(≊), :(≋), :(≌), :(≍), :(≎), :(≐), :(≑), 
+        :(≒), :(≓), :(≔), :(≕), :(≖), :(≗), :(≘), :(≙), :(≚), :(≛), :(≜), 
+        :(≝), :(≞), :(≟), :(≣), :(≦), :(≧), :(≨), :(≩), :(≪), :(≫), :(≬), 
+        :(≭), :(≮), :(≯), :(≰), :(≱), :(≲), :(≳), :(≴), :(≵), :(≶), :(≷), 
+        :(≸), :(≹), :(≺), :(≻), :(≼), :(≽), :(≾), :(≿), :(⊀), :(⊁), :(⊃), 
+        :(⊅), :(⊇), :(⊉), :(⊋), :(⊏), :(⊐), :(⊑), :(⊒), :(⊜), :(⊩), :(⊬), 
+        :(⊮), :(⊰), :(⊱), :(⊲), :(⊳), :(⊴), :(⊵), :(⊶), :(⊷), :(⋍), :(⋐), 
+        :(⋑), :(⋕), :(⋖), :(⋗), :(⋘), :(⋙), :(⋚), :(⋛), :(⋜), :(⋝), :(⋞), 
+        :(⋟), :(⋠), :(⋡), :(⋢), :(⋣), :(⋤), :(⋥), :(⋦), :(⋧), :(⋨), :(⋩), 
+        :(⋪), :(⋫), :(⋬), :(⋭), :(⋲), :(⋳), :(⋴), :(⋵), :(⋶), :(⋷), :(⋸), 
+        :(⋹), :(⋺), :(⋻), :(⋼), :(⋽), :(⋾), :(⋿), :(⟈), :(⟉), :(⟒), :(⦷), 
+        :(⧀), :(⧁), :(⧡), :(⧣), :(⧤), :(⧥), :(⩦), :(⩧), :(⩪), :(⩫), :(⩬), 
+        :(⩭), :(⩮), :(⩯), :(⩰), :(⩱), :(⩲), :(⩳), :(⩴), :(⩵), :(⩶), :(⩷), 
+        :(⩸), :(⩹), :(⩺), :(⩻), :(⩼), :(⩽), :(⩾), :(⩿), :(⪀), :(⪁), :(⪂), 
+        :(⪃), :(⪄), :(⪅), :(⪆), :(⪇), :(⪈), :(⪉), :(⪊), :(⪋), :(⪌), :(⪍), 
+        :(⪎), :(⪏), :(⪐), :(⪑), :(⪒), :(⪓), :(⪔), :(⪕), :(⪖), :(⪗), :(⪘), 
+        :(⪙), :(⪚), :(⪛), :(⪜), :(⪝), :(⪞), :(⪟), :(⪠), :(⪡), :(⪢), :(⪣), 
+        :(⪤), :(⪥), :(⪦), :(⪧), :(⪨), :(⪩), :(⪪), :(⪫), :(⪬), :(⪭), :(⪮), 
+        :(⪯), :(⪰), :(⪱), :(⪲), :(⪳), :(⪴), :(⪵), :(⪶), :(⪷), :(⪸), :(⪹), 
+        :(⪺), :(⪻), :(⪼), :(⪽), :(⪾), :(⪿), :(⫀), :(⫁), :(⫂), :(⫃), :(⫄), 
+        :(⫅), :(⫆), :(⫇), :(⫈), :(⫉), :(⫊), :(⫋), :(⫌), :(⫍), :(⫎), :(⫏), 
+        :(⫐), :(⫑), :(⫒), :(⫓), :(⫔), :(⫕), :(⫖), :(⫗), :(⫘), :(⫙), :(⫷), 
+        :(⫸), :(⫹), :(⫺)],
+       [:(|>),  :(<|)],
+       [:(:), :(..)],
+       [:(+), :(-), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪), :(∨), 
+        :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽), 
+        :(⋎), :(⋓), :(⧺), :(⧻), :(⨈), :(⨢), :(⨣), :(⨤), :(⨥), :(⨦), :(⨧), 
+        :(⨨), :(⨩), :(⨪), :(⨫), :(⨬), :(⨭), :(⨮), :(⨹), :(⨺), :(⩁), :(⩂),
+        :(⩅), :(⩊), :(⩌), :(⩏), :(⩐), :(⩒), :(⩔), :(⩖), :(⩗), :(⩛), :(⩝),
+        :(⩡), :(⩢), :(⩣)],
+       [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
+       [:(*), :(/), :(./), :(÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*), :(\), :(.\), 
+        :(&), :(∩), :(∧), :(⊗), :(⊘), :(⊙), :(⊚), :(⊛), :(⊠), :(⊡), :(⊓), :(∗), 
+        :(∙), :(∤), :(⅋), :(≀), :(⊼), :(⋄), :(⋆), :(⋇), :(⋉), :(⋊), :(⋋), :(⋌), 
+        :(⋏), :(⋒), :(⟑), :(⦸), :(⦼), :(⦾), :(⦿), :(⧶), :(⧷), :(⨇), :(⨰), :(⨱), 
+        :(⨲), :(⨳), :(⨴), :(⨵), :(⨶), :(⨷), :(⨸), :(⨻), :(⨼), :(⨽), :(⩀), :(⩃), 
+        :(⩄), :(⩋), :(⩍), :(⩎), :(⩑), :(⩓), :(⩕), :(⩘), :(⩚), :(⩜), :(⩞), :(⩟), 
+        :(⩠), :(⫛), :(⊍)],
+       [:(//), :(.//)],
+       [:(^), :(.^), :(↑), :(↓), :(⇵), :(⟰), :(⟱), :(⤈), :(⤉), :(⤊), :(⤋), 
+        :(⤒), :(⤓),  :(⥉), :(⥌), :(⥍), :(⥏), :(⥑), :(⥔), :(⥕), :(⥘), :(⥙), 
+        :(⥜), :(⥝),  :(⥠), :(⥡), :(⥣), :(⥥), :(⥮), :(⥯), :(￪), :(￬)],
+       [:(::)],
+       [:(.)]}
 
 precedent_ops(n::Integer) = ops_by_precedent[n]::Vector{Symbol}
 
 const assignment_ops = ops_by_precedent[1]::Vector{Symbol}
 
-const unary_ops = Set{Symbol}([:(+), :(-), :(!), :(~), :(<:), :(>:), :(√), :(∛), :(∜)])
+const unary_ops = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), 
+                               :(>:), :(√), :(∛), :(∜)])
 
 const unary_and_binary_ops = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
 
@@ -94,28 +104,29 @@ const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
 
 const syntactic_unary_ops = Set{Symbol}([:($), :(&), :(::)])
 
-const transpose_op  = symbol(".'")
-const ctranspose_op = symbol("'")
-const vararg_op     = :(...)
-
-const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜),
-                             transpose_op, ctranspose_op, vararg_op]), 
+const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...),
+                             :(.'), SYM_CTRANSPOSE]), 
 			                 [Set(ops) for ops in ops_by_precedent]...)
 
-const reserved_words = Set{Symbol}([:begin, :while, :if, :for, :try, :return,
-                                    :break, :continue, :function, :macro, :quote,
-                                    :let, :local, :global, :const, :abstract,
-                                    :typealias, :type, :bitstype, :immutable, :ccall,
-                                    :do, :module, :baremodule, :using, :import,
+const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try,
+                                    :return, :break, :continue, :function, 
+                                    :macro, :quote, :let, :local, :global, 
+                                    :const, :abstract, :typealias, :type, 
+                                    :bitstype, :immutable, :ccall, :do, 
+                                    :module, :baremodule, :using, :import,
                                     :export, :importall])
-
 
 #= Helper functions =#
 
-is_assignment_like(ex) = length(expr) == 2 && in(first(expr), assignment_ops)
-
-is_kwarg(ex::Expr) = ex.head === :kw
-is_kwarg(ex) = false
+const operator_prescedence = let 
+    const precedence_map = Dict{Symbol, Int}()
+    for (i, ops) in enumerate(ops_by_precedent)
+        for op in ops
+            precedence_map[op] = i
+        end
+    end
+    operator_prescedence(op::Symbol) = precedence_map[op]
+end
 
 is_syntactic_op(op::Symbol) = in(op, syntactic_ops)
 is_syntactic_op(op) = false
@@ -123,14 +134,34 @@ is_syntactic_op(op) = false
 is_syntactic_unary_op(op::Symbol) = in(op, syntactic_unary_ops)
 is_syntactic_unary_op(op) = false
 
-is_dict_literal(l) = length(l) == 3 && first(l) === :(=>) 
-
-const is_special_char = let chars = Set{Char}("()[]{},;\"`@")
+const is_special_char = let 
+    const chars = Set{Char}("()[]{},;\"`@")
     is_special_char(c::Char)  = in(c, chars)
 end
 
 isnewline(c::Char) = c === '\n''
 isnewline(c) = false
+
+function isuws(c::Char)
+    return (c==9    || c==10   || c==11   || c==12   || c==13   || c==32 ||
+            c==133  || c==160  || c==5760 || c==6158 || c==8192 ||
+            c==8193 || c==8194 || c==8195 || c==8196 || c==8197 ||
+            c==8198 || c==8199 || c==8200 || c==8201 || c==8202 ||
+            c==8232 || c==8233 || c==8239 || c==8287 || c==12288)
+end
+
+isbom(c::Char) = c == 0xFEFF
+
+function skipws(io::IO, newlines::Bool=false)
+    nc = peekchar(io)
+    nc === EOF && return EOF
+    skipped = false
+    while !eof(io) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
+        takechar(io)
+        nc, skipped = peekchar(io), true
+    end
+    return skipped
+end
 
 is_zero_width_space(c::Char) = c === '\u200b' || c === '\u2060' || c === '\ufeff'
 
@@ -227,7 +258,8 @@ const operator_chars = union([Set(string(op)) for op in operators]...)
 is_opchar(c::Char) = in(c, operator_chars)
 
 #= Characters that can follow a . in an operator =#
-const is_dot_opchar = let chars = Set{Char}(".*^/\\+-'<>!=%")
+const is_dot_opchar = let
+    const chars = Set{Char}(".*^/\\+-'<>!=%")
     is_dot_opchar(c::Char) = in(c, chars)
 end
 
@@ -236,7 +268,6 @@ is_operator(op) = false
 
 #= Implement peekchar for IOBuffer and IOStream =#
 
-const EOF = char(-1)
 
 # modified version from Base to give the same
 # semantics as the IOStream implementation
@@ -262,9 +293,9 @@ function peekchar(io::IOBuffer)
     return char(c)
 end
 
-
 # this implementation is copied from Base
-const peekchar = let chtmp = Array(Char, 1)
+const peekchar = let 
+    const chtmp = Array(Char, 1)
     peekchar(s::IOStream) = begin
         if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, chtmp) < 0
             return EOF
@@ -284,10 +315,8 @@ takechar(io::IO) = (readchar(io); io)
 
 function skip_to_eol(io::IO)
     while !eof(io)
-        if peekchar(io) === '\n'
-            break
-        end
-        readchar(io)
+        peekchar(io) === '\n' && break
+        skip(io, 1)
     end
     return io
 end
@@ -301,8 +330,7 @@ function read_operator(io::IO, c::Char)
     if eof(pc) || !is_opchar(pc) || (c === ':' && pc === '-')
         return symbol(c)
     end
-    str = [c]
-    c   = pc
+    str, c = [c], pc
     opsym  = symbol(utf32(str))
     while true
         if !eof(c) && is_opchar(c)
@@ -310,8 +338,7 @@ function read_operator(io::IO, c::Char)
             newop = symbol(utf32(str))
             if is_operator(newop)
                 skip(io, 1)
-                opsym = newop
-                c = peekchar(io)
+                c, opsym = peekchar(io), newop
                 continue
             end
         end
@@ -362,14 +389,19 @@ function string_to_number(str::String)
         try
             return int64(str)
         catch
-            try 
+            if is_within_int128(str)
                 return int128(str)
-            catch
+            else
                 return BigInt(str)
             end
         end
     end
 end
+
+# accum digit predicates
+is_char_hex(c::Char) = isdigit(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
+is_char_oct(c::Char) = '0' <= c <= '7'
+is_char_bin(c::Char) = c === '0' || c === '1'
 
 function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
     if !leading_zero && c == '_'
@@ -397,31 +429,28 @@ function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
     return (charr, true)
 end
 
-is_char_hex(c::Char) = isdigit(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
-is_char_oct(c::Char) = '0' <= c <= '7'
-is_char_bin(c::Char) = c == '0' || c == '1'
-
+#TODO: can we get rid of this? 
 fix_uint_neg(neg::Bool, n::Real) = neg ? Expr(:call, :- , n) : n
 
 function sized_uint_literal(s::String, b::Integer)
     i = s[1] == '-' ? 3 : 2
     l = (length(s) - i) * b
-    l <= 8   && return uint8(s)
-    l <= 16  && return uint16(s)
-    l <= 32  && return uint32(s)
-    l <= 64  && return uint64(s)
-    l <= 128 && return uint128(s)
+    l <= 8   && return parseint(Uint8,   s)
+    l <= 16  && return parseint(Uint16,  s)
+    l <= 32  && return parseint(Uint32,  s)
+    l <= 64  && return parseint(Uint64,  s)
+    l <= 128 && return parseint(Uint128, s)
     return BigInt(s)
 end
 
 function sized_uint_oct_literal(n::Integer, s::String)
     contains(s, "o0") && return sized_uint_literal(s, 3)
-    len = length(s)
-    len <= 5  && s <= "0o377" && return uint8(s)
-    len <= 8  && s <= "0o177777" && return uint16(s)
-    len <= 13 && s <= "0o37777777777" && return uint32(s)
-    len <= 24 && s <= "0o1777777777777777777777" && uint64(s)
-    len <= 45 && s <= "0o3777777777777777777777777777777777777777777" && return uint128(s)
+    len, n = length(s), s[3:end]
+    (len <= 5  && n <= "377") && return uint8(s)
+    (len <= 8  && n <= "177777") && return uint16(s)
+    (len <= 13 && n <= "37777777777") && return uint32(s)
+    (len <= 24 && n <= "1777777777777777777777") && uint64(s)
+    (len <= 45 && n <= "3777777777777777777777777777777777777777777") && return uint128(s)
     return BigInt(s)
 end
 
@@ -432,8 +461,8 @@ function compare_num_strings(s1::String, s2::String)
 end
    
 function is_oct_within_uint128(s::String)
-    s[1] === '-' && (s = s[2:end])
-    return s <= "0o3777777777777777777777777777777777777777777"
+    max = "3777777777777777777777777777777777777777777"
+    return s[1] === '-' ? s[4:end] <= max : s[3:end] <= max
 end
 
 function is_within_int128(s::String)
@@ -445,6 +474,25 @@ function is_within_int128(s::String)
     end
 end
 
+function disallow_dot!(io::IO)
+    if peekchar(io) === '.'
+        skip(io, 1)
+        if is_dot_opchar(peekchar(io))
+            skip(io, -1)
+        else
+            error("invalid numeric constant \"$(utf32(charr))."\"")
+        end
+    end
+end
+
+function read_digits!(io::IO, pred::Function, charr::Vector{Char}, leading_zero::Bool)
+    digits, ok = accum_digits(io, pred, peekchar(io), leading_zero)
+    ok || error("invalid numeric constant \"$digits\"")
+    isempty(digits) && return false
+    append!(charr, digits)
+    return true 
+end
+
 #TODO: neg seems like a conflation between the responsibilites of the parser vs lexer
 function read_number(io::IO, leading_dot::Bool, neg::Bool)
     charr = Char[] 
@@ -454,33 +502,6 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     is_float32_literal  = false
     is_hexfloat_literal = false
 
-    allow!(ch::Char) = begin
-        c = peekchar(io)
-        if c === ch
-            skip(io, 1)
-            push!(charr, c) 
-            return true
-        end
-        return false
-    end
-
-    disallow_dot() = begin
-        if peekchar(io) === '.'
-            skip(io, 1)
-            if is_dot_opchar(peekchar(io))
-                skip(io, -1)
-            else
-                error("invalid numeric constant \"$(utf32(charr))."\"")
-            end
-        end
-    end
-
-    read_digits!(leading_zero::Bool) = begin
-        digits, ok = accum_digits(io, pred, peekchar(io), leading_zero)
-        ok || error("invalid numeric constant \"$digits\"")
-        return isempty(digits) ? false : (append!(charr, digits); true) 
-    end
-
     neg && push!(charr, '-')
     if leading_dot
         push!(charr, '.')
@@ -488,29 +509,34 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
         if peekchar(io) == '0'
             push!(charr, readchar(io))
             leading_zero = true
-            if allow!('x')
+            nc = peekchar(io)
+            if nc === 'x'
+                skip(io, 1); push!(charr, nc)
                 leading_zero = false
                 pred = is_char_hex
-            elseif allow!('o')
+            elseif nc === 'o'
+                skip(io, 1); push!(charr, nc)
                 leading_zero = false
                 pred = is_char_oct
-            elseif allow!('b')
+            elseif nc === 'b'
+                skip(io, 1); push!(charr, nc)
                 leading_zero = false
                 pred = is_char_bin
             end
         else
-            allow!('.')
+            nc = peekchar(io)
+            nc === '.' && (skip(io, 1); push!(charr, nc))
         end
     end
-    read_digits!(leading_zero)
+    read_digits!(io, pred, charr, leading_zero)
     if peekchar(io) == '.'
         skip(io, 1)
         if is_dot_opchar(peekchar(io))
             skip(io, -1)
         else
             push!(charr, '.')
-            read_digits!(false)
-            disallow_dot()
+            read_digits!(io, pred, charr, false)
+            disallow_dot!(io)
         end
     end
     c = peekchar(io)
@@ -518,12 +544,13 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
         skip(io, 1)
         nc = peekchar(io)
         if !eof(nc) && (isdigit(nc) || nc === '+' || nc === '-')
+            skip(io, 1)
             is_float32_literal  = (c === 'f')
             is_hexfloat_literal = (c === 'p' || c === 'P')
             push!(charr, c)
-            push!(charr, readchar(io))
-            read_digits!(false)
-            disallow_dot()
+            push!(charr, nc)
+            read_digits!(io, pred, charr, false)
+            disallow_dot!(io)
         else
             skip(io, -1)
         end
@@ -533,20 +560,18 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
         error("invalid numeric constant \"$(utf32(charr))\"")
     end
     str = utf32(charr)
-    radix = pred == is_char_hex ? 16 : 
-            pred == is_char_oct ? 8  :
-            pred == is_char_bin ? 2  : 10
+    base = pred == is_char_hex ? 16 : 
+           pred == is_char_oct ? 8  :
+           pred == is_char_bin ? 2  : 10
     # for an unsigned literal starting with -, 
     # remove the - and parse instead as a call to unary -
-    (neg && radix != 10 && !is_hexfloat_literal) && (str = str[2:end])
+    (neg && base != 10 && !is_hexfloat_literal) && (str = str[2:end])
     # n is false for integers > typemax(Uint64)
     if is_hexfloat_literal
-        #n = string_to_number(str)
         return float64(str)
     elseif pred == is_char_hex
         return fix_uint_neg(neg, sized_uint_literal(str, 4))
     elseif pred == is_char_oct
-        #n = string_to_number(str)
         return fix_uint_neg(neg, sized_uint_oct_literal(0, str))
     elseif pred == is_char_bin
         return fix_uint_neg(neg, sized_uint_literal(str, 1))
@@ -554,16 +579,7 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
         n = string_to_number(str)
         return float32(n)
     else
-        try
-            n = string_to_number(str)
-            return n
-        catch ex
-            if is_within_int128(str)
-                return int128(str)
-            else
-                return BigInt(str)
-            end
-        end
+        return string_to_number(str)
     end
 end
 
@@ -609,23 +625,11 @@ end
 # if this is a mulitiline comment skip to the end
 # otherwise skip to end of line
 function skipcomment(io::IO)
-    @assert readchar(io) == '#'
-    if peekchar(io) == '='
+    @assert readchar(io) === '#'
+    if peekchar(io) === '='
         skip_multiline_comment(io, 1)
     else
         skip_to_eol(io)
-    end
-    return io
-end
-
-# skip all whitespace characters
-# as defined by isspace()
-function skipwhitespace(io::IO)
-    while !eof(io)
-        if readchar(io) != ' '
-            skip(io, -1)
-            break
-        end
     end
     return io
 end
@@ -634,17 +638,14 @@ end
 # upon reaching the comment, if it is a
 # single line comment skip to the end of the line
 # otherwise skip to the end of the multiline comment block
-function skip_ws_and_comments(io::IO)
+function skipws_and_comments(io::IO)
     while !eof(io)
-        skipwhitespace(io)
-        peekchar(io) != '#' && break
+        skipws(io, false)
+        peekchar(io) !== '#' && break
         skipcomment(io)
     end
     return io
 end
-
-const SYM_TRUE  = symbol("true")
-const SYM_FALSE = symbol("false") 
 
 function accum_julia_symbol(io::IO, c::Char)
     nc, charr = c, Char[]
@@ -663,36 +664,12 @@ function accum_julia_symbol(io::IO, c::Char)
     return sym === SYM_TRUE ? true : sym === SYM_FALSE ? false : sym
 end
 
-function isuws(c::Char)
-    return (c==9    || c==10   || c==11   || c==12   || c==13   || c==32 ||
-            c==133  || c==160  || c==5760 || c==6158 || c==8192 ||
-            c==8193 || c==8194 || c==8195 || c==8196 || c==8197 ||
-            c==8198 || c==8199 || c==8200 || c==8201 || c==8202 ||
-            c==8232 || c==8233 || c==8239 || c==8287 || c==12288)
-end
-
-isbom(c::Char) = c == 0xFEFF
-
-function _skipws(io::IO, newlines::Bool)
-    nc = peekchar(io)
-    nc === EOF && return EOF
-    skipped = false
-    while !eof(io) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
-        takechar(io)
-        nc, skipped = peekchar(io), true
-    end
-    return skipped
-end
-
 #= Token Stream =#
-export Token, TokenStream, next_token, set_token!, last_token, 
-       put_back!, peek_token, take_token, require_token
 
 typealias Token Union(Symbol, Char, Number, Nothing)
 
 type TokenStream
     io::IO
-    #tokens::Vector{Token}
     lasttoken::Token
     putback::Token
     isspace::Bool
@@ -715,7 +692,7 @@ eof(ts::TokenStream) = ts.ateof || eof(ts.io)
 
 function next_token(ts::TokenStream)
     ts.ateof && return EOF
-    ts.isspace = _skipws(ts.io, ts.whitespace_newline)
+    ts.isspace = skipws(ts.io, ts.whitespace_newline)
     while !eof(ts.io)
         c = peekchar(ts.io)
         if eof(c)
