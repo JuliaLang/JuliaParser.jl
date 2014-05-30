@@ -16,7 +16,7 @@ end
 tokens(str::String) = tokens(TokenStream(str))
 
 include("ast.jl") 
-#=
+
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -925,7 +925,7 @@ end
         @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
-=#
+
 facts("parser failures") do
     exprs = [
 """
@@ -954,7 +954,7 @@ l = (Base.@_mod64 (length(a)-1)) + 1
 """,
 """
 # invalid char literal after windows? (parsed as ctranspose_op)
-@windows? ';' : ':'
+windows? ';' : ':'
 """,
 """
 # try / catch / finally didn't parse correctly 
@@ -971,7 +971,7 @@ end
 import Base.*
 """
 ]
-for ex in [exprs[end-2]]
+    for ex in [exprs]
         @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end

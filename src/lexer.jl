@@ -33,7 +33,7 @@ const ops_by_precedent =  {
         :(⬰), :(⬲), :(⬳), :(⬴), :(⬵), :(⬶), :(⬷), :(⬸), :(⬹), :(⬺), 
         :(⬻), :(⬼), :(⬽), :(⬾), :(⬿), :(⭀), :(⭁), :(⭂), :(⭃), :(⭄), 
         :(⭇), :(⭈), :(⭉), :(⭊), :(⭋), :(⭌), :(￩), :(￫)],
-       [:(>), :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡), 
+       [:(>),  :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡), 
         :(!=), :(≠), :(!==), :(≢), :(.>), :(.<), :(.>=), :(.≥), :(.<=), 
         :(.≤), :(.==), :(.!=), :(.≠), :(.=), :(.!), :(<:), :(>:), :(∈), 
         :(∉), :(∋), :(∌), :(⊆), :(⊈), :(⊂), :(⊄), :(⊊), :(∝), :(∊), :(∍), 
@@ -259,7 +259,7 @@ is_opchar(c::Char) = in(c, operator_chars)
 
 #= Characters that can follow a . in an operator =#
 const is_dot_opchar = let
-    const chars = Set{Char}(".*^/\\+-'<>!=%")
+    const chars = Set{Char}(".*^/\\+-'<>!=%≥≤≠")
     is_dot_opchar(c::Char) = in(c, chars)
 end
 
@@ -321,15 +321,15 @@ function skip_to_eol(io::IO)
 end
 
 function read_operator(io::IO, c::Char)
-    pc::Char = peekchar(io)
-    if (c === '*') && (pc === '*')
+    nc = peekchar(io)
+    if (c === '*') && (nc === '*')
         error("use \"^\" instead of \"**\"")
     end
     # 1 char operator
-    if eof(pc) || !is_opchar(pc) || (c === ':' && pc === '-')
+    if eof(nc) || !is_opchar(nc) || (c === ':' && nc === '-')
         return symbol(c)
     end
-    str, c = [c], pc
+    str, c = [c], nc
     opsym  = symbol(utf32(str))
     while true
         if !eof(c) && is_opchar(c)

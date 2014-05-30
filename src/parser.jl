@@ -124,8 +124,6 @@ function short_form_function_loc(ex, lno)
 end
 
 const sym_do      = symbol("do")
-const sym_quote   = symbol("quote")
-const sym_begin   = symbol("begin")
 const sym_else    = symbol("else")
 const sym_elseif  = symbol("elseif")
 const sym_end     = symbol("end")
@@ -566,7 +564,7 @@ end
 function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
     while true 
         t = peek_token(ts)
-        if (ts.space_sensitive && ts.isspace && (t in ('(', '[','{', '\'', '"')) || 
+        if (ts.space_sensitive && ts.isspace && (t in ('(', '[','{', '"', sym_squote)) ||
            (isa(ex, Number) && t === '('))
             return ex
         end
@@ -1663,7 +1661,7 @@ function _parse_atom(ts::TokenStream)
         end
         return ps.args[1]
 
-    # macrocall
+    # macro call
     elseif t === '@'
         take_token(ts)
         with_space_sensitive(ts) do
