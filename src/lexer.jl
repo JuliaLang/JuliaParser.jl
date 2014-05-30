@@ -5,7 +5,7 @@ import Base.UTF8proc
 export Token, TokenStream, next_token, set_token!, last_token, 
        put_back!, peek_token, take_token, require_token
 
-include("utf8.jl") 
+include("utf8proc.jl") 
 
 const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false") 
