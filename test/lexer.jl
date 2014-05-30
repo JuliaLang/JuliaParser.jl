@@ -304,7 +304,7 @@ facts("test sized uint literal") do
     context("octal") do
         s  = "0o0"
         sn = int(s)
-        n  = Lexer.sized_uint_oct_literal(sn, s)
+        n  = Lexer.sized_uint_oct_literal(s)
         @fact sn => n
         @fact typeof(n) => Uint8
         pn = parse(s)
@@ -315,7 +315,7 @@ facts("test sized uint literal") do
             @eval begin
                 s = string("0o", oct(typemax($ty)))
                 sn = uint128(s)
-                n  = Lexer.sized_uint_oct_literal(sn, s)
+                n  = Lexer.sized_uint_oct_literal(s)
                 @fact sn => n
                 @fact typeof(n) => $ty
                         
@@ -327,7 +327,7 @@ facts("test sized uint literal") do
         
         s  = string(repr(typemax(Uint128)), "7")
         sn = BigInt(s) 
-        n  = Lexer.sized_uint_oct_literal(sn, s)
+        n  = Lexer.sized_uint_oct_literal(s)
         @fact sn => n
         @fact typeof(n) => BigInt
         pn = eval(parse(s))
