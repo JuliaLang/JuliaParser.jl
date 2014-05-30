@@ -3,11 +3,11 @@ module Parser
 
 using ..Lexer
 
-const current_filename = ""
-
 typealias CharSymbol Union(Char, Symbol)
 
 #=
+Parser States
+
 # disable range colon for parsing ternary cond op
 const range_colon_enabled = true
 
@@ -106,8 +106,8 @@ with_space_sensitive(f::Function, ts::TokenStream) = begin
     end
 end
 
-filename(ts::TokenStream) = "test.jl"
 curline(ts::TokenStream)  = 0
+filename(ts::TokenStream) = ""
 
 line_number_node(ts) = Expr(:line, curline(ts))
 line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts)) 
@@ -116,7 +116,7 @@ line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(t
 # otherwise leave alone
 function short_form_function_loc(ex, lno)
     if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
-       block = Expr(:block, Expr(:line, lno, current_filename))
+       block = Expr(:block, Expr(:line, lno, ""))
        append!(block.args, ex.args[2:end])
        return Expr(:(=), ex.args[1], block) 
    end
@@ -168,7 +168,7 @@ function parse_chain(ts::TokenStream, down::Function, op)
 end
 
 # parse left to right chains of certain binary operator
-# ex. a + b + c => (call + a b c)
+# ex. a + b + c => Expr(:call, :+, a, b, c)
 function parse_with_chains(ts::TokenStream, down::Function, ops, chain_op) 
     ex = down(ts)
     while true 
@@ -350,8 +350,8 @@ const TERM_OPS = Lexer.precedent_ops(11)
 parse_term(ts::TokenStream)     = parse_with_chains(ts, parse_rational, TERM_OPS, :(*))
 
 parse_rational(ts::TokenStream) = parse_LtoR(ts, parse_unary, Lexer.precedent_ops(12))
-parse_pipes(ts::TokenStream)    = parse_LtoR(ts, parse_range, Lexer.precedent_ops(7))
 
+parse_pipes(ts::TokenStream)    = parse_LtoR(ts, parse_range, Lexer.precedent_ops(7))
 parse_in(ts::TokenStream)       = parse_LtoR(ts, parse_pipes, (:(in),))
 
 function parse_comparison(ts::TokenStream, ops)
@@ -478,6 +478,15 @@ function parse_factorh(ts::TokenStream, down::Function, ops)
     return Expr(:call, nt, ex, pf)
 end
 
+negate(ex::Expr) = ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : Expr(:-, ex) 
+negate(n::Int128) = n == -170141183460469231731687303715884105728 ? # promote to BigInt
+                          170141183460469231731687303715884105728 : -n
+negate(n::Int64)  = n == -9223372036854775808 ? # promote to Int128
+                          9223372036854775808 : -n 
+negate(n::BigInt)  = -n
+negate(n::Float32) = -n
+negate(n::Float64) = -n
+
 # -2^3 is parsed as -(2^3) so call parse-decl for the first arg,
 # and parse unary from then on (handles 2^-3)
 parse_factor(ts::TokenStream) = parse_factorh(ts, parse_decl, Lexer.precedent_ops(13))
@@ -495,11 +504,11 @@ function parse_unary(ts::TokenStream)
         neg = op === :(-)
         leadingdot = nc === '.'
         leadingdot && Lexer.readchar(ts.io)
-        n   = Lexer.read_number(ts.io, leadingdot, neg) 
+        n   = Lexer.read_number(ts.io, leadingdot, neg)
         num = parse_juxtaposed(ts, n)
         if peek_token(ts) in (:(^), :(.^))
             # -2^x parsed as (- (^ 2 x))
-            put_back!(ts, neg ? -num : num)
+            put_back!(ts, neg ? negate(num) : num)
             return Expr(:call, op, parse_factor(ts))
         end 
         return num
@@ -1410,7 +1419,7 @@ function tostr(buf::IOBuffer, custom::Bool)
     custom && return str
     str = unescape_string(str)
     !is_valid_utf8(str) && error("invalid UTF-8 sequence")
-    return  str
+    return str
 end
 
 function _parse_string_literal(head::Symbol, n::Integer, ts::TokenStream, custom::Bool)
@@ -1505,13 +1514,13 @@ function _parse_atom(ts::TokenStream)
                 continue
             end
             str = unescape_string(bytestring(b))
+            #TODO: this does not make any sense and is broken 
             if length(str) == 1
                 # one byte e.g. '\xff' maybe not valid UTF-8
                 # but we want to use the raw value as a codepoint in this case
                 # wchar str[0] 
                 return str[1] 
             else
-                #TODO: this does not make any sense
                 if length(str) != 1  || !is_valid_utf8(str)
                     error("invalid character literal, got \'$str\'")
                 end
@@ -1621,22 +1630,29 @@ function _parse_atom(ts::TokenStream)
             ex = Expr(:cell2d, 1, length(vex.args))
             append!(ex.args, vex.args)
             return ex
-        else # vcat(...)
+        else # Expr(:vcat, ...)
+            nr = length(vex.args)
             if isa(vex.args[1], Expr) && vex.args[1].head === :row
-                nr = length(vex.args)
                 nc = length(vex.args[1].args)
-                # make sure all rows are the same length
-                fn = (x) -> isa(x, Expr) && x.head === :row && length(x.args) == nc
-                if !(all(fn, vex.args[2:end]))
-                    error("inconsistent shape in cell expression")
+                ex = Expr(:cell2d, nr, nc) 
+                for i = 2:nr
+                    row = vex.args[i]
+                    if !(isa(row, Expr) && row.head === :row && length(row.args) == nc)
+                        error("inconsistent shape in cell expression")
+                    end
                 end
-                ex = Expr(:cell2d, nr, nc)
-                #TODO: transpose to storage order
+                # Transpose to storage order
+                sizehint(ex.args, nr * nc + 2)
+                for c = 1:nc, r = 1:nr
+                    push!(ex.args, vex.args[r].args[c])
+                end
                 return ex
             else
-                fn = (x) -> isa(x, Expr) && x.head === :row
-                if any(fn, vex.args[2:end])
-                    error("inconsistent shape in cell expression")
+                for i = 2:nr
+                    row = vex.args[i]
+                    if isa(row, Expr) && row.head === :row
+                        error("inconsistent shape in cell expression")
+                    end
                 end
                 ex = Expr(:cell1d); ex.args = vex.args
                 return ex

@@ -2,6 +2,8 @@
 
 import JuliaParser.Parser
 
+using Base.Test
+
 if length(ARGS) != 1 
     error("need to specify filepath: ./diffast.jl [filepath]")
 elseif !ispath(ARGS[1])
@@ -12,6 +14,7 @@ include("ast.jl")
 
 const src = IOBuffer()
 
+# wrap source in toplevel block
 write(src, "begin\n")
 write(src, open(readall, ARGS[1]))
 write(src, "\nend")

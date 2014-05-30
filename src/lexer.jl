@@ -360,14 +360,14 @@ function sized_uint_literal(s::String, b::Integer)
     return BigInt(s)
 end
 
-function sized_uint_oct_literal(n::Integer, s::String)
+function sized_uint_oct_literal(s::String)
     contains(s, "o0") && return sized_uint_literal(s, 3)
-    len, n = length(s), s[3:end]
-    (len <= 5  && n <= "377") && return uint8(s)
-    (len <= 8  && n <= "177777") && return uint16(s)
-    (len <= 13 && n <= "37777777777") && return uint32(s)
-    (len <= 24 && n <= "1777777777777777777777") && uint64(s)
-    (len <= 45 && n <= "3777777777777777777777777777777777777777777") && return uint128(s)
+    len = length(s)
+    (len < 5  || (len == 5  && s <= "0o377")) && return uint8(s)
+    (len < 8  || (len == 8  && s <= "0o177777")) && return uint16(s)
+    (len < 13 || (len == 13 && s <= "0o37777777777")) && return uint32(s)
+    (len < 24 || (len == 24 && s <= "0o1777777777777777777777")) && return uint64(s)
+    (len < 45 || (len == 45 && s <= "0o3777777777777777777777777777777777777777777")) && return uint128(s)
     return BigInt(s)
 end
 
@@ -378,16 +378,23 @@ function compare_num_strings(s1::String, s2::String)
 end
    
 function is_oct_within_uint128(s::String)
-    max = "3777777777777777777777777777777777777777777"
-    return s[1] === '-' ? s[4:end] <= max : s[3:end] <= max
+    len = length(s)
+    max = "0o3777777777777777777777777777777777777777777"
+    len < 45  && return true
+    len > 45  && return false
+    len == 45 && s[1] === '-' ? s[2:end] <= max : s <= max
 end
 
 function is_within_int128(s::String)
     len = length(s)
     if s[1] === '-' 
-        return len > 40 ? false : s[2:end] <= "170141183460469231731687303715884105728"
+        len < 40  && return true
+        len > 40  && return false
+        len == 40 && return s <= "-170141183460469231731687303715884105728"
     else
-        return len > 39 ? false : s <= "170141183460469231731687303715884105727"
+        len < 39  && return true
+        len > 39  && return false
+        len == 39 && s <= "170141183460469231731687303715884105727"
     end
 end
 
@@ -399,6 +406,7 @@ end
 function string_to_number(str::String)
     len = length(str)
     len > 0 || error("empty string")
+    neg = str[1] === '-'
     # NaN and Infinity
     (str == "NaN" || str == "+NaN" || str == "-NaN") && return NaN
     (str == "Inf" || str == "+Inf" || str == "-Inf") && return Inf
@@ -471,7 +479,7 @@ function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
 end
 
 #TODO: can we get rid of this? 
-fix_uint_neg(neg::Bool, n::Real) = neg ? Expr(:call, :- , n) : n
+fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
 
 function disallow_dot!(io::IO)
     if peekchar(io) === '.'
@@ -496,11 +504,11 @@ end
 function read_number(io::IO, leading_dot::Bool, neg::Bool)
     charr = Char[] 
     pred::Function = isdigit 
-
+    
     leading_zero = false
     is_float32_literal  = false
     is_hexfloat_literal = false
-
+    
     neg && push!(charr, '-')
     if leading_dot
         push!(charr, '.')
@@ -565,13 +573,12 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     # for an unsigned literal starting with -, 
     # remove the - and parse instead as a call to unary -
     (neg && base != 10 && !is_hexfloat_literal) && (str = str[2:end])
-    # n is false for integers > typemax(Uint64)
     if is_hexfloat_literal
         return float64(str)
     elseif pred == is_char_hex
         return fix_uint_neg(neg, sized_uint_literal(str, 4))
     elseif pred == is_char_oct
-        return fix_uint_neg(neg, sized_uint_oct_literal(0, str))
+        return fix_uint_neg(neg, sized_uint_oct_literal(str))
     elseif pred == is_char_bin
         return fix_uint_neg(neg, sized_uint_literal(str, 1))
     elseif is_float32_literal

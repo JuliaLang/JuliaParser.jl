@@ -969,9 +969,19 @@ end
 """
 # lexer return .* as an operator (symbol)
 import Base.*
+""",
+# large number corner cases
 """
+-9223372036854775808^2 == -(9223372036854775808^2)
+""",
+"""
+isa(170141183460469231731687303715884105728,BigInt)
+""",
 ]
-    for ex in [exprs]
+    for ex in [last(exprs)]
+        Meta.show_sexpr(Parser.parse(ex))
         @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
+    @fact typeof(Parser.parse("0o724")) => typeof(parse("0o724"))
+    @fact typeof(Parser.parse("0o1111111111111111111111")) => Uint64
 end
