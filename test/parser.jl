@@ -978,8 +978,7 @@ import Base.*
 isa(170141183460469231731687303715884105728,BigInt)
 """,
 ]
-    for ex in [last(exprs)]
-        Meta.show_sexpr(Parser.parse(ex))
+    for ex in exprs
         @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
     @fact typeof(Parser.parse("0o724")) => typeof(parse("0o724"))
