@@ -202,7 +202,7 @@ facts("test string_to_number") do
         n = Lexer.string_to_number(s)
         @fact n => typemax(Uint64)
         @fact typeof(n) => Uint64
-        =# 
+        =#
 
         s = "0b010101"
         n = Lexer.string_to_number(s)
@@ -330,7 +330,7 @@ facts("test sized uint literal") do
         n  = Lexer.sized_uint_oct_literal(s)
         @fact sn => n
         @fact typeof(n) => BigInt
-        pn = eval(parse(s))
+        pn = parse(s)
         @fact n => pn
         @fact typeof(n) => typeof(pn)
     end
@@ -568,7 +568,7 @@ facts("test readnumber") do
     context("bigint") do
         io = IOBuffer("15732444386908125794514089057706229429197107928209")
         n  = Lexer.read_number(io, false, false)
-        @fact n => "15732444386908125794514089057706229429197107928209"
+        @fact n => BigInt("15732444386908125794514089057706229429197107928209")
         @fact typeof(n) => BigInt
     end
 end
