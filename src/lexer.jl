@@ -416,7 +416,11 @@ function string_to_number(str::String)
     for i=1:len 
         c = str[i]
         if c === '.'
-            didx, isfloat64 = i, true
+            if isfloat64 == false
+                didx, isfloat64 = i, true
+            else
+                error("invalid float string \"$str\"")
+            end
         elseif c === 'f'
             if i > didx && i != len
                 fidx, isfloat32 = i, true
@@ -437,6 +441,7 @@ function string_to_number(str::String)
         try
             return int64(str)
         catch ex
+            # its better to ask for forgiveness...
             !isa(ex, OverflowError) && rethrow(ex)
             if is_within_int128(str)
                 return int128(str)
@@ -795,13 +800,11 @@ function require_token(ts::TokenStream)
         t = next_token(ts)
     end
     eof(t) && error("incomplete: premature end of input")
-    if isnewline(t)
+    while isnewline(t)
         take_token(ts)
-        return require_token(ts)
-    end 
-    if ts.putback === nothing
-        set_token!(ts, t)
+        t = next_token(ts)
     end
+    ts.putback === nothing && set_token!(ts, t)
     return t
 end
 
