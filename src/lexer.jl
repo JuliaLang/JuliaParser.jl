@@ -293,14 +293,12 @@ function peekchar(io::IOBuffer)
 end
 
 # this implementation is copied from Base
-const peekchar = let 
-    const chtmp = Array(Char, 1)
-    peekchar(s::IOStream) = begin
-        if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, chtmp) < 0
-            return EOF
-        end
-        return chtmp[1]
+const _chtmp = Array(Char, 1)
+peekchar(s::IOStream) = begin
+    if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, _chtmp) < 0
+        return EOF
     end
+    return _chtmp[1]
 end
 
 eof(io::IO)  = Base.eof(io)
@@ -308,7 +306,7 @@ eof(c::Char) = is(c, EOF)
 eof(c)       = false
 
 readchar(io::IO) = eof(io) ? EOF : read(io, Char)
-takechar(io::IO) = (readchar(io); io)
+takechar(io::IO) = (skip(io, 1); io)
 
 #= Lexer =#
 
@@ -714,6 +712,9 @@ function next_token(ts::TokenStream)
             continue
         elseif c === '#'
             skipcomment(ts.io)
+            if ts.whitespace_newline && peekchar(ts.io) === '\n'
+                takechar(ts.io)
+            end
             continue
         elseif isnewline(c)
             return readchar(ts.io)
