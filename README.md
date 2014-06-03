@@ -17,7 +17,7 @@ TODO Items
 * performance improvements
 * better error messages with detailed position information
 * refactor number tokenization
-* refactor to make it easier/more useful to use as a library (right now it is pretty monolithic)
+* refactor to make it more useful to use as a library (right now it is pretty monolithic)
 
 Trying it Out
 -------------
