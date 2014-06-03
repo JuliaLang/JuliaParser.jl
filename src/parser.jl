@@ -3,6 +3,8 @@ module Parser
 
 using ..Lexer
 
+export parse
+
 typealias CharSymbol Union(Char, Symbol)
 
 type ParseState

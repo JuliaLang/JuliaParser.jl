@@ -683,13 +683,6 @@ type TokenStream
     putback::Token
     isspace::Bool
     ateof::Bool
-
-    #TODO: this should ideally not be apart of TokenStream 
-    #range_colon_enabled::Bool
-    #space_sensitive::Bool
-    #inside_vector::Bool
-    #end_symbol::Bool
-    #whitespace_newline::Bool
 end
 
 TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io)) 
