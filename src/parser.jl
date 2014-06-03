@@ -5,104 +5,104 @@ using ..Lexer
 
 typealias CharSymbol Union(Char, Symbol)
 
-#=
-Parser States
+type ParserState
+    # disable range colon for parsing ternary cond op
+    range_colon_enabled::Bool 
+    
+    # in space sensitvie mode "x -y" is 2 exprs, not subtraction
+    space_sensitive::Bool
+    
+    # treat "end" like a normal symbol, instead of a reserved word 
+    inside_vector::Bool 
+    
+    # treat newline like ordinary whitespace instead of a reserved word
+    end_symbol::Bool
+    
+    # treat newline like ordinary whitespace instead of as a potential separator 
+    whitespace_newline::Bool
+end
 
-# disable range colon for parsing ternary cond op
-const range_colon_enabled = true
+ParserState() = ParserState(true, false, false, false, false)
 
-# in space sensitvie mode "x -y" is 2 exprs, not subtraction
-const space_sensitive = false
-
-# treat "end" like a normal symbol, instead of a reserved word 
-const inside_vector = false
-
-# treat newline like ordinary whitespace instead of a reserved word
-const end_symbol = false
-
-# treat newline like ordinary whitespace instead of as a potential separator 
-const whitespace_newline = false
-=#
-
-with_normal_ops(f::Function, ts::TokenStream) = begin
-    tmp1 = ts.range_colon_enabled
-    tmp2 = ts.space_sensitive
+with_normal_ops(f::Function, ps::ParserState) = begin
+    tmp1 = ps.range_colon_enabled
+    tmp2 = ps.space_sensitive
     try
-        ts.range_colon_enabled = true
-        ts.space_sensitive     = false
+        ps.range_colon_enabled = true
+        ps.space_sensitive     = false
         f()
     finally
-        ts.range_colon_enabled = tmp1
-        ts.space_sensitive = tmp2
+        ps.range_colon_enabled = tmp1
+        ps.space_sensitive = tmp2
     end
 end
 
-without_range_colon(f::Function, ts::TokenStream) = begin
-    tmp = ts.range_colon_enabled
+without_range_colon(f::Function, ps::ParserState) = begin
+    tmp = ps.range_colon_enabled
     try
-        ts.range_colon_enabled = false
+        ps.range_colon_enabled = false
         f()
     finally
-        ts.range_colon_enabled = tmp
+        ps.range_colon_enabled = tmp
     end
 end 
 
-with_inside_vec(f::Function, ts::TokenStream) = begin
-    tmp1 = ts.space_sensitive
-    tmp2 = ts.inside_vector
-    tmp3 = ts.whitespace_newline
+with_inside_vec(f::Function, ps::ParserState) = begin
+    tmp1 = ps.space_sensitive
+    tmp2 = ps.inside_vector
+    tmp3 = ps.whitespace_newline
     try
-        ts.space_sensitive = true
-        ts.inside_vector   = true
-        ts.whitespace_newline = false
+        ps.space_sensitive = true
+        ps.inside_vector   = true
+        ps.whitespace_newline = false
         f()
     finally
-        ts.space_sensitive = tmp1
-        ts.inside_vector = tmp2
-        ts.whitespace_newline = tmp3
+        ps.space_sensitive = tmp1
+        ps.inside_vector = tmp2
+        ps.whitespace_newline = tmp3
     end
 end
 
-with_end_symbol(f::Function, ts::TokenStream) = begin
-    tmp = ts.end_symbol
+with_end_symbol(f::Function, ps::ParserState) = begin
+    tmp = ps.end_symbol
     try
-        ts.end_symbol = true
+        ps.end_symbol = true
         f()
     finally
-        ts.end_symbol = tmp
+        ps.end_symbol = tmp
     end
 end
 
-with_whitespace_newline(f::Function, ts::TokenStream) = begin
-    tmp = ts.whitespace_newline
+with_whitespace_newline(f::Function, ps::ParserState) = begin
+    tmp = ps.whitespace_newline
     try
-        ts.whitespace_newline = true
+        ps.whitespace_newline = true
         f()
     finally
-        ts.whitespace_newline = tmp
+        ps.whitespace_newline = tmp
     end
 end
 
-without_whitespace_newline(f::Function, ts::TokenStream) = begin
-    tmp = ts.whitespace_newline
+without_whitespace_newline(f::Function, ps::ParserState) = begin
+    tmp = ps.whitespace_newline
     try
-        ts.whitespace_newline = false
+        ps.whitespace_newline = false
         f()
     finally
-        ts.whitespace_newline = tmp
+        ps.whitespace_newline = tmp
     end
 end
 
-with_space_sensitive(f::Function, ts::TokenStream) = begin
-    tmp1 = ts.space_sensitive
-    tmp2 = ts.whitespace_newline
+with_space_sensitive(f::Function, ps::ParserState) = begin
+    tmp1 = ps.space_sensitive
+    tmp2 = ps.whitespace_newline
     try
-        ts.space_sensitive = true
-        ts.whitespace_newline = false
+        ps.space_sensitive = true
+        ps.whitespace_newline = false
         f()
     finally
-        ts.space_sensitive = tmp1
-        ts.space_sensitive = tmp2
+        ps.space_sensitive = tmp1
+        ps.whitespace_newline = tmp2
     end
 end
 
@@ -143,21 +143,21 @@ end
 
 const is_closing_token = let
     closing = Set({',', ')', ']', '}', ';', sym_else, sym_elseif, sym_catch, sym_finally})
-    is_closing_token(ts::TokenStream, t::Token) = (Lexer.eof(t) ||
+    is_closing_token(ps::ParserState, t::Token) = (Lexer.eof(t) ||
                                                    (isa(t, CharSymbol) && t in closing) ||
-                                                   (t === sym_end && !ts.end_symbol))
+                                                   (t === sym_end && !ps.end_symbol))
 end
 
 is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
 is_dict_literal(ex) = false
 
-function parse_chain(ts::TokenStream, down::Function, op) 
+function parse_chain(ps::ParserState, ts::TokenStream, down::Function, op) 
     chain = {down(ts)}
     while true 
         t = peek_token(ts)
         t !== op && return chain
         take_token(ts)
-        if (ts.space_sensitive && ts.isspace && 
+        if (ps.space_sensitive && ts.isspace && 
             (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts.io) != ' ')
             # here we have "x -y"
@@ -170,27 +170,27 @@ end
 
 # parse left to right chains of certain binary operator
 # ex. a + b + c => Expr(:call, :+, a, b, c)
-function parse_with_chains(ts::TokenStream, down::Function, ops, chain_op) 
-    ex = down(ts)
+function parse_with_chains(ps::ParserState, ts::TokenStream, down::Function, ops, chain_op) 
+    ex = down(ps, ts)
     while true 
         t = peek_token(ts)
         !(t in ops) && return ex
         take_token(ts)
-        if (ts.space_sensitive && ts.isspace &&
+        if (ps.space_sensitive && ts.isspace &&
             (t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts.io) != ' ')
             # here we have "x -y"
             put_back!(ts, t)
             return ex
         elseif t === chain_op
-            ex = Expr(:call, t, ex, parse_chain(ts, down, t)...)
+            ex = Expr(:call, t, ex, parse_chain(ps, ts, down, t)...)
         else
-            ex = Expr(:call, t, ex, down(ts))
+            ex = Expr(:call, t, ex, down(ps, ts))
         end
     end
 end
 
-function parse_LtoR(ts::TokenStream, down::Function, ops, ex=down(ts))
+function parse_LtoR(ps::ParserState, ts::TokenStream, down::Function, ops, ex=down(ts))
     while true 
         t  = peek_token(ts)
         if !(t in ops)
@@ -198,57 +198,57 @@ function parse_LtoR(ts::TokenStream, down::Function, ops, ex=down(ts))
         end
         take_token(ts)
         if Lexer.is_syntactic_op(t) || t === :(in) || t === :(::)
-            ex = Expr(t, ex, down(ts))
+            ex = Expr(t, ex, down(ps, ts))
         else
-            ex = Expr(:call, t, ex, down(ts))
+            ex = Expr(:call, t, ex, down(ps, ts))
         end
         t = peek_token(ts)
     end
 end
 
-function parse_RtoL(ts::TokenStream, down::Function, ops, ex=down(ts))
+function parse_RtoL(ps::ParserState, ts::TokenStream, down::Function, ops, ex=down(ts))
     while true 
         t  = peek_token(ts)
         !(t in ops) && return ex
         take_token(ts)
-        if (ts.space_sensitive && ts.isspace &&
+        if (ps.space_sensitive && ts.isspace &&
             (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts.io) != ' ')
             put_back!(ts, t)
             return ex
         elseif Lexer.is_syntactic_op(t)
-            return Expr(t, ex, parse_RtoL(ts, down, ops))
+            return Expr(t, ex, parse_RtoL(ps, ts, down, ops))
         elseif t === :(~)
-            args = parse_chain(ts, down, :(~))
+            args = parse_chain(ps, ts, down, :(~))
             nt   = peek_token(ts)
             if isa(nt, CharSymbol) && nt in ops
                 ex = Expr(:macrocall, symbol("@~"), ex)
                 append!(ex.args, args[1:end-1])
-                push!(ex.args, parse_RtoL(ts, down, ops, args[end]))
+                push!(ex.args, parse_RtoL(ps, ts, down, ops, args[end]))
                 return ex 
             else
                 return Expr(:macrocall, symbol("@~"), ex, args...)
             end
         else
-            return Expr(:call, t, ex, parse_RtoL(ts, down, ops))
+            return Expr(:call, t, ex, parse_RtoL(ps, ts, down, ops))
         end
     end
 end
 
-function parse_cond(ts::TokenStream)
-    ex = parse_or(ts)
+function parse_cond(ps::ParserState, ts::TokenStream)
+    ex = parse_or(ps, ts)
     if peek_token(ts) === :(?)
         take_token(ts)
-        then = without_range_colon(ts) do
-            parse_eqs(ts)
+        then = without_range_colon(ps) do
+            parse_eqs(ps, ts)
         end
         take_token(ts) === :(:) || error("colon expected in \"?\" expression")
-        return Expr(:if, ex, then, parse_cond(ts))
+        return Expr(:if, ex, then, parse_cond(ps, ts))
     end
     return ex
 end
 
-function parse_Nary(ts::TokenStream, down::Function, ops, 
+function parse_Nary(ps::ParserState, ts::TokenStream, down::Function, ops, 
                     head::Symbol, closers, allow_empty::Bool)
     t = require_token(ts)
     is_invalid_initial_token(t) && error("unexpected \"$t\"")
@@ -263,9 +263,9 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
     elseif '\n' in ops
         # line-number must happend before (down s)
         loc  = line_number_node(ts)
-        args = {loc, down(ts)}
+        args = {loc, down(ps, ts)}
     else
-        args = {down(ts)}
+        args = {down(ps, ts)}
     end
     isfirst = true
     t = peek_token(ts)
@@ -295,29 +295,29 @@ function parse_Nary(ts::TokenStream, down::Function, ops,
            continue
         elseif '\n' in ops
             push!(args, line_number_node(ts))
-            push!(args, down(ts))
+            push!(args, down(ps, ts))
             t = peek_token(ts)
         else
-            push!(args, down(ts))
+            push!(args, down(ps, ts))
             t = peek_token(ts)
         end
     end
 end 
 
 # the principal non-terminals follow, in increasing precedence order
-function parse_block(ts::TokenStream)
-    parse_Nary(ts, parse_eq, ('\n', ';'), :block,
+function parse_block(ps::ParserState, ts::TokenStream)
+    parse_Nary(ps, ts, parse_eq, ('\n', ';'), :block,
                (sym_end, sym_else, sym_elseif, sym_catch, sym_finally), true)
 end
 
 # for sequenced eval inside expressions, e.g. (a;b, c;d)
-function parse_stmts_within_expr(ts::TokenStream)
-    parse_Nary(ts, parse_eqs, (';',), :block, (',', ')'), true)
+function parse_stmts_within_expr(ps::ParserState, ts::TokenStream)
+    parse_Nary(ps, ts, parse_eqs, (';',), :block, (',', ')'), true)
 end
 
 #; at the top level produces a sequence of top level expressions
-function parse_stmts(ts::TokenStream)
-    ex = parse_Nary(ts, parse_eq, (';',), :toplevel, ('\n',), true)
+function parse_stmts(ps::ParserState, ts::TokenStream)
+    ex = parse_Nary(ps, ts, parse_eq, (';',), :toplevel, ('\n',), true)
     # check for unparsed junk after an expression
     t = peek_token(ts)
     if !(Lexer.eof(t) || t === '\n')
@@ -326,37 +326,37 @@ function parse_stmts(ts::TokenStream)
     return ex
 end
 
-function parse_eq(ts::TokenStream) 
+function parse_eq(ps::ParserState, ts::TokenStream) 
     lno = curline(ts)
-    ex  = parse_RtoL(ts, parse_comma, Lexer.precedent_ops(1))
+    ex  = parse_RtoL(ps, ts, parse_comma, Lexer.precedent_ops(1))
     return short_form_function_loc(ex, lno)
 end
 
 # parse-eqs is used where commas are special for example in an argument list 
-parse_eqs(ts::TokenStream)   = parse_RtoL(ts, parse_cond, Lexer.precedent_ops(1))
+parse_eqs(ps::ParserState, ts::TokenStream)   = parse_RtoL(ps, ts, parse_cond, Lexer.precedent_ops(1))
 
 # parse-comma is neeed for commas outside parens, for example a = b, c
-parse_comma(ts::TokenStream) = parse_Nary(ts, parse_cond, (',',), :tuple, (), false)
+parse_comma(ps::ParserState, ts::TokenStream) = parse_Nary(ps, ts, parse_cond, (',',), :tuple, (), false)
 
-parse_or(ts::TokenStream)    = parse_LtoR(ts, parse_and, Lexer.precedent_ops(3))
-parse_and(ts::TokenStream)   = parse_LtoR(ts, parse_arrow, Lexer.precedent_ops(4))
-parse_arrow(ts::TokenStream) = parse_RtoL(ts, parse_ineq, Lexer.precedent_ops(5))
-parse_ineq(ts::TokenStream)  = parse_comparison(ts, Lexer.precedent_ops(6))
+parse_or(ps::ParserState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_and, Lexer.precedent_ops(3))
+parse_and(ps::ParserState, ts::TokenStream)   = parse_LtoR(ps, ts, parse_arrow, Lexer.precedent_ops(4))
+parse_arrow(ps::ParserState, ts::TokenStream) = parse_RtoL(ps, ts, parse_ineq, Lexer.precedent_ops(5))
+parse_ineq(ps::ParserState, ts::TokenStream)  = parse_comparison(ps, ts, Lexer.precedent_ops(6))
 
 const EXPR_OPS = Lexer.precedent_ops(9)
-parse_expr(ts::TokenStream)  = parse_with_chains(ts, parse_shift, EXPR_OPS, :(+))
-parse_shift(ts::TokenStream) = parse_LtoR(ts, parse_term, Lexer.precedent_ops(10))
+parse_expr(ps::ParserState, ts::TokenStream)  = parse_with_chains(ps, ts, parse_shift, EXPR_OPS, :(+))
+parse_shift(ps::ParserState, ts::TokenStream) = parse_LtoR(ps, ts, parse_term, Lexer.precedent_ops(10))
 
 const TERM_OPS = Lexer.precedent_ops(11)
-parse_term(ts::TokenStream)     = parse_with_chains(ts, parse_rational, TERM_OPS, :(*))
+parse_term(ps::ParserState, ts::TokenStream)     = parse_with_chains(ps, ts, parse_rational, TERM_OPS, :(*))
 
-parse_rational(ts::TokenStream) = parse_LtoR(ts, parse_unary, Lexer.precedent_ops(12))
+parse_rational(ps::ParserState, ts::TokenStream) = parse_LtoR(ps, ts, parse_unary, Lexer.precedent_ops(12))
 
-parse_pipes(ts::TokenStream)    = parse_LtoR(ts, parse_range, Lexer.precedent_ops(7))
-parse_in(ts::TokenStream)       = parse_LtoR(ts, parse_pipes, (:(in),))
+parse_pipes(ps::ParserState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_range, Lexer.precedent_ops(7))
+parse_in(ps::ParserState, ts::TokenStream)       = parse_LtoR(ps, ts, parse_pipes, (:(in),))
 
-function parse_comparison(ts::TokenStream, ops)
-    ex = parse_in(ts)
+function parse_comparison(ps::ParserState, ts::TokenStream, ops)
+    ex = parse_in(ps, ts)
     isfirst = true
     while true 
         t = peek_token(ts)
@@ -364,10 +364,10 @@ function parse_comparison(ts::TokenStream, ops)
         take_token(ts)
         if isfirst
             isfirst = false
-            ex = Expr(:comparison, ex, t, parse_range(ts))
+            ex = Expr(:comparison, ex, t, parse_range(ps, ts))
         else
             push!(ex.args, t)
-            push!(ex.args, parse_range(ts))
+            push!(ex.args, parse_range(ps, ts))
         end
     end
 end
@@ -381,7 +381,7 @@ const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
         return !(Lexer.is_operator(t)) &&
                !(Lexer.is_operator(ex)) &&
                !(t in Lexer.reserved_words) &&
-               !(is_closing_token(ts, t)) &&
+               !(is_closing_token(ps, t)) &&
                !(Lexer.isnewline(t)) &&
                !(isa(ex, Expr) && ex.head === :(...)) &&
                (isa(t, Number) || !(isa(t, Char) && t in invalid_chars))
@@ -416,7 +416,7 @@ function parse_range(ts::TokenStream)
                     return ex
                 end
             end
-            if is_closing_token(ts, peek_token(ts))
+            if is_closing_token(ps, peek_token(ts))
                 # handles :(>:) case
                 if isa(ex, Symbol) && Lexer.is_operator(ex)
                     op = symbol(string(ex, t))
@@ -494,7 +494,7 @@ parse_factor(ts::TokenStream) = parse_factorh(ts, parse_decl, Lexer.precedent_op
 
 function parse_unary(ts::TokenStream)
     t = require_token(ts)
-    is_closing_token(ts, t) && error("unexpected $t")
+    is_closing_token(ps, t) && error("unexpected $t")
     if !(isa(t, Symbol) && t in Lexer.unary_ops)
         pf = parse_factor(ts)
         return parse_juxtaposed(ts, pf) 
@@ -515,7 +515,7 @@ function parse_unary(ts::TokenStream)
         return num
     end
     nt = peek_token(ts)
-    if is_closing_token(ts, nt) || Lexer.isnewline(nt)
+    if is_closing_token(ps, nt) || Lexer.isnewline(nt)
         # return operator by itself, as in (+)
         return op
     elseif nt === '{'
@@ -542,7 +542,7 @@ function parse_unary_prefix(ts::TokenStream)
     op = peek_token(ts)
     if isa(op, Symbol) && Lexer.is_syntactic_unary_op(op)
         take_token(ts)
-        if is_closing_token(ts, peek_token(ts))
+        if is_closing_token(ps, peek_token(ts))
             return op
         elseif op === :(&) || op === :(::)
             return Expr(op, parse_call(ts))
@@ -886,7 +886,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
 
             elseif word === :return
                 t  = peek_token(ts)
-                return Lexer.isnewline(t) || is_closing_token(ts, t) ? Expr(:return, nothing) :
+                return Lexer.isnewline(t) || is_closing_token(ps, t) ? Expr(:return, nothing) :
                                                                        Expr(:return, parse_eq(ts))
             elseif word === :break || word === :continue
                 return Expr(word)
@@ -1102,7 +1102,7 @@ function parse_space_separated_exprs(ts::TokenStream)
         exprs = {}
         while true 
             nt = peek_token(ts)
-            if is_closing_token(ts,nt) || Lexer.isnewline(nt) || 
+            if is_closing_token(ps, nt) || Lexer.isnewline(nt) || 
                (ts.inside_vector && nt === :for)
                 return exprs
             end
@@ -1536,7 +1536,7 @@ function _parse_atom(ts::TokenStream)
     # symbol / expression quote
     elseif t === :(:)
         take_token(ts)
-        if is_closing_token(ts, peek_token(ts))
+        if is_closing_token(ps, peek_token(ts))
             return :(:)
         end
         return Expr(:quote, _parse_atom(ts)) 
@@ -1760,7 +1760,8 @@ function parse(ts::TokenStream)
         break
     end
     put_back!(ts, t)
-    return parse_stmts(ts)
+    ps = ParserState()
+    return parse_stmts(ps, ts)
 end
 
 parse(io::IO) = parse(TokenStream(io))
