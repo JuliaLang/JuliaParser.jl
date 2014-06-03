@@ -5,19 +5,9 @@ const Parser = JuliaParser.Parser
 const Lexer  = JuliaParser.Lexer
 
 include("ast.jl")
+include("util.jl")
 
 const PKGDIR = Pkg.dir()
-
-const RED     = "\x1b[31m"
-const GREEN   = "\x1b[32m"
-const BOLD    = "\x1b[1m"
-const DEFAULT = "\x1b[0m"
-
-colored(s::String, color) = string(color, s, DEFAULT)
-
-red(s::String)   = colored(s, RED)
-green(s::String) = colored(s, GREEN)
-bold(s::String)  = colored(s, BOLD) 
 
 passed = {}
 failed = {}
@@ -94,7 +84,6 @@ function testall(srcdir::String)
                 if isa(ex, ErrorException) && ex.msg == "deprecated syntax arr[i:]"
                     continue
                 end
-                #rethrow(ex)
                 println(bold(red("ERROR:  $fname")))
                 push!(errors, jlpath)
             end
@@ -141,4 +130,4 @@ else
     println(bold("Parser is ~$pctstr% faster than base"))
 end
 
-#exit(nfailed + nerrors)
+exit(nfailed + nerrors)

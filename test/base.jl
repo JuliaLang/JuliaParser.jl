@@ -5,19 +5,9 @@ const Parser = JuliaParser.Parser
 const Lexer  = JuliaParser.Lexer
 
 include("ast.jl")
+include("util.jl")
 
-const BASEPATH = "/home/jake/Julia/julia"
-
-const RED     = "\x1b[31m"
-const GREEN   = "\x1b[32m"
-const BOLD    = "\x1b[1m"
-const DEFAULT = "\x1b[0m"
-
-colored(s::String, color) = string(color, s, DEFAULT)
-
-red(s::String)   = colored(s, RED)
-green(s::String) = colored(s, GREEN)
-bold(s::String)  = colored(s, BOLD) 
+const BASEPATH = ARGS[1]
 
 passed = 0
 failed = 0
