@@ -2,6 +2,8 @@ using JuliaParser
 using FactCheck
 
 const Lexer = JuliaParser.Lexer
+const TokenStream = JuliaParser.Lexer.TokenStream
+
 #=
 facts("test unicode operators") do
     for c in Lexer.operator_chars
@@ -680,10 +682,81 @@ facts("test skip ws and comment") do
     @fact Lexer.readchar(io) => 't'
 end
 
-function tokens(io)
-    ts = Lexer.TokenStream(io)
-    @task while !Lexer.eof(ts)
-        produce(Lexer.next_token(ts))
+tokens(ts::TokenStream) = begin
+    toks = {}
+    while !eof(ts.io)
+        push!(toks, Lexer.next_token(ts))
+    end
+    return toks
+end
+tokens(str::String) = tokens(TokenStream(str))
+
+
+facts("test TokenStream constructor") do
+    io = IOBuffer("testfunc(i) = i * i") 
+    try
+        ts = TokenStream(io)
+        @fact true => true
+    catch
+        @fact false => false
+    end
+end
+
+facts("test set_token! / last_token") do
+    code = "1 + 1"
+    tks = tokens(code) 
+    @fact tks => {1, :+, 1} 
+    
+    ts = TokenStream(code)
+    @fact Lexer.last_token(ts) => nothing
+    
+    Lexer.set_token!(ts, tks[1])
+    @fact Lexer.last_token(ts) => tks[1]
+
+    Lexer.set_token!(ts, tks[2])
+    @fact Lexer.last_token(ts) => tks[2]
+end
+
+facts("test put_back!") do
+    code = "1 + 1"
+    tks  = tokens(code)
+    ts   = TokenStream(code)
+    Lexer.put_back!(ts, tks[1])
+    @fact ts.putback => tks[1]
+    @fact_throws ts.put_back(tks[2])
+end
+
+facts("test peek_token") do
+    code = "1 + 1"
+    tks  = tokens(code)
+    ts   = TokenStream(code)
+    @fact Lexer.peek_token(ts) => tks[1]
+    Lexer.put_back!(ts, :test)
+    @fact Lexer.peek_token(ts) => :test
+    @fact_throws Lexer.put_back!(ts, :test2)
+    Lexer.set_token!(ts, :test2)
+    @fact Lexer.peek_token(ts) => :test
+end 
+
+# you must peek before you can take
+facts("test take_token") do
+    code = "1 + 1"
+    ts   = TokenStream(code)
+    @fact Lexer.take_token(ts) => nothing
+    for t in tokens(code)
+        tk = Lexer.peek_token(ts)
+        @fact tk => t
+        Lexer.take_token(ts) 
+    end
+end
+
+facts("test require_token") do
+    code = "1 +\n1"
+    ts   = TokenStream(code)
+    for t in (1, :+, 1)
+        tk = Lexer.require_token(ts)
+        @fact tk => t
+        Lexer.take_token(ts)
     end
 end
 
@@ -696,56 +769,56 @@ facts("test next_token") do
     tok = Lexer.next_token(ts)
     @fact tok => '\n'
 
-    toks = collect(tokens("true false"))
+    toks = tokens("true false")
     @fact toks => {true, false}
 
-    toks = collect(tokens("(test,)"))
+    toks = tokens("(test,)")
     @fact toks => {'(', :test, ',', ')'}
 
-    toks = collect(tokens("[10.0,2.0]"))
+    toks = tokens("[10.0,2.0]")
     @fact toks => {'[', 10.0, ',', 2.0, ']'}
 
-    toks = collect(tokens("#test\n{10,};"))
+    toks = tokens("#test\n{10,};")
     @fact toks => {'\n', '{', 10, ',', '}', ';'}
 
-    toks = collect(tokens("#=test1\ntest2\n=#@test\n"))
+    toks = tokens("#=test1\ntest2\n=#@test\n")
     @fact toks => {'@', :test, '\n'}
 
-    toks = collect(tokens("1<=2"))
+    toks = tokens("1<=2")
     @fact toks => {1, :(<=), 2}
 
-    toks = collect(tokens("1.0 .+ 2"))
+    toks = tokens("1.0 .+ 2")
     @fact toks => {1.0, :(.+), 2}
 
-    toks = collect(tokens("abc .+ .1"))
+    toks = tokens("abc .+ .1")
     @fact toks => {:abc, :(.+), 0.1}
 
-    toks = collect(tokens("`ls`"))
+    toks = tokens("`ls`")
     @fact toks => {'`', :ls, '`'}
 
-    toks = collect(tokens("@testmacro"))
+    toks = tokens("@testmacro")
     @fact toks => {'@', :testmacro}
 
-    toks = collect(tokens("x::Int32 + 1"))
+    toks = tokens("x::Int32 + 1")
     @fact toks => {:x, :(::), :Int32, :(+), 1}
 
-    toks = collect(tokens("func(2) |> send!"))
+    toks = tokens("func(2) |> send!")
     @fact toks => {:func, '(', 2, ')', :(|>), :(send!)}
 
     sym_end = symbol("end")
     
-    toks = collect(tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend"))
+    toks = tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend")
     @fact toks => {:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
                    :a, :(::), :T, '\n', 
                    :b, :(::), :T, '\n', 
                    sym_end} 
 
-    toks = collect(tokens("function(x::Int)\n\treturn x^2\nend"))
+    toks = tokens("function(x::Int)\n\treturn x^2\nend")
     @fact toks => {:function, '(', :x, :(::), :Int, ')', '\n',
                    :return , :x, :(^), 2, '\n',
                    sym_end}
 
-    toks = collect(tokens("+(x::Bool, y::Bool) = int(x) + int(y)"))
+    toks = tokens("+(x::Bool, y::Bool) = int(x) + int(y)")
     @fact toks => {:+, '(', :x, :(::), :Bool, ',', :y, :(::), :Bool, ')',
                    :(=), :int, '(', :x, ')', :+, :int, '(', :y, ')'}
 end
