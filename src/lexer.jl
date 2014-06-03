@@ -685,23 +685,22 @@ type TokenStream
     ateof::Bool
 
     #TODO: this should ideally not be apart of TokenStream 
-    range_colon_enabled::Bool
-    space_sensitive::Bool
-    inside_vector::Bool
-    end_symbol::Bool
-    whitespace_newline::Bool
+    #range_colon_enabled::Bool
+    #space_sensitive::Bool
+    #inside_vector::Bool
+    #end_symbol::Bool
+    #whitespace_newline::Bool
 end
 
-TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io),
-                                  true, false, false, false, false) 
+TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io)) 
 
 TokenStream(str::String) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
 
-function next_token(ts::TokenStream)
+function next_token(ts::TokenStream, whitespace_newline::Bool)
     ts.ateof && return EOF
-    ts.isspace = skipws(ts.io, ts.whitespace_newline)
+    ts.isspace = skipws(ts.io, whitespace_newline)
     while !eof(ts.io)
         c = peekchar(ts.io)
         if eof(c)
@@ -712,7 +711,7 @@ function next_token(ts::TokenStream)
             continue
         elseif c === '#'
             skipcomment(ts.io)
-            if ts.whitespace_newline && peekchar(ts.io) === '\n'
+            if whitespace_newline && peekchar(ts.io) === '\n'
                 takechar(ts.io)
             end
             continue
@@ -751,6 +750,7 @@ function next_token(ts::TokenStream)
     ts.ateof = true
     return EOF
 end
+next_token(ts::TokenStream) = next_token(ts, false)
 
 last_token(ts::TokenStream) = ts.lasttoken
 
@@ -764,7 +764,7 @@ function put_back!(ts::TokenStream, t::Token)
     return ts
 end
 
-function peek_token(ts::TokenStream)
+function peek_token(ts::TokenStream, whitespace_newline::Bool)
     ts.ateof && return EOF
     local t::Token
     if ts.putback !== nothing
@@ -774,9 +774,10 @@ function peek_token(ts::TokenStream)
     if lt !== nothing
         return lt
     end
-    set_token!(ts, next_token(ts))
+    set_token!(ts, next_token(ts, whitespace_newline))
     return last_token(ts)
 end
+peek_token(ts::TokenStream) = peek_token(ts, false)
         
 function take_token(ts::TokenStream)
     ts.ateof && return EOF
@@ -791,22 +792,23 @@ function take_token(ts::TokenStream)
     return t
 end
 
-function require_token(ts::TokenStream)
+function require_token(ts::TokenStream, whitespace_newline::Bool)
     local t::Token
     if ts.putback !== nothing
         t = ts.putback
     elseif ts.lasttoken !== nothing
         t = ts.lasttoken
     else
-        t = next_token(ts)
+        t = next_token(ts, whitespace_newline)
     end
     eof(t) && error("incomplete: premature end of input")
     while isnewline(t)
         take_token(ts)
-        t = next_token(ts)
+        t = next_token(ts, whitespace_newline)
     end
     ts.putback === nothing && set_token!(ts, t)
     return t
 end
+require_token(ts::TokenStream) = require_token(ts, false)
 
 end
