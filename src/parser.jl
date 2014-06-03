@@ -106,6 +106,7 @@ with_space_sensitive(f::Function, ts::TokenStream) = begin
     end
 end
 
+#TODO: line number nodes
 curline(ts::TokenStream)  = 0
 filename(ts::TokenStream) = ""
 
@@ -626,7 +627,7 @@ function parse_call_chain(ts::TokenStream, ex, one_call::Bool)
             elseif nt === :($)
                 dollar_ex = parse_unary(ts)
                 call_ex   = Expr(:call, TopNode(:Expr), Expr(:quote, :quote), dollar_ex.args[1])
-                ex = Expr(:macrocall, ex, Expr(:($), call_ex))
+                ex = Expr(:(.), ex, Expr(:($), call_ex))
             else
                 name = parse_atom(ts)
                 if isa(name, Expr) && name.head === :macrocall
@@ -805,7 +806,7 @@ function parse_resword(ts::TokenStream, word::Symbol)
                     end
                 end
                 peek_token(ts) !== sym_end && Lexer.skipws_and_comments(ts.io)
-                loc = line_number_filename_node(ts)
+                loc  = line_number_filename_node(ts)
                 body = parse_block(ts)
                 expect_end(ts, word)
                 add_filename_to_block!(body, loc)
@@ -961,12 +962,16 @@ function add_filename_to_block!(body::Expr, loc)
 end
 
 function parse_do(ts::TokenStream)
-    doargs = Lexer.isnewline(peek_token(ts)) ? {} : parse_comma_sep(ts, parse_range)
-    loc = line_number_filename_node(ts)
-    blk = parse_block(ts)
-    add_filename_to_block!(blk, loc)
-    expect_end(ts, :do)
-    return Expr(:(->), Expr(:tuple, doargs...), blk)
+    #TODO: line endings
+    expect_end_current_line = curline(ts)
+    without_whitespace_newline(ts) do
+        doargs = Lexer.isnewline(peek_token(ts)) ? {} : parse_comma_sep(ts, parse_range)
+        loc = line_number_filename_node(ts)
+        blk = parse_block(ts)
+        add_filename_to_block!(blk, loc)
+        expect_end(ts, :do)
+        return Expr(:(->), Expr(:tuple, doargs...), blk)
+    end
 end
 
 macrocall_to_atsym(ex) = isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : ex
@@ -1126,7 +1131,7 @@ function _parse_arglist(ts::TokenStream, closer::Token)
         t = require_token(ts)
         if t === closer
             take_token(ts)
-            # (= x y) inside a function call is a keyword argument
+            # x=y inside a function call is a keyword argument
             return closer === ')' ? to_kws(lst) : lst
         elseif t === ';'
             take_token(ts)
@@ -1567,7 +1572,7 @@ function _parse_atom(ts::TokenStream)
                     t  = require_token(ts)
                     if t === ')'
                         take_token(ts)
-                        if isa(ex, Expr) && length(ex.args) == 1 && ex.head === :(...)
+                        if isa(ex, Expr) && ex.head === :(...)
                             # (ex...)
                             return Expr(:tuple, ex)
                         else
