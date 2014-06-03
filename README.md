@@ -8,7 +8,7 @@ A pure Julia port of Julia's parser.  It should be fully compatible with Julia's
 Differences with Julia's Flisp Parser
 -------------------------------------
 * BigInt and Int128 numbers are treated as literal values instead of expressions.
-* QuoteNode's are replaced with quote expressions.
+* QuoteNode's are replaced with Expr(:quote).
 
 TODO Items
 ----------
