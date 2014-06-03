@@ -18,4 +18,5 @@ script:
   - julia parser.jl
   - git clone --depth 1 --single-branch https://github.com/JuliaLang/julia 
   - julia --code-coverage base.jl julia
+  - cd ../
   - julia -e 'Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
