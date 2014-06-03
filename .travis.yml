@@ -13,6 +13,9 @@ before_install:
   - sudo apt-get install libpcre3-dev julia -y
 script:
   - julia -e 'Pkg.init(); Pkg.clone(pwd());'
-  - julia test/lexer.jl
-  - julia test/parser.jl
-
+  - cd test
+  - julia lexer.jl
+  - julia parser.jl
+  - git clone --depth 1 --single-branch https://github.com/JuliaLang/julia 
+  - julia --code-coverage base.jl julia
+  - julia -e 'Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
