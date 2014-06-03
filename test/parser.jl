@@ -16,7 +16,7 @@ end
 tokens(str::String) = tokens(TokenStream(str))
 
 include("ast.jl") 
-
+#=
 facts("test TokenStream constructor") do
     io = IOBuffer("testfunc(i) = i * i") 
     try
@@ -925,6 +925,7 @@ end
         @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
     end
 end
+=#
 
 facts("parser failures") do
     exprs = [
@@ -964,6 +965,14 @@ catch
     test()
 finally
     after = 1
+end
+""",
+"""
+if (isWeekend(c,w)
+    || (d == 26 && m == January)
+    # Republic Day
+    || (d == 25 && m == December))
+    return false
 end
 """,
 """

@@ -46,6 +46,6 @@ ast = let
     ast1
 end
 
-eval(Main, ast)
+#eval(Main, ast)
 
 run(`gvimdiff $tmp1 $tmp2`)

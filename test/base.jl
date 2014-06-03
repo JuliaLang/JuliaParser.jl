@@ -4,8 +4,6 @@ using FactCheck
 const Parser = JuliaParser.Parser
 const Lexer  = JuliaParser.Lexer
 
-const TokenStream = JuliaParser.Parser.TokenStream 
-
 include("ast.jl")
 
 const BASEPATH = "/home/jake/Julia/julia"
