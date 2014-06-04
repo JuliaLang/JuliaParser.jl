@@ -84,9 +84,9 @@ const ops_by_precedent =  {
        [:(::)],
        [:(.)]}
 
-precedent_ops(n::Integer) = ops_by_precedent[n]::Vector{Symbol}
+precedent_ops(n::Integer) = Set{Symbol}(ops_by_precedent[n])
 
-const assignment_ops = ops_by_precedent[1]::Vector{Symbol}
+const assignment_ops = Set{Symbol}(ops_by_precedent[1])
 
 const unary_ops = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), 
                                :(>:), :(√), :(∛), :(∜)])
