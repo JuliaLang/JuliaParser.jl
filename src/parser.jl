@@ -312,21 +312,21 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
 end 
 
 # the principal non-terminals follow, in increasing precedence order
-const BLOCK_OPS = Set('\n', ';')
-const BLOCK_CLOSERS = Set(sym_end, sym_else, sym_elseif, sym_catch, sym_finally)
+const BLOCK_OPS = Set(['\n', ';'])
+const BLOCK_CLOSERS = Set([sym_end, sym_else, sym_elseif, sym_catch, sym_finally])
 function parse_block(ps::ParseState, ts::TokenStream)
     parse_Nary(ps, ts, parse_eq, BLOCK_OPS, :block, BLOCK_CLOSERS, true)
 end
 
 # for sequenced eval inside expressions, e.g. (a;b, c;d)
-const WEXPR_OPS = Set(';')
-const WEXPR_CLOSERS = Set(',', ')')
+const WEXPR_OPS = Set([';'])
+const WEXPR_CLOSERS = Set([',', ')'])
 function parse_stmts_within_expr(ps::ParseState, ts::TokenStream)
     parse_Nary(ps, ts, parse_eqs, WEXPR_OPS, :block, WEXPR_CLOSERS, true)
 end
 
 #; at the top level produces a sequence of top level expressions
-const NL_CLOSER = Set('\n')
+const NL_CLOSER = Set(['\n'])
 function parse_stmts(ps::ParseState, ts::TokenStream)
     ex = parse_Nary(ps, ts, parse_eq, WEXPR_OPS, :toplevel, NL_CLOSER, true)
     # check for unparsed junk after an expression
@@ -347,7 +347,7 @@ end
 parse_eqs(ps::ParseState, ts::TokenStream)   = parse_RtoL(ps, ts, parse_cond, EQ_OPS)
 
 # parse-comma is neeed for commas outside parens, for example a = b, c
-const COMMA_OPS = Set(',')
+const COMMA_OPS = Set([','])
 const EMPTY_SET = Set()
 parse_comma(ps::ParseState, ts::TokenStream) = parse_Nary(ps, ts, parse_cond, COMMA_OPS, :tuple, EMPTY_SET, false)
 
