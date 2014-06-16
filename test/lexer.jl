@@ -309,6 +309,7 @@ facts("test sized uint literal") do
         n  = Lexer.sized_uint_oct_literal(s)
         @fact sn => n
         @fact typeof(n) => Uint8
+        
         pn = parse(s)
         @fact pn == n => true
         @fact typeof(n) => typeof(pn)
@@ -327,12 +328,12 @@ facts("test sized uint literal") do
             end
         end
         
-        s  = string(repr(typemax(Uint128)), "7")
+        s = "0o" * oct(typemax(Uint128)) * "7"
         sn = BigInt(s) 
         n  = Lexer.sized_uint_oct_literal(s)
         @fact sn => n
         @fact typeof(n) => BigInt
-        pn = parse(s)
+        pn = eval(parse(s))
         @fact n => pn
         @fact typeof(n) => typeof(pn)
     end
