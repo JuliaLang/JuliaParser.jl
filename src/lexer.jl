@@ -152,7 +152,7 @@ end
 
 isbom(c::Char) = c == 0xFEFF
 
-function skipws(io::IO, newlines::Bool=false)
+function skipws{T<:IO}(io::T, newlines::Bool=false)
     nc = peekchar(io)
     nc === EOF && return EOF
     skipped = false
@@ -271,7 +271,7 @@ is_operator(op) = false
 # modified version from Base to give the same
 # semantics as the IOStream implementation
 
-function peekchar(io::IOBuffer)
+function peekchar{T<:IO}(io::T)
     if !io.readable || io.ptr > io.size
         return EOF
     end
@@ -301,16 +301,16 @@ peekchar(s::IOStream) = begin
     return _chtmp[1]
 end
 
-eof(io::IO)  = Base.eof(io)
+eof{T<:IO}(io::T)  = Base.eof(io)
 eof(c::Char) = is(c, EOF)
 eof(c)       = false
 
-readchar(io::IO) = eof(io) ? EOF : read(io, Char)
-takechar(io::IO) = (skip(io, 1); io)
+readchar{T<:IO}(io::T) = eof(io) ? EOF : read(io, Char)
+takechar{T<:IO}(io::T) = (skip(io, 1); io)
 
 #= Lexer =#
 
-function skip_to_eol(io::IO)
+function skip_to_eol{T<:IO}(io::T)
     while !eof(io)
         peekchar(io) === '\n' && break
         skip(io, 1)
@@ -318,7 +318,7 @@ function skip_to_eol(io::IO)
     return io
 end
 
-function read_operator(io::IO, c::Char)
+function read_operator{T<:IO}(io::T, c::Char)
     nc = peekchar(io)
     if (c === '*') && (nc === '*')
         error("use \"^\" instead of \"**\"")
@@ -455,7 +455,7 @@ is_char_hex(c::Char) = isdigit(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c === '0' || c === '1'
 
-function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
+function accum_digits{T<:IO}(io::T, pred::Function, c::Char, leading_zero::Bool)
     if !leading_zero && c == '_'
         return (Char[], false)
     end
@@ -484,7 +484,7 @@ end
 #TODO: can we get rid of this? 
 fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
 
-function disallow_dot!(io::IO)
+function disallow_dot!{T<:IO}(io::T)
     if peekchar(io) === '.'
         skip(io, 1)
         if is_dot_opchar(peekchar(io))
@@ -495,7 +495,7 @@ function disallow_dot!(io::IO)
     end
 end
 
-function read_digits!(io::IO, pred::Function, charr::Vector{Char}, leading_zero::Bool)
+function read_digits!{T<:IO}(io::T, pred::Function, charr::Vector{Char}, leading_zero::Bool)
     digits, ok = accum_digits(io, pred, peekchar(io), leading_zero)
     ok || error("invalid numeric constant \"$digits\"")
     isempty(digits) && return false
@@ -504,7 +504,7 @@ function read_digits!(io::IO, pred::Function, charr::Vector{Char}, leading_zero:
 end
 
 #TODO: try to remove neg as it is not needed for the lexer 
-function read_number(io::IO, leading_dot::Bool, neg::Bool)
+function read_number{T<:IO}(io::T, leading_dot::Bool, neg::Bool)
     charr = Char[] 
     pred::Function = isdigit 
     
@@ -605,7 +605,7 @@ end
 # (#= test =#)  (#= test =#)  (#= #= test =# =#)
 #  ^              ^               ^        ^
 # cnt 0           cnt 1         cnt 2    cnt 1
-function skip_multiline_comment(io::IO, count::Int)
+function skip_multiline_comment{T<:IO}(io::T, count::Int)
     start, unterminated = -1, true
     while !eof(io)
         c = readchar(io)
@@ -633,7 +633,7 @@ end
        
 # if this is a mulitiline comment skip to the end
 # otherwise skip to end of line
-function skipcomment(io::IO)
+function skipcomment{T<:IO}(io::T)
     @assert readchar(io) === '#'
     if peekchar(io) === '='
         skip_multiline_comment(io, 1)
@@ -647,7 +647,7 @@ end
 # upon reaching the comment, if it is a
 # single line comment skip to the end of the line
 # otherwise skip to the end of the multiline comment block
-function skipws_and_comments(io::IO)
+function skipws_and_comments{T<:IO}(io::T)
     while !eof(io)
         skipws(io, false)
         peekchar(io) !== '#' && break
@@ -656,7 +656,7 @@ function skipws_and_comments(io::IO)
     return io
 end
 
-function accum_julia_symbol(io::IO, c::Char)
+function accum_julia_symbol{T<:IO}(io::T, c::Char)
     nc, charr = c, Char[]
     while is_identifier_char(nc)
         c, nc = readchar(io), peekchar(io)
@@ -677,8 +677,8 @@ end
 
 typealias Token Union(Symbol, Char, Number, Nothing)
 
-type TokenStream
-    io::IO
+type TokenStream{T<:IO}
+    io::T
     lasttoken::Token
     putback::Token
     isspace::Bool
