@@ -46,6 +46,9 @@ ast = let
     ast1
 end
 
-#eval(Main, ast)
+topast = Expr(:toplevel)
+append!(topast.args, ast.args)
+
+#eval(Main, topast)
 
 run(`gvimdiff $tmp1 $tmp2`)

@@ -30,5 +30,3 @@ end
 
 without_linenums(ex::QuoteNode) = Expr(:quote, without_linenums(ex.value))
 without_linenums(ex) = ex
-
-
