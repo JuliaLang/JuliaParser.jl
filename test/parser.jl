@@ -17,7 +17,6 @@ tokens(str::String) = tokens(TokenStream(str))
 
 include("ast.jl") 
 
-
 facts("test parse IOBuffer") do
     io  = IOBuffer("# test comment")
     res = Parser.parse(io)
@@ -626,8 +625,6 @@ facts("test const expression") do
         "const x = 1",
         "const global x = 1",
         "const local  x = 1",
-        "const a=1, b=2",
-        "global const a=1, b=2"
     ]
     for ex in exprs
         @fact Parser.parse(ex) => Base.parse(ex)

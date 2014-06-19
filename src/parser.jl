@@ -782,34 +782,14 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 ex = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 return Expr(:let, ex, binds...)
-            
-            elseif word === :global || word === :local || word === :const
+
+            elseif word === :global || word === :local
                 lno = curline(ts)
-                nt  = peek_token(ps, ts)
-                also::Token = nothing
-                if nt === :global || nt === :local || nt === :const
-                    also = take_token(ts)
-                end
-                args = map((ex) -> short_form_function_loc(ex, lno),
+                isconst = peek_token(ps, ts) === :const ? (take_token(ts); true) : false
+                args = map((ex) -> short_form_function_loc(ex, lno), 
                            parse_comma_sep_assigns(ps, ts))
-                if word === :const || also === :const
-                    if !all(is_assignment, args)
-                        error("expected assignment after \"const\"")
-                    end
-                end
-                ex = Expr(word); ex.args = args
-                if also === nothing
-                    return ex
-                # put const outside global or local declarations
-                elseif also === :const && word !== also
-                    return Expr(:const, ex)
-                elseif word === :const && word !== also
-                    cex = Expr(:const, Expr(also))
-                    cex.args[1].args = args
-                    return cex
-                else
-                    error("invalid \"$word\" declaration")
-                end
+                return isconst ? Expr(:const, Expr(word, args...)) :
+                                 Expr(word, args...)
 
             elseif word === :function || word === :macro
                 paren = require_token(ps, ts) === '('
@@ -915,7 +895,16 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                                                                        Expr(:return, parse_eq(ps, ts))
             elseif word === :break || word === :continue
                 return Expr(word)
-            
+
+            elseif word === :const
+                assgn = parse_eq(ps, ts)
+                if !(isa(assgn, Expr) && (assgn.head === :(=) || 
+                                          assgn.head === :global || 
+                                          assgn.head === :local))
+                    error("expected assignment after \"const\"")
+                end
+                return Expr(:const, assgn)
+
             elseif word === :module || word === :baremodule
                 isbare = word === :baremodule
                 name = parse_atom(ps, ts)
