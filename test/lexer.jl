@@ -12,6 +12,7 @@ facts("test unicode operators") do
 end
 error()
 =#
+
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
     Lexer.skip_to_eol(io)

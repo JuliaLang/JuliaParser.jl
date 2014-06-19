@@ -680,14 +680,14 @@ typealias Token Union(Symbol, Char, Number, Nothing)
 
 type TokenStream
     io::IO
+    lineno::Int
     lasttoken::Token
     putback::Token
     isspace::Bool
     ateof::Bool
 end
 
-TokenStream(io::IO) = TokenStream(io, nothing, nothing, false, eof(io)) 
-
+TokenStream(io::IO)      = TokenStream(io, 0, nothing, nothing, false, eof(io)) 
 TokenStream(str::String) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
@@ -744,6 +744,7 @@ function next_token(ts::TokenStream, whitespace_newline::Bool)
     ts.ateof = true
     return EOF
 end
+
 next_token(ts::TokenStream) = next_token(ts, false)
 
 last_token(ts::TokenStream) = ts.lasttoken
