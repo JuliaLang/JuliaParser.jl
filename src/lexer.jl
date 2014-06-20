@@ -152,17 +152,6 @@ end
 
 isbom(c::Char) = c == 0xFEFF
 
-function skipws(io::IO, newlines::Bool=false)
-    nc = peekchar(io)
-    nc === EOF && return EOF
-    skipped = false
-    while !eof(io) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
-        takechar(io)
-        nc, skipped = peekchar(io), true
-    end
-    return skipped
-end
-
 is_zero_width_space(c::Char) = c === '\u200b' || c === '\u2060' || c === '\ufeff'
 
 is_ignorable_char(c::Char) = is_zero_width_space(c) ||
@@ -309,18 +298,63 @@ eof(c)       = false
 readchar(io::IO) = eof(io) ? EOF : read(io, Char)
 takechar(io::IO) = (skip(io, 1); io)
 
-#= Lexer =#
 
+#= Token Stream =#
+
+typealias Token Union(Symbol, Char, Number, Nothing)
+
+type TokenStream
+    io::IO
+    lineno::Int
+    lasttoken::Token
+    putback::Token
+    isspace::Bool
+    ateof::Bool
+end
+
+TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io)) 
+TokenStream(str::String) = TokenStream(IOBuffer(str))
+
+eof(ts::TokenStream) = ts.ateof || eof(ts.io)
+
+skip(ts::TokenStream, n)  = Base.skip(ts.io, n)
+
+position(ts::TokenStream) = Base.position(ts.io)
+
+peekchar(ts::TokenStream) = peekchar(ts.io)
+
+readchar(ts::TokenStream) = begin
+    eof(ts) && return EOF
+    c = read(ts.io, Char)
+    c === '\n' && (ts.lineno += 1)
+    return c
+end
+
+takechar(ts::TokenStream) = (readchar(ts); ts)
+
+function skipws(ts::TokenStream, newlines::Bool=false)
+    nc = peekchar(ts)
+    nc === EOF && return EOF
+    skipped = false
+    while !eof(ts) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
+        takechar(ts)
+        nc, skipped = peekchar(ts), true
+    end
+    return skipped
+end
+
+#= Lexer =#
 function skip_to_eol(io::IO)
     while !eof(io)
         peekchar(io) === '\n' && break
-        skip(io, 1)
+        Base.skip(io, 1)
     end
     return io
 end
+skip_to_eol(ts::TokenStream) = skip_to_eol(ts.io)
 
-function read_operator(io::IO, c::Char)
-    nc = peekchar(io)
+function read_operator(ts::TokenStream, c::Char)
+    nc = peekchar(ts)
     if (c === '*') && (nc === '*')
         error("use \"^\" instead of \"**\"")
     end
@@ -335,8 +369,8 @@ function read_operator(io::IO, c::Char)
             push!(str, c)
             newop = symbol(utf32(str))
             if is_operator(newop)
-                skip(io, 1)
-                c, opsym = peekchar(io), newop
+                skip(ts, 1)
+                c, opsym = peekchar(ts), newop
                 continue
             end
         end
@@ -456,25 +490,25 @@ is_char_hex(c::Char) = isdigit(c) || ('a' <= c <= 'f')  || ('A' <= c <= 'F')
 is_char_oct(c::Char) = '0' <= c <= '7'
 is_char_bin(c::Char) = c === '0' || c === '1'
 
-function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
+function accum_digits(ts::TokenStream, pred::Function, c::Char, leading_zero::Bool)
     if !leading_zero && c == '_'
         return (Char[], false)
     end
     charr = Char[]
     while true 
         if c == '_'
-            skip(io, 1)
-            c = peekchar(io)
+            skip(ts, 1)
+            c = peekchar(ts)
             if !eof(c) && pred(c)
                 continue
             else
-                skip(io, -1)
+                skip(ts, -1)
                 break 
             end
         elseif !eof(c) && pred(c)
-            skip(io, 1)
+            skip(ts, 1)
             push!(charr, c)
-            c = peekchar(io)
+            c = peekchar(ts)
             continue
         end
         break 
@@ -485,19 +519,19 @@ end
 #TODO: can we get rid of this? 
 fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
 
-function disallow_dot!(io::IO)
-    if peekchar(io) === '.'
-        skip(io, 1)
-        if is_dot_opchar(peekchar(io))
-            skip(io, -1)
+function disallow_dot!(ts::TokenStream)
+    if peekchar(ts) === '.'
+        skip(ts, 1)
+        if is_dot_opchar(peekchar(ts))
+            skip(ts, -1)
         else
             error("invalid numeric constant \"$(utf32(charr))."\"")
         end
     end
 end
 
-function read_digits!(io::IO, pred::Function, charr::Vector{Char}, leading_zero::Bool)
-    digits, ok = accum_digits(io, pred, peekchar(io), leading_zero)
+function read_digits!(ts::TokenStream, pred::Function, charr::Vector{Char}, leading_zero::Bool)
+    digits, ok = accum_digits(ts, pred, peekchar(ts), leading_zero)
     ok || error("invalid numeric constant \"$digits\"")
     isempty(digits) && return false
     append!(charr, digits)
@@ -505,7 +539,7 @@ function read_digits!(io::IO, pred::Function, charr::Vector{Char}, leading_zero:
 end
 
 #TODO: try to remove neg as it is not needed for the lexer 
-function read_number(io::IO, leading_dot::Bool, neg::Bool)
+function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     charr = Char[] 
     pred::Function = isdigit 
     
@@ -517,53 +551,53 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     if leading_dot
         push!(charr, '.')
     else
-        if peekchar(io) == '0'
-            push!(charr, readchar(io))
+        if peekchar(ts) == '0'
+            push!(charr, readchar(ts))
             leading_zero = true
-            nc = peekchar(io)
+            nc = peekchar(ts)
             if nc === 'x'
-                skip(io, 1); push!(charr, nc)
+                skip(ts, 1); push!(charr, nc)
                 leading_zero = false
                 pred = is_char_hex
             elseif nc === 'o'
-                skip(io, 1); push!(charr, nc)
+                skip(ts, 1); push!(charr, nc)
                 leading_zero = false
                 pred = is_char_oct
             elseif nc === 'b'
-                skip(io, 1); push!(charr, nc)
+                skip(ts, 1); push!(charr, nc)
                 leading_zero = false
                 pred = is_char_bin
             end
         else
-            nc = peekchar(io)
-            nc === '.' && (skip(io, 1); push!(charr, nc))
+            nc = peekchar(ts)
+            nc === '.' && (skip(ts, 1); push!(charr, nc))
         end
     end
-    read_digits!(io, pred, charr, leading_zero)
-    if peekchar(io) == '.'
-        skip(io, 1)
-        if is_dot_opchar(peekchar(io))
-            skip(io, -1)
+    read_digits!(ts, pred, charr, leading_zero)
+    if peekchar(ts) == '.'
+        skip(ts, 1)
+        if is_dot_opchar(peekchar(ts))
+            skip(ts, -1)
         else
             push!(charr, '.')
-            read_digits!(io, pred, charr, false)
-            disallow_dot!(io)
+            read_digits!(ts, pred, charr, false)
+            disallow_dot!(ts)
         end
     end
-    c = peekchar(io)
+    c = peekchar(ts)
     if c == 'e' || c == 'E' || c == 'f' || c == 'p' || c == 'P'
-        skip(io, 1)
-        nc = peekchar(io)
+        skip(ts, 1)
+        nc = peekchar(ts)
         if !eof(nc) && (isdigit(nc) || nc === '+' || nc === '-')
-            skip(io, 1)
+            skip(ts, 1)
             is_float32_literal  = (c === 'f')
             is_hexfloat_literal = (c === 'p' || c === 'P')
             push!(charr, c)
             push!(charr, nc)
-            read_digits!(io, pred, charr, false)
-            disallow_dot!(io)
+            read_digits!(ts, pred, charr, false)
+            disallow_dot!(ts)
         else
-            skip(io, -1)
+            skip(ts, -1)
         end
     # disallow digits after binary or octal literals, e.g. 0b12
     elseif (pred == is_char_bin || pred == is_char_oct) && !eof(c) && isdigit(c)
@@ -606,64 +640,64 @@ end
 # (#= test =#)  (#= test =#)  (#= #= test =# =#)
 #  ^              ^               ^        ^
 # cnt 0           cnt 1         cnt 2    cnt 1
-function skip_multiline_comment(io::IO, count::Int)
+function skip_multiline_comment(ts::TokenStream, count::Int)
     start, unterminated = -1, true
-    while !eof(io)
-        c = readchar(io)
+    while !eof(ts)
+        c = readchar(ts)
         # if "=#" token, decrement the count.
         # If count is zero, break out of the loop
         if c === '='
-            start > 0 || (start = position(io))
-            if peekchar(io) === '#' && position(io) != start
-                skip(io, 1)
+            start > 0 || (start = position(ts))
+            if peekchar(ts) === '#' && position(ts) != start
+                skip(ts, 1)
                 count <= 1 || (count -= 1; continue) 
                 unterminated = false
                 break
             end
             continue
         # if "#=" token increase count
-        elseif c === '#' && peekchar(io) === '='
+        elseif c === '#' && peekchar(ts) === '='
             count += 1
         end
     end
     if unterminated
         error("incomplete: unterminated multi-line comment #= ... =#")
     end
-    return io
+    return ts 
 end
        
 # if this is a mulitiline comment skip to the end
 # otherwise skip to end of line
-function skipcomment(io::IO)
-    @assert readchar(io) === '#'
-    if peekchar(io) === '='
-        skip_multiline_comment(io, 1)
+function skipcomment(ts::TokenStream)
+    @assert readchar(ts) === '#'
+    if peekchar(ts) === '='
+        skip_multiline_comment(ts, 1)
     else
-        skip_to_eol(io)
+        skip_to_eol(ts)
     end
-    return io
+    return ts 
 end
 
 # skip all whitespace before a comment,
 # upon reaching the comment, if it is a
 # single line comment skip to the end of the line
 # otherwise skip to the end of the multiline comment block
-function skipws_and_comments(io::IO)
-    while !eof(io)
-        skipws(io, false)
-        peekchar(io) !== '#' && break
-        skipcomment(io)
+function skipws_and_comments(ts::TokenStream)
+    while !eof(ts)
+        skipws(ts, false)
+        peekchar(ts) !== '#' && break
+        skipcomment(ts)
     end
-    return io
+    return ts 
 end
 
-function accum_julia_symbol(io::IO, c::Char)
+function accum_julia_symbol(ts::TokenStream, c::Char)
     nc, charr = c, Char[]
     while is_identifier_char(nc)
-        c, nc = readchar(io), peekchar(io)
+        c, nc = readchar(ts), peekchar(ts)
         # make sure that != is always an operator
         if c === '!' && nc === '='
-            skip(io, -1)
+            skip(ts, -1)
             break
         end
         push!(charr, c)
@@ -674,66 +708,50 @@ function accum_julia_symbol(io::IO, c::Char)
     return sym === SYM_TRUE ? true : sym === SYM_FALSE ? false : sym
 end
 
-#= Token Stream =#
-
-typealias Token Union(Symbol, Char, Number, Nothing)
-
-type TokenStream
-    io::IO
-    lineno::Int
-    lasttoken::Token
-    putback::Token
-    isspace::Bool
-    ateof::Bool
-end
-
-TokenStream(io::IO)      = TokenStream(io, 0, nothing, nothing, false, eof(io)) 
-TokenStream(str::String) = TokenStream(IOBuffer(str))
-
-eof(ts::TokenStream) = ts.ateof || eof(ts.io)
+#= Token stream methods =#
 
 function next_token(ts::TokenStream, whitespace_newline::Bool)
     ts.ateof && return EOF
-    ts.isspace = skipws(ts.io, whitespace_newline)
+    ts.isspace = skipws(ts, whitespace_newline)
     while !eof(ts.io)
-        c = peekchar(ts.io)
+        c = peekchar(ts)
         if eof(c)
             ts.ateof = true
             return EOF
         elseif c === ' ' || c === '\t'
-            skip(ts.io, 1)
+            skip(ts, 1)
             continue
         elseif c === '#'
-            skipcomment(ts.io)
-            if whitespace_newline && peekchar(ts.io) === '\n'
-                takechar(ts.io)
+            skipcomment(ts)
+            if whitespace_newline && peekchar(ts) === '\n'
+                takechar(ts)
             end
             continue
         elseif isnewline(c)
-            return readchar(ts.io)
+            return readchar(ts)
         elseif is_special_char(c)
-            return readchar(ts.io)
+            return readchar(ts)
         elseif isdigit(c)
-            return read_number(ts.io, false, false)
+            return read_number(ts, false, false)
         elseif c === '.'
-            skip(ts.io, 1)
-            nc = peekchar(ts.io)
+            skip(ts, 1)
+            nc = peekchar(ts)
             if isdigit(nc)
-                return read_number(ts.io, true, false)
+                return read_number(ts, true, false)
             elseif is_opchar(nc)
-                op = read_operator(ts.io, c)
-                if op === :(..) && is_opchar(peekchar(ts.io))
-                    error(string("invalid operator \"", op, peekchar(ts.io), "\""))
+                op = read_operator(ts, c)
+                if op === :(..) && is_opchar(peekchar(ts))
+                    error(string("invalid operator \"", op, peekchar(ts), "\""))
                 end
                 return op
             end
             return :(.)
         elseif is_opchar(c)
-            return read_operator(ts.io, readchar(ts.io))
+            return read_operator(ts, readchar(ts))
         elseif is_identifier_start_char(c)
-            return accum_julia_symbol(ts.io, c)
+            return accum_julia_symbol(ts, c)
         else
-            @assert readchar(ts.io) === c
+            @assert readchar(ts) === c
             if is_ignorable_char(c)
                 error("invisible character \\u$(hex(c))")
             else

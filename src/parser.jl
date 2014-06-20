@@ -113,17 +113,17 @@ with_space_sensitive(f::Function, ps::ParseState) = begin
 end
 
 #TODO: line number nodes
-curline(ts::TokenStream)  = 0
-filename(ts::TokenStream) = ""
+curline(ts::TokenStream)  = ts.lineno
+filename(ts::TokenStream) = symbol("none")
 
-line_number_node(ts) = Expr(:line, curline(ts))
+line_number_node(ts) = LineNumberNode(curline(ts))
 line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts)) 
 
 # insert line/file for short form function defs,
 # otherwise leave alone
-function short_form_function_loc(ex, lno)
+function short_form_function_loc(ex, lno, filename)
     if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
-       block = Expr(:block, Expr(:line, lno, ""))
+       block = Expr(:block, Expr(:line, lno, filename))
        append!(block.args, ex.args[2:end])
        return Expr(:(=), ex.args[1], block) 
    end
@@ -165,7 +165,7 @@ function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op)
         take_token(ts)
         if (ps.space_sensitive && ts.isspace && 
             (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts.io) != ' ')
+            Lexer.peekchar(ts) != ' ')
             # here we have "x -y"
             put_back!(ts, t) 
             return chain
@@ -184,7 +184,7 @@ function parse_with_chains(ps::ParseState, ts::TokenStream, down::Function, ops,
         take_token(ts)
         if (ps.space_sensitive && ts.isspace &&
             (t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts.io) != ' ')
+            Lexer.peekchar(ts) != ' ')
             # here we have "x -y"
             put_back!(ts, t)
             return ex
@@ -219,7 +219,7 @@ function parse_RtoL(ps::ParseState, ts::TokenStream, down::Function, ops, ex=dow
         take_token(ts)
         if (ps.space_sensitive && ts.isspace &&
             (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts.io) !== ' ')
+            Lexer.peekchar(ts) !== ' ')
             put_back!(ts, t)
             return ex
         elseif Lexer.is_syntactic_op(t)
@@ -335,7 +335,7 @@ end
 function parse_eq(ps::ParseState, ts::TokenStream) 
     lno = curline(ts)
     ex  = parse_RtoL(ps, ts, parse_comma, Lexer.precedent_ops(1))
-    return short_form_function_loc(ex, lno)
+    return short_form_function_loc(ex, lno, filename(ts))
 end
 
 # parse-eqs is used where commas are special for example in an argument list 
@@ -506,12 +506,12 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         return parse_juxtaposed(ps, ts, pf) 
     end
     op = take_token(ts)
-    nc = Lexer.peekchar(ts.io)
+    nc = Lexer.peekchar(ts)
     if (op === :(-) || op === :(+)) && (isdigit(nc) || nc === '.')
         neg = op === :(-)
         leadingdot = nc === '.'
-        leadingdot && Lexer.readchar(ts.io)
-        n   = Lexer.read_number(ts.io, leadingdot, neg)
+        leadingdot && Lexer.readchar(ts)
+        n   = Lexer.read_number(ts, leadingdot, neg)
         num = parse_juxtaposed(ps, ts, n)
         if peek_token(ps, ts) in (:(^), :(.^))
             # -2^x parsed as (- (^ 2 x))
@@ -691,10 +691,10 @@ function expect_end(ps::ParseState, ts::TokenStream, word::Symbol)
     if t === sym_end
         take_token(ts)
     elseif Lexer.eof(t)
-        err_msg = "incomplete: \"$word\" at {current_filename} : {expected} requires end"
+        err_msg = "incomplete: \"$word\" at \"$(filename(ts))\" : {expected} requires end"
         error(err_msg)
     else
-        err_msg = "incomplete: \"$word\" at {current filename} : {expected} \"end\", got \"$t\""
+        err_msg = "incomplete: \"$word\" at \"$(filename(ts))\" : {expected} \"end\", got \"$t\""
         error(err_msg)
     end
 end
@@ -707,15 +707,16 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
     with_normal_ops(ps) do
         without_whitespace_newline(ps) do
             if word === :quote || word === :begin
-                Lexer.skipws_and_comments(ts.io)
+                Lexer.skipws_and_comments(ts)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 
                 local ex::Expr
-                if !isempty(blk.args) && isa(blk.args[1], Expr) && blk.args[1].head === :line
-                    ex = Expr(:block, loc)
-                    append!(ex.args, blk.args[2:end])
+                if !isempty(blk.args) && 
+                    ((isa(blk.args[1], Expr) && blk.args[1].head === :line) ||
+                     (isa(blk.args[1], LineNumberNode)))
+                    ex = Expr(:block, loc); append!(ex.args, blk.args[2:end])
                 else
                     ex = blk
                 end
@@ -786,7 +787,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
             elseif word === :global || word === :local
                 lno = curline(ts)
                 isconst = peek_token(ps, ts) === :const ? (take_token(ts); true) : false
-                args = map((ex) -> short_form_function_loc(ex, lno), 
+                args = map((ex) -> short_form_function_loc(ex, lno, filename(ts)), 
                            parse_comma_sep_assigns(ps, ts))
                 return isconst ? Expr(:const, Expr(word, args...)) :
                                  Expr(word, args...)
@@ -811,7 +812,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                         error("expected \"(\" in $word definition")
                     end
                 end
-                peek_token(ps, ts) !== sym_end && Lexer.skipws_and_comments(ts.io)
+                peek_token(ps, ts) !== sym_end && Lexer.skipws_and_comments(ts)
                 loc  = line_number_filename_node(ts)
                 body = parse_block(ps, ts)
                 expect_end(ps, ts, word)
@@ -958,9 +959,13 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
     end
 end
 
-function add_filename_to_block!(body::Expr, loc)
-    if !isempty(body.args) && isa(body.args[1], Expr) && body.args[1].head === :line
-        body.args[1] = loc
+function add_filename_to_block!(body::Expr, loc::Expr)
+    if !isempty(body.args)
+        if isa(body.args[1], Expr) && body.args[1].head === :line
+            body.args[1] = loc
+        elseif isa(body.args[1], LineNumberNode)
+            body.args[1] = loc
+        end
     end
     return body
 end
@@ -1046,9 +1051,9 @@ function parse_import(ps::ParseState, ts::TokenStream, word::Symbol)
     path = parse_import_dots(ps, ts)
     while true
         # this handles cases such as Base.* where .* is a valid operator token
-        nc = Lexer.peekchar(ts.io)
+        nc = Lexer.peekchar(ts)
         if nc === '.'
-            Lexer.takechar(ts.io)
+            Lexer.takechar(ts)
             push!(path, macrocall_to_atsym(parse_atom(ps, ts)))
             continue
         end
@@ -1389,11 +1394,11 @@ end
 #TODO; clean up eof handling
 function parse_backquote(ps::ParseState, ts::TokenStream)
     buf = IOBuffer()
-    c   = Lexer.readchar(ts.io)
+    c   = Lexer.readchar(ts)
     while true 
         c === '`' && break
         if c === '\\'
-            nc = Lexer.readchar(ts.io)
+            nc = Lexer.readchar(ts)
             if nc === '`'
                 write(buf, nc)
             else
@@ -1403,18 +1408,18 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
         else
             write(buf, not_eof_2(c))
         end
-        c = Lexer.readchar(ts.io)
+        c = Lexer.readchar(ts)
         continue
     end
     return Expr(:macrocall, symbol("@cmd"), bytestring(buf))
 end
 
 function parse_interpolate(ps::ParseState, ts::TokenStream)
-    c = Lexer.peekchar(ts.io)
+    c = Lexer.peekchar(ts)
     if Lexer.is_identifier_char(c)
         return parse_atom(ps, ts)
     elseif c === '('
-        Lexer.readchar(ts.io)
+        Lexer.readchar(ts)
         ex = parse_eqs(ps, ts)
         require_token(ps, ts) === ')' || error("invalid interpolation syntax")
         take_token(ts)
@@ -1433,14 +1438,14 @@ function tostr(buf::IOBuffer, custom::Bool)
 end
 
 function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n::Integer, custom::Bool)
-    c  = Lexer.readchar(ts.io)
+    c  = Lexer.readchar(ts)
     b  = IOBuffer()
     ex = Expr(head)
     quotes = 0
     while true 
         if c == '"'
             if quotes < n
-                c = Lexer.readchar(ts.io)
+                c = Lexer.readchar(ts)
                 quotes += 1
                 continue
             end
@@ -1459,24 +1464,24 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
             quotes = 0
             continue
         elseif c === '\\'
-            nxch = not_eof_3(Lexer.readchar(ts.io))
+            nxch = not_eof_3(Lexer.readchar(ts))
             if !custom || nxch !== '"' 
                 write(b, '\\')
             end
             write(b, nxch)
-            c = Lexer.readchar(ts.io)
+            c = Lexer.readchar(ts)
             quotes = 0
             continue
         elseif c === '$' && !custom
             iex = parse_interpolate(ps, ts)
             append!(ex.args, {tostr(b, custom), iex})
-            c = Lexer.readchar(ts.io)
+            c = Lexer.readchar(ts)
             b = IOBuffer()
             quotes = 0
             continue
         else
             write(b, not_eof_3(c))
-            c = Lexer.readchar(ts.io)
+            c = Lexer.readchar(ts)
             quotes = 0
             continue
         end
@@ -1487,10 +1492,10 @@ interpolate_string_literal(ex) = isa(ex, Expr) && length(ex.args) > 1
 triplequote_string_literal(ex) = isa(ex, Expr) && ex.head === :triple_quoted_string
 
 function parse_string_literal(ps::ParseState, ts::TokenStream, custom)
-    if Lexer.peekchar(ts.io)  === '"'
-        Lexer.takechar(ts.io)
-        if Lexer.peekchar(ts.io) === '"'
-            Lexer.takechar(ts.io)
+    if Lexer.peekchar(ts)  === '"'
+        Lexer.takechar(ts)
+        if Lexer.peekchar(ts) === '"'
+            Lexer.takechar(ts)
             return _parse_string_literal(ps, ts, :triple_quoted_string, 2, custom)
         end
         return Expr(:single_quoted_string, "")
@@ -1507,19 +1512,19 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     # char literal
     elseif t === symbol("'")
         take_token(ts)
-        fch = Lexer.readchar(ts.io)
+        fch = Lexer.readchar(ts)
         fch === '\'' && error("invalid character literal")
-        if fch !== '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts.io) === '\''
+        if fch !== '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts) === '\''
             # easy case 1 char no \
-            Lexer.takechar(ts.io)
+            Lexer.takechar(ts)
             return fch
         else
             c, b = fch, IOBuffer()
             while true
                 c === '\'' && break
                 write(b, not_eof_1(c))
-                c === '\\' && write(b, not_eof_1(Lexer.readchar(ts.io)))
-                c = Lexer.readchar(ts.io)
+                c === '\\' && write(b, not_eof_1(Lexer.readchar(ts)))
+                c = Lexer.readchar(ts)
                 continue
             end
             str = unescape_string(bytestring(b))
@@ -1753,7 +1758,7 @@ end
 #========================#
 
 function parse(ts::TokenStream)
-    Lexer.skipws_and_comments(ts.io)
+    Lexer.skipws_and_comments(ts)
     t::Token = Lexer.next_token(ts, false)
     while true
         Lexer.eof(t) && return nothing
