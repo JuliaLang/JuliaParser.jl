@@ -335,7 +335,7 @@ function read_operator(io::IO, c::Char)
             push!(str, c)
             newop = symbol(utf32(str))
             if is_operator(newop)
-                skip(io, 1)
+                skip(io, Base.utf8sizeof(c))
                 c, opsym = peekchar(io), newop
                 continue
             end
