@@ -27,13 +27,13 @@ tmp2 = tempname()
 ast = let 
     local ast1::Expr
     open("$tmp1", "w+") do io
-        ast1 = Parser.parse(jlsrc) |> without_linenums
+        ast1 = Parser.parse(jlsrc) |> norm_ast
         Meta.show_sexpr(io, ast1)
     end
 
     local ast2::Expr
     open("$tmp2", "w+") do io
-        ast2 = parse(jlsrc) |> without_linenums
+        ast2 = parse(jlsrc) |> norm_ast 
         Meta.show_sexpr(io, ast2)
     end
 
