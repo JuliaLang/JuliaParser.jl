@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/jakebolewski/JuliaParser.jl.svg)](https://travis-ci.org/jakebolewski/JuliaParser.jl)
 [![Coverage Status](https://img.shields.io/coveralls/jakebolewski/JuliaParser.jl.svg)](https://coveralls.io/r/jakebolewski/JuliaParser.jl)
 
-A pure Julia port of Julia's parser.  It should be fully compatible with Julia's built in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's 300+ user packages. Currently it chokes on 2 files in Julia's base distribution dealing with unicode operators.
+A pure Julia port of Julia's parser.  It should be fully compatible with Julia's built in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's 300+ user packages and all Julia source code in Base.
 
 Differences with Julia's Flisp Parser
 -------------------------------------
@@ -12,8 +12,6 @@ Differences with Julia's Flisp Parser
 
 TODO Items
 ----------
-* fix remaining unicode issues (see https://github.com/JuliaLang/julia/issues/5712)
-* line number support (LineNumberNode's should already be inserted in the correct places).
 * performance improvements
 * better error messages with detailed position information
 * refactor number tokenization
@@ -56,7 +54,7 @@ julia> ast = Parser.parse(src);
 
 julia> Meta.show_sexpr(ast)
 (:function, (:call, :test, (:(::), :x, :Int)), (:block,
-    (:line, 0, ""),
+    (:line, 2, :none),
     (:return, (:call, :^, :x, 2))
   ))
 
