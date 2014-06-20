@@ -349,7 +349,7 @@ function skip_to_eol(io::IO)
     while !eof(io)
         nc = peekchar(io)
         nc === '\n' && break
-        skip(io, Base.utf8sizeof(nc)) 
+        Base.skip(io, Base.utf8sizeof(nc)) 
     end
     return io
 end
