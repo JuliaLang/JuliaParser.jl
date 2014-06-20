@@ -41,11 +41,11 @@ end
 facts("test read operator") do
     for op in Lexer.operators
         str = "$(string(op))"
-        io = IOBuffer(str)
+        io = TokenStream(str)
         c = Lexer.readchar(io)
         res = Lexer.read_operator(io, c)
         @fact res => op
-        @fact eof(io) => true
+        @fact Lexer.eof(io) => true
     end
 end
 
@@ -367,25 +367,25 @@ end
 facts("test accum_digits") do
     pred = isdigit 
     
-    io = IOBuffer("1_000_000")
+    io = TokenStream("1_000_000")
     c = Lexer.readchar(io)
     digits, success = Lexer.accum_digits(io, pred, c, false)
     @fact digits => [c for c in "1000000"]
     @fact success => true
    
-    io = IOBuffer("01_000_000")
+    io = TokenStream("01_000_000")
     c = Lexer.peekchar(io)
     digits, success = Lexer.accum_digits(io, pred, c, false)
     @fact digits => [c for c in "01000000"]
     @fact success => true
 
 
-    io = IOBuffer("_000_000")
+    io = TokenStream("_000_000")
     c = Lexer.peekchar(io)
     _, success = Lexer.accum_digits(io, pred, c, false)
     @fact success => false
 
-    io = IOBuffer("_000_000")
+    io = TokenStream("_000_000")
     c = Lexer.peekchar(io)
     _, success = Lexer.accum_digits(io, pred, c, true)
     @fact success => true
@@ -435,142 +435,142 @@ end
 facts("test readnumber") do
     
     context("signed integer") do
-        io = IOBuffer("100") 
+        io = TokenStream("100") 
         n = Lexer.read_number(io, false, false)
         @fact n => 100
         @fact typeof(n) => Int64
 
-        io = IOBuffer("100_000_000")
+        io = TokenStream("100_000_000")
         n = Lexer.read_number(io, false, false)
         @fact n => 100_000_000
         @fact typeof(n) => Int64
 
-        io = IOBuffer("-100")
-        skip(io, 1)
+        io = TokenStream("-100")
+        Lexer.skip(io, 1)
         n = Lexer.read_number(io, false, true)
         @fact n => -100
         @fact typeof(n) => Int64
 
-        io = IOBuffer("00100")
+        io = TokenStream("00100")
         n = Lexer.read_number(io, false,  false)
         @fact n => 100
         @fact typeof(n) => Int64
     end
 
     context("decimal") do
-        io = IOBuffer("100.0")
+        io = TokenStream("100.0")
         n = Lexer.read_number(io, false, false)
         @fact n => 100.0
         @fact typeof(n) => Float64
      
-        io = IOBuffer("100.0f0")
+        io = TokenStream("100.0f0")
         n = Lexer.read_number(io, false, false)
         @fact n => 100.0
         @fact typeof(n) => Float32
 
-        io = IOBuffer("10.0.0")
+        io = TokenStream("10.0.0")
         @fact_throws Lexer.read_number(io, false, false)
     end
 
     context("floating point exponent") do
-        io = IOBuffer("1e10")
+        io = TokenStream("1e10")
         n = Lexer.read_number(io, false, false)
         @fact n => 1e10
         @fact typeof(n) => Float64
 
-        io = IOBuffer("-10E10")
-        skip(io, 1)
+        io = TokenStream("-10E10")
+        Lexer.skip(io, 1)
         n = Lexer.read_number(io, false, true)
         @fact n => -10e10
         @fact typeof(n) => Float64
 
-        io = IOBuffer("1e-1")
+        io = TokenStream("1e-1")
         n = Lexer.read_number(io, false, false)
         @fact n => 1e-1
         @fact typeof(n) => Float64
     end
 
     context("leading dot") do 
-        io = IOBuffer(".01")
-        skip(io, 1)
+        io = TokenStream(".01")
+        Lexer.skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.01
         @fact typeof(n) => Float64
 
-        io = IOBuffer(".000_1")
-        skip(io, 1)
+        io = TokenStream(".000_1")
+        Lexer.skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.0001
         @fact typeof(n) => Float64
 
-        io = IOBuffer("-.01")
-        skip(io, 2)
+        io = TokenStream("-.01")
+        Lexer.skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.01
         @fact typeof(n) => Float64
 
-        io = IOBuffer("-.000_1")
-        skip(io, 2)
+        io = TokenStream("-.000_1")
+        Lexer.skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.0001
         @fact typeof(n) => Float64
 
-        io = IOBuffer(".01f0")
-        skip(io, 1)
+        io = TokenStream(".01f0")
+        Lexer.skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.01f0
         @fact typeof(n) => Float32
 
-        io = IOBuffer(".000_1f0")
-        skip(io, 1)
+        io = TokenStream(".000_1f0")
+        Lexer.skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.0001f0
         @fact typeof(n) => Float32 
 
-        io = IOBuffer("-.01f0")
-        skip(io, 2)
+        io = TokenStream("-.01f0")
+        Lexer.skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.01f0
         @fact typeof(n) => Float32
 
-        io = IOBuffer("-.000_1f0")
-        skip(io, 2)
+        io = TokenStream("-.000_1f0")
+        Lexer.skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.0001f0
         @fact typeof(n) => Float32 
     end
 
     context("floating point hex") do
-        io = IOBuffer("0x1.8p3")
+        io = TokenStream("0x1.8p3")
         n = Lexer.read_number(io, false, false)
         @fact n => 12.0
         @fact typeof(n) => Float64
 
-        io = IOBuffer("0x0.4p-1")
+        io = TokenStream("0x0.4p-1")
         n = Lexer.read_number(io, false, false)
         @fact n => 0.125
         @fact typeof(n) => Float64
     end
 
     context("binary") do
-        io = IOBuffer(string("0b", bin(10)))
+        io = TokenStream(string("0b", bin(10)))
         n = Lexer.read_number(io, false, false)
         @fact n => 10
         #@show typeof(n)  
     end
 
     context("hex") do
-        io = IOBuffer(string("0x", hex(10), " "))
+        io = TokenStream(string("0x", hex(10), " "))
         n = Lexer.read_number(io, false, false)
         @fact n => 10 
         
-        io = IOBuffer("0xffff7f000001")
+        io = TokenStream("0xffff7f000001")
         n = Lexer.read_number(io, false, false)
         @fact n => 0xffff7f000001
     end
 
     context("bigint") do
-        io = IOBuffer("15732444386908125794514089057706229429197107928209")
+        io = TokenStream("15732444386908125794514089057706229429197107928209")
         n  = Lexer.read_number(io, false, false)
         @fact n => BigInt("15732444386908125794514089057706229429197107928209")
         @fact typeof(n) => BigInt
@@ -578,107 +578,107 @@ facts("test readnumber") do
 end
 
 facts("test skipwhitespace") do
-    io = IOBuffer("   abc")
+    io = TokenStream("   abc")
     Lexer.skipws(io)
-    @fact position(io) => 3
+    @fact Lexer.position(io) => 3
 
-    io = IOBuffer("abc")
+    io = TokenStream("abc")
     Lexer.skipws(io)
-    @fact position(io) => 0
+    @fact Lexer.position(io) => 0
 
-    io = IOBuffer("  \n abc")
+    io = TokenStream("  \n abc")
     Lexer.skipws(io)
-    @fact position(io) => 2
+    @fact Lexer.position(io) => 2
     @fact Lexer.readchar(io) => '\n'
 
-    io = IOBuffer("")
+    io = TokenStream("")
     Lexer.skipws(io)
-    @fact position(io) => 0
+    @fact Lexer.position(io) => 0
 end
 
 
 facts("test skip comment") do
-    io = IOBuffer("#test\n")
+    io = TokenStream("#test\n")
     Lexer.skipcomment(io)
-    @fact position(io) => 5
+    @fact Lexer.position(io) => 5
 
-    io = IOBuffer("# \ntest")
+    io = TokenStream("# \ntest")
     Lexer.skipcomment(io)
-    @fact position(io) => 2
+    @fact Lexer.position(io) => 2
 
-    io = IOBuffer("#")
+    io = TokenStream("#")
     Lexer.skipcomment(io)
-    @fact position(io) => 1 
+    @fact Lexer.position(io) => 1 
 
-    io = IOBuffer("# ")
+    io = TokenStream("# ")
     Lexer.skipcomment(io)
-    @fact position(io) => 2 
+    @fact Lexer.position(io) => 2 
 
     context("must start with a comment symbol") do
-        io = IOBuffer("test")
+        io = TokenStream("test")
         @fact_throws Lexer.skipcomment(io)
     end
 end
 
 facts("test skip multiline comment") do
-    io = IOBuffer("#=test=#a")
+    io = TokenStream("#=test=#a")
     Lexer.skip_multiline_comment(io, 0)
-    @fact position(io) => 8
+    @fact Lexer.position(io) => 8
 
-    io = IOBuffer("#======#a")
+    io = TokenStream("#======#a")
     Lexer.skip_multiline_comment(io, 0)
-    @fact position(io) => 8
+    @fact Lexer.position(io) => 8
 
-    io = IOBuffer("#==#a")
+    io = TokenStream("#==#a")
     Lexer.skip_multiline_comment(io, 0)
-    @fact position(io) => 4
+    @fact Lexer.position(io) => 4
 
-    io = IOBuffer("#=test\ntest\n=#a")
+    io = TokenStream("#=test\ntest\n=#a")
     Lexer.skip_multiline_comment(io, 0)
-    @fact position(io) => 14
+    @fact Lexer.position(io) => 14
 
-    io = IOBuffer("#= # =#")
+    io = TokenStream("#= # =#")
     Lexer.skip_multiline_comment(io, 0)
-    @fact position(io) => 7
+    @fact Lexer.position(io) => 7
 
-    io = IOBuffer("#=\n#= =# =#")
+    io = TokenStream("#=\n#= =# =#")
     Lexer.skip_multiline_comment(io, 0)
-    @fact position(io) => 11
+    @fact Lexer.position(io) => 11
 
-    io = IOBuffer("#=#==#=#")
+    io = TokenStream("#=#==#=#")
     Lexer.skip_multiline_comment(io, 0)
-    @fact position(io) => 8
+    @fact Lexer.position(io) => 8
 
-    io = IOBuffer("#=#=#")
+    io = TokenStream("#=#=#")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
 
-    io = IOBuffer("#= test")
+    io = TokenStream("#= test")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
 
-    io = IOBuffer("#=#")
+    io = TokenStream("#=#")
     @fact_throws Lexer.skip_multiline_comment(io, 0)
 end
 
 facts("test skip ws and comment") do
-    io = IOBuffer("")
+    io = TokenStream("")
     Lexer.skipws_and_comments(io) 
-    @fact eof(io) => true
+    @fact Lexer.eof(io) => true
 
-    io = IOBuffer(" \n")
+    io = TokenStream(" \n")
     Lexer.skipws_and_comments(io) 
     @fact Lexer.readchar(io) => '\n'
 
-    io = IOBuffer("  # test comment\n")
+    io = TokenStream("  # test comment\n")
     Lexer.skipws_and_comments(io)
     @fact Lexer.readchar(io) => '\n'
-    @fact eof(io) => true
+    @fact Lexer.eof(io) => true
 
-    io = IOBuffer("    #= test comment \n
+    io = TokenStream("    #= test comment \n
                   another comment =#a")
     Lexer.skipws_and_comments(io)
     @fact Lexer.readchar(io) => 'a'
 
-    io = IOBuffer(" # a comment\ntest")
+    io = TokenStream(" # a comment\ntest")
     Lexer.skipws_and_comments(io)
     @fact Lexer.readchar(io) => '\n'
     @fact Lexer.readchar(io) => 't'
@@ -695,7 +695,7 @@ tokens(str::String) = tokens(TokenStream(str))
 
 
 facts("test TokenStream constructor") do
-    io = IOBuffer("testfunc(i) = i * i") 
+    io = TokenStream("testfunc(i) = i * i") 
     try
         ts = TokenStream(io)
         @fact true => true
