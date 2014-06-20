@@ -307,14 +307,15 @@ eof(c::Char) = is(c, EOF)
 eof(c)       = false
 
 readchar(io::IO) = eof(io) ? EOF : read(io, Char)
-takechar(io::IO) = (skip(io, 1); io)
+takechar(io::IO) = (readchar(io); io)
 
 #= Lexer =#
 
 function skip_to_eol(io::IO)
     while !eof(io)
-        peekchar(io) === '\n' && break
-        skip(io, 1)
+        nc = peekchar(io)
+        nc === '\n' && break
+        skip(io, Base.utf8sizeof(nc)) 
     end
     return io
 end
@@ -462,7 +463,7 @@ function accum_digits(io::IO, pred::Function, c::Char, leading_zero::Bool)
     end
     charr = Char[]
     while true 
-        if c == '_'
+        if c === '_'
             skip(io, 1)
             c = peekchar(io)
             if !eof(c) && pred(c)
@@ -487,8 +488,9 @@ fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
 
 function disallow_dot!(io::IO)
     if peekchar(io) === '.'
-        skip(io, 1)
-        if is_dot_opchar(peekchar(io))
+        skip(io, 1) 
+        nc = peekchar(io)
+        if is_dot_opchar(nc)
             skip(io, -1)
         else
             error("invalid numeric constant \"$(utf32(charr))."\"")
@@ -541,8 +543,9 @@ function read_number(io::IO, leading_dot::Bool, neg::Bool)
     end
     read_digits!(io, pred, charr, leading_zero)
     if peekchar(io) == '.'
-        skip(io, 1)
-        if is_dot_opchar(peekchar(io))
+        skip(io, 1) 
+        nc = peekchar(io)
+        if is_dot_opchar(nc)
             skip(io, -1)
         else
             push!(charr, '.')
