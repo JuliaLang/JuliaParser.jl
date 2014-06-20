@@ -165,7 +165,7 @@ facts("test parse block") do
         "(x(); nothing)",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -180,7 +180,7 @@ facts("test range expressions") do
         "10:-1:-10",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
     @fact_throws Parser.parse("1:end")
     @fact_throws Parser.parse("1:2:end")
@@ -193,7 +193,7 @@ facts("parse symbol / expression quote") do
         ":(a + 1)"
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -248,7 +248,7 @@ facts("test cell expressions") do
         "{i for i=1:10}",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -266,7 +266,7 @@ facts("test cat expressions") do
         "[i for i=1:10]"
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -310,7 +310,7 @@ facts("test quote/begin expression") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -324,7 +324,7 @@ facts("test while expression") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -339,7 +339,7 @@ facts("test for loop expression") do
          end""" 
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -356,7 +356,7 @@ facts("test if condtion expression") do
            end""",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
     # else if should throw and error => use elseif 
     @fact_throws Parser.parse("""if x == 1
@@ -374,7 +374,7 @@ facts("test let expression") do
         end"""
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -400,7 +400,7 @@ facts("test function expressions") do
                   return x + 1
               end"""]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -419,7 +419,7 @@ facts("test function return tuple") do
             """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -433,7 +433,7 @@ facts("test array ref") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -451,7 +451,7 @@ facts("test macro expressions") do
                   :(x + 1)
               end"""]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -551,7 +551,7 @@ facts("test type / immutable expression") do
         end""",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -578,7 +578,7 @@ facts("test try, catch, finally expression") do
         end""",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -616,7 +616,7 @@ facts("test break / continue expression") do
         end"""
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -648,7 +648,7 @@ facts("test module expressions") do
         end"""
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -718,7 +718,7 @@ facts("test ccall expression") do
      "ccall((:testUcharX, \"./libccalltest\"), :stdcall, Int32, (Uint8,), x)"
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 
 end
@@ -749,7 +749,7 @@ facts("test parse do") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -793,7 +793,7 @@ facts("parse argument list") do
     ]
     
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -807,7 +807,7 @@ facts("parse test functions") do
        end""",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -860,7 +860,7 @@ end
 """,
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -927,7 +927,7 @@ isa(170141183460469231731687303715884105728,BigInt)
 """,
 ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> without_linenums) => (Base.parse(ex) |> without_linenums)
+        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
     @fact typeof(Parser.parse("0o724")) => typeof(parse("0o724"))
     @fact typeof(Parser.parse("0o1111111111111111111111")) => Uint64

@@ -666,11 +666,10 @@ facts("test skip ws and comment") do
 
     io = TokenStream(" \n")
     Lexer.skipws_and_comments(io) 
-    @fact Lexer.readchar(io) => '\n'
+    @fact Lexer.eof(io) => true
 
     io = TokenStream("  # test comment\n")
     Lexer.skipws_and_comments(io)
-    @fact Lexer.readchar(io) => '\n'
     @fact Lexer.eof(io) => true
 
     io = TokenStream("    #= test comment \n
@@ -680,7 +679,6 @@ facts("test skip ws and comment") do
 
     io = TokenStream(" # a comment\ntest")
     Lexer.skipws_and_comments(io)
-    @fact Lexer.readchar(io) => '\n'
     @fact Lexer.readchar(io) => 't'
 end
 

@@ -298,7 +298,6 @@ eof(c)       = false
 readchar(io::IO) = eof(io) ? EOF : read(io, Char)
 takechar(io::IO) = (readchar(io); io)
 
-
 #= Token Stream =#
 
 typealias Token Union(Symbol, Char, Number, Nothing)
@@ -651,7 +650,7 @@ function skip_multiline_comment(ts::TokenStream, count::Int)
         if c === '='
             start > 0 || (start = position(ts))
             if peekchar(ts) === '#' && position(ts) != start
-                skip(ts, 1)
+                takechar(ts)
                 count <= 1 || (count -= 1; continue) 
                 unterminated = false
                 break
@@ -686,7 +685,7 @@ end
 # otherwise skip to the end of the multiline comment block
 function skipws_and_comments(ts::TokenStream)
     while !eof(ts)
-        skipws(ts, false)
+        skipws(ts, true)
         peekchar(ts) !== '#' && break
         skipcomment(ts)
     end

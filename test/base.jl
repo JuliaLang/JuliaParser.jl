@@ -59,7 +59,7 @@ function testall(srcdir::String)
                 bast = Base.parse(src)
                 t2 = toq()
 
-                if without_linenums(past) == without_linenums(bast)
+                if norm_ast(past) == norm_ast(bast)
                     println(green("OK:     $fname"))
                     passed += 1
                     ptime += t1
