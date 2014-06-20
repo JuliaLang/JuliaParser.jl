@@ -249,7 +249,7 @@ function parse_cond(ps::ParseState, ts::TokenStream)
             parse_eqs(ps, ts)
         end
         take_token(ts) === :(:) || error("colon expected in \"?\" expression")
-        return Expr(:if, ex, then, parse_cond(ps, ts))
+        return Expr(:if, ex, then, parse_eqs(ps, ts))
     end
     return ex
 end
