@@ -716,7 +716,8 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 if !isempty(blk.args) && 
                     ((isa(blk.args[1], Expr) && blk.args[1].head === :line) ||
                      (isa(blk.args[1], LineNumberNode)))
-                    ex = Expr(:block, loc); append!(ex.args, blk.args[2:end])
+                    ex = Expr(:block, loc)
+                    append!(ex.args, blk.args[2:end])
                 else
                     ex = blk
                 end
@@ -875,9 +876,11 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                         else
                             var   = parse_eqs(ps, ts)
                             isvar = nl == false && isa(var, Symbol)
-                            catch_block = require_token(ps, ts) === sym_finally ? Expr(:block) : parse_block(ps, ts)
+                            catch_block = require_token(ps, ts) === sym_finally ? Expr(:block) : 
+                                                                                  parse_block(ps, ts)
                             t = require_token(ps, ts)
-                            catchb = isvar ? catch_block : Expr(:block, var, catch_block.args...)
+                            catchb = isvar ? catch_block : 
+                                             Expr(:block, var, catch_block.args...)
                             catchv = isvar ? var : false
                             continue
                         end

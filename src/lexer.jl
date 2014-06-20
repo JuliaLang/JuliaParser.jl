@@ -310,9 +310,10 @@ type TokenStream
     putback::Token
     isspace::Bool
     ateof::Bool
+    filename::String
 end
 
-TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io)) 
+TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io), "") 
 TokenStream(str::String) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
