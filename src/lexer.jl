@@ -296,7 +296,7 @@ eof(c::Char) = is(c, EOF)
 eof(c)       = false
 
 readchar(io::IO) = eof(io) ? EOF : read(io, Char)
-takechar(io::IO) = (skip(io, 1); io)
+takechar(io::IO) = (readchar(io); io)
 
 
 #= Token Stream =#
@@ -347,8 +347,9 @@ end
 #= Lexer =#
 function skip_to_eol(io::IO)
     while !eof(io)
-        peekchar(io) === '\n' && break
-        Base.skip(io, 1)
+        nc = peekchar(io)
+        nc === '\n' && break
+        skip(io, Base.utf8sizeof(nc)) 
     end
     return io
 end
@@ -370,7 +371,7 @@ function read_operator(ts::TokenStream, c::Char)
             push!(str, c)
             newop = symbol(utf32(str))
             if is_operator(newop)
-                skip(ts, 1)
+                skip(ts, Base.utf8sizeof(c))
                 c, opsym = peekchar(ts), newop
                 continue
             end
