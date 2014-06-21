@@ -126,7 +126,6 @@ macro space_sensitive(ps, body)
     end
 end
 
-#TODO: line number nodes
 curline(ts::TokenStream)  = ts.lineno
 filename(ts::TokenStream) = symbol("none")
 
@@ -988,7 +987,6 @@ function add_filename_to_block!(body::Expr, loc::Expr)
 end
 
 function parse_do(ps::ParseState, ts::TokenStream)
-    #TODO: line endings
     expect_end_current_line = curline(ts)
     @without_whitespace_newline ps begin
         doargs = Lexer.isnewline(peek_token(ps, ts)) ? {} : parse_comma_sep(ps, ts, parse_range)
