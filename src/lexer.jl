@@ -5,8 +5,6 @@ import Base.UTF8proc
 export Token, TokenStream, next_token, set_token!, last_token, 
        put_back!, peek_token, take_token, require_token
 
-include("utf8proc.jl") 
-
 const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false") 
 const SYM_CTRANSPOSE = symbol("'")
@@ -159,11 +157,11 @@ is_ignorable_char(c::Char) = is_zero_width_space(c) ||
                              (c === '\u00ad' || c === '\u2061' || c === '\u115f')
 
 function is_cat_id_start(c::Char, cat::Integer)
-    return (cat == UTF8PROC_CATEGORY_LU || cat == UTF8PROC_CATEGORY_LL ||
-            cat == UTF8PROC_CATEGORY_LT || cat == UTF8PROC_CATEGORY_LM ||
-            cat == UTF8PROC_CATEGORY_LO || cat == UTF8PROC_CATEGORY_NL ||
-            cat == UTF8PROC_CATEGORY_SC ||  # allow currency symbols
-            cat == UTF8PROC_CATEGORY_SO ||  # other symbols
+    return (cat == UTF8proc.UTF8PROC_CATEGORY_LU || cat == UTF8proc.UTF8PROC_CATEGORY_LL ||
+            cat == UTF8proc.UTF8PROC_CATEGORY_LT || cat == UTF8proc.UTF8PROC_CATEGORY_LM ||
+            cat == UTF8proc.UTF8PROC_CATEGORY_LO || cat == UTF8proc.UTF8PROC_CATEGORY_NL ||
+            cat == UTF8proc.UTF8PROC_CATEGORY_SC ||  # allow currency symbols
+            cat == UTF8proc.UTF8PROC_CATEGORY_SO ||  # other symbols
 
             # math symbol (category Sm) whitelist
             (c >= 0x2140 && c <= 0x2a1c &&
