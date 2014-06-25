@@ -219,10 +219,10 @@ function is_identifier_char(c::Char)
     end
     cat = UTF8proc.category_code(c)
     is_cat_id_start(c, cat) && return true
-    if cat == UTF8PROC_CATEGORY_MN || cat == UTF8PROC_CATEGORY_MC ||
-       cat == UTF8PROC_CATEGORY_ND || cat == UTF8PROC_CATEGORY_PC ||
-       cat == UTF8PROC_CATEGORY_SK || cat == UTF8PROC_CATEGORY_ME ||
-       cat == UTF8PROC_CATEGORY_NO || 
+    if cat == UTF8proc.UTF8PROC_CATEGORY_MN || cat == UTF8proc.UTF8PROC_CATEGORY_MC ||
+       cat == UTF8proc.UTF8PROC_CATEGORY_ND || cat == UTF8proc.UTF8PROC_CATEGORY_PC ||
+       cat == UTF8proc.UTF8PROC_CATEGORY_SK || cat == UTF8proc.UTF8PROC_CATEGORY_ME ||
+       cat == UTF8proc.UTF8PROC_CATEGORY_NO || 
        (0x2032 <= c <= 0x2034) || # primes
        c == 0x0387 || c == 0x19da || 
        (0x1369 <= c <= 0x1371)
