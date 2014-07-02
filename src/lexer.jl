@@ -664,7 +664,7 @@ function skip_multiline_comment(ts::TokenStream, count::Int)
     end
     return ts 
 end
-       
+
 # if this is a mulitiline comment skip to the end
 # otherwise skip to end of line
 function skipcomment(ts::TokenStream)

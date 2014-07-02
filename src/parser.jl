@@ -112,15 +112,13 @@ with_space_sensitive(f::Function, ps::ParseState) = begin
     end
 end
 
-#TODO: line number nodes
 curline(ts::TokenStream)  = ts.lineno
 filename(ts::TokenStream) = symbol("none")
 
 line_number_node(ts) = LineNumberNode(curline(ts))
 line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts)) 
 
-# insert line/file for short form function defs,
-# otherwise leave alone
+# insert line/file for short form function defs, otherwise leave alone
 function short_form_function_loc(ex, lno, filename)
     if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
        block = Expr(:block, Expr(:line, lno, filename))
