@@ -285,7 +285,7 @@ function parse_Nary(ps::ParseState, ts::TokenStream, down::Function, ops,
                 return Expr(head, args...)
             else
                 # {ex1} => ex1
-                return first(args)
+                return args[1]
             end
         end
         isfirst = false
@@ -294,7 +294,7 @@ function parse_Nary(ps::ParseState, ts::TokenStream, down::Function, ops,
         nt = peek_token(ps, ts) 
         if Lexer.eof(nt) || (isa(nt, CharSymbol) && nt in closers) || 
            (allow_empty && isa(nt, CharSymbol) && nt in ops) ||  
-           (length(ops) == 1 && first(ops) === ',' && nt === :(=))
+           (length(ops) == 1 && ops[1] === ',' && nt === :(=))
            t = nt
            continue
         elseif '\n' in ops
@@ -653,7 +653,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             args = map(subtype_syntax, parse_arglist(ps, ts, '}'))
             # ::Type{T}
             if isa(ex, Expr) && ex.head == :(::)
-                ex = Expr(:(::), Expr(:curly, first(ex.args), args...))
+                ex = Expr(:(::), Expr(:curly, ex.args[1], args...))
             else
                 ex = Expr(:curly, ex, args...)
             end
