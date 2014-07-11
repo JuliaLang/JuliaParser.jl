@@ -5,3 +5,4 @@ include("lexer.jl")
 include("parser.jl")
 #include("base.jl")
 
+exitstatus()
