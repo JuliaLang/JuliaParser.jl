@@ -734,22 +734,15 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 if nranges == 1
                     return Expr(:for, ranges[1], body)
                 else
-                    # handles forms such as for i=1:10,j=1:10...
-                    ex = lastex = Expr(:for, ranges[1])
-                    for i=2:nranges
-                        push!(lastex.args, Expr(:for, ranges[i]))
-                        lastex = lastex.args[end]
-                        if i == nranges
-                            push!(lastex.args, body)
-                        end
-                    end
-                    return ex
-                end
+                    blk = Expr(:block); blk.args = ranges
+                    return Expr(:for, blk, body)
+                end 
 
             elseif word === :if
                 test = parse_cond(ps, ts)
                 t    = require_token(ps, ts)
-                then = t === sym_else || t === sym_elseif ? Expr(:block) : parse_block(ps, ts)
+                then = (t === sym_else || t === sym_elseif) ? Expr(:block) : 
+                                                              parse_block(ps, ts)
                 nxt = require_token(ps, ts)
                 take_token(ts)
                 if nxt === sym_end
