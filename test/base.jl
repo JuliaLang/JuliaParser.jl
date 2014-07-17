@@ -68,7 +68,7 @@ function testall(srcdir::String)
                     println(red("FAILED: $fname"))
                     failed += 1
                 end
-            catch
+            catch ex
                 println(bold(red("ERROR:  $fname")))
                 errors += 1
             end

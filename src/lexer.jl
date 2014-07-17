@@ -86,7 +86,7 @@ precedent_ops(n::Integer) = ops_by_precedent[n]::Vector{Symbol}
 
 const assignment_ops = ops_by_precedent[1]::Vector{Symbol}
 
-const unary_ops = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), 
+const unary_ops = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), :(¬),
                                :(>:), :(√), :(∛), :(∜)])
 
 const unary_and_binary_ops = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
@@ -102,7 +102,7 @@ const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
 
 const syntactic_unary_ops = Set{Symbol}([:($), :(&), :(::)])
 
-const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...),
+const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...), :(¬),
                              :(.'), SYM_CTRANSPOSE]), 
 			                 [Set(ops) for ops in ops_by_precedent]...)
 
