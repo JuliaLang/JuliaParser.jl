@@ -17,6 +17,10 @@ script:
   - julia lexer.jl
   - julia parser.jl
   - git clone --depth 1 --single-branch https://github.com/JuliaLang/julia 
-  - julia --code-coverage base.jl julia
-  - cd ../
-  - julia -e 'Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
+  - julia --code-coverage=all base.jl julia
+
+on_success:
+  - julia -e 'cd(Pkg.dir("JuliaParser"));
+              Pkg.add("Coverage"); 
+              using Coverage; 
+              Coveralls.submit(Coveralls.process_folder())'
