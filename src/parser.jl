@@ -858,15 +858,20 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                         end
                     end
                     if t === sym_catch && catchb == nothing
-                        nl  = Lexer.isnewline(peek_token(ps, ts))
+                        nb = false # do we delineate a new block after a catch token (with ; or \n)? 
+                        nt = peek_token(ps, ts)
+                        if Lexer.isnewline(nt) || nt === ';'
+                            nb = true
+                            nt === ';' && take_token(ts)
+                        end
                         t   = require_token(ps, ts)
                         if t === sym_end || t === sym_finally
                             catchb = Expr(:block)
                             catchv = false 
                             continue
-                        else
+                        else 
                             var   = parse_eqs(ps, ts)
-                            isvar = nl == false && isa(var, Symbol)
+                            isvar = nb == false && isa(var, Symbol)
                             catch_block = require_token(ps, ts) === sym_finally ? Expr(:block) : 
                                                                                   parse_block(ps, ts)
                             t = require_token(ps, ts)
