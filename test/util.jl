@@ -1,7 +1,7 @@
-RED     = "\x1b[31m"
-GREEN   = "\x1b[32m"
-BOLD    = "\x1b[1m"
-DEFAULT = "\x1b[0m"
+const RED     = "\x1b[31m"
+const GREEN   = "\x1b[32m"
+const BOLD    = "\x1b[1m"
+const DEFAULT = "\x1b[0m"
 
 colored(s::String, color) = string(color, s, DEFAULT)
 

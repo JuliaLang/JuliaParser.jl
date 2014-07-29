@@ -7,6 +7,13 @@ const Lexer  = JuliaParser.Lexer
 include("ast.jl")
 include("util.jl")
 
+# TODO: Julia does not really have a good way to do this so
+# this only currently works from source builds.
+if length(ARGS) > 0
+    const BASEPATH = ARGS[1]
+else
+    const BASEPATH = abspath(joinpath(JULIA_HOME, "..", ".."))
+end
 const PKGDIR = Pkg.dir()
 
 passed = {}
@@ -96,6 +103,15 @@ function testall(srcdir::String)
     end
 end
 
+if isdir(BASEPATH) && isdir(joinpath(BASEPATH, "base"))
+    testall(joinpath(BASEPATH, "examples"))
+    testall(joinpath(BASEPATH, "test"))
+    testall(joinpath(BASEPATH, "base"))
+else
+    warn("""
+Could not find julia base sources in $BASEPATH,
+perhaps you are using a Julia not built from source?""")
+end
 
 for pkg in Pkg.available()
     pkgpath = joinpath(PKGDIR, pkg)
