@@ -86,9 +86,15 @@ function testall(srcdir::String)
     end
 end
 
-testall(joinpath(BASEPATH, "examples"))
-testall(joinpath(BASEPATH, "test"))
-testall(joinpath(BASEPATH, "base"))
+if isdir(BASEPATH) && isdir(joinpath(BASEPATH, "base"))
+    testall(joinpath(BASEPATH, "examples"))
+    testall(joinpath(BASEPATH, "test"))
+    testall(joinpath(BASEPATH, "base"))
+else
+    warn("""
+Could not find julia base sources in $BASEPATH,
+perhaps you are using a Julia not built from source?""")
+end
 
 println("\n"^2)
 println(bold("TOTAL: $(passed + failed + errors)")) 
@@ -107,4 +113,4 @@ else
     println(bold("Parser is ~$pctstr% faster than base"))
 end
 
-exit(failed + errors)
+#exit(failed + errors)
