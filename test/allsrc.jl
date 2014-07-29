@@ -9,7 +9,7 @@ include("util.jl")
 
 # TODO: Julia does not really have a good way to do this so
 # this only currently works from source builds.
-if length(ARGS) > 0
+if length(ARGS) > 0 && ispath(ARGS[1])
     const BASEPATH = ARGS[1]
 else
     const BASEPATH = abspath(joinpath(JULIA_HOME, "..", ".."))
@@ -135,6 +135,9 @@ for path in errors
     println(red("\t" * path))
 end
 println()
+
+println(bold("Parser total time: " * @sprintf("%0.2f secs", ptime)))
+println(bold("Base   total time: " * @sprintf("%0.2f secs", btime)))
 
 pct = ptime / btime * 100.0
 
