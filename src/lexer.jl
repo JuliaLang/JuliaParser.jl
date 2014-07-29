@@ -301,8 +301,8 @@ typealias Token Union(Symbol, Char, Number, Nothing)
 type TokenStream
     io::IO
     lineno::Int
-    lasttoken::Token
-    putback::Token
+    lasttoken
+    putback
     isspace::Bool
     ateof::Bool
     filename::String
@@ -759,9 +759,9 @@ end
 
 next_token(ts::TokenStream) = next_token(ts, false)
 last_token(ts::TokenStream) = ts.lasttoken
-set_token!(ts::TokenStream, t::Token) = (ts.lasttoken = t; ts)
+set_token!(ts::TokenStream, t) = (ts.lasttoken = t; ts)
 
-function put_back!(ts::TokenStream, t::Token)
+function put_back!(ts::TokenStream, t)
     if ts.putback !== nothing
         error("too many pushed back tokens (internal error)")
     end
@@ -771,7 +771,6 @@ end
 
 function peek_token(ts::TokenStream, whitespace_newline::Bool)
     ts.ateof && return EOF
-    local t::Token
     if ts.putback !== nothing
         return ts.putback
     end
@@ -786,7 +785,6 @@ peek_token(ts::TokenStream) = peek_token(ts, false)
         
 function take_token(ts::TokenStream)
     ts.ateof && return EOF
-    local t::Token 
     if ts.putback !== nothing
         t = ts.putback
         ts.putback = nothing
@@ -798,7 +796,6 @@ function take_token(ts::TokenStream)
 end
 
 function require_token(ts::TokenStream, whitespace_newline::Bool)
-    local t::Token
     if ts.putback !== nothing
         t = ts.putback
     elseif ts.lasttoken !== nothing
