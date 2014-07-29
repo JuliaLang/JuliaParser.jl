@@ -30,85 +30,99 @@ peek_token(ps::ParseState, ts::TokenStream)    = Lexer.peek_token(ts, ps.whitesp
 next_token(ps::ParseState, ts::TokenStream)    = Lexer.next_token(ts, ps.whitespace_newline)
 require_token(ps::ParseState, ts::TokenStream) = Lexer.require_token(ts, ps.whitespace_newline)
 
-with_normal_ops(f::Function, ps::ParseState) = begin
-    tmp1 = ps.range_colon_enabled
-    tmp2 = ps.space_sensitive
-    try
-        ps.range_colon_enabled = true
-        ps.space_sensitive     = false
-        f()
-    finally
-        ps.range_colon_enabled = tmp1
-        ps.space_sensitive = tmp2
+macro with_normal_ops(ps, body)
+    quote
+        local tmp1 = $(esc(ps)).range_colon_enabled
+        local tmp2 = $(esc(ps)).space_sensitive
+        try
+            $(esc(ps)).range_colon_enabled = true
+            $(esc(ps)).space_sensitive     = false
+            $(esc(body))
+        finally
+            $(esc(ps)).range_colon_enabled = tmp1
+            $(esc(ps)).space_sensitive     = tmp2
+        end
     end
 end
 
-without_range_colon(f::Function, ps::ParseState) = begin
-    tmp = ps.range_colon_enabled
-    try
-        ps.range_colon_enabled = false
-        f()
-    finally
-        ps.range_colon_enabled = tmp
-    end
-end 
-
-with_inside_vec(f::Function, ps::ParseState) = begin
-    tmp1 = ps.space_sensitive
-    tmp2 = ps.inside_vector
-    tmp3 = ps.whitespace_newline
-    try
-        ps.space_sensitive = true
-        ps.inside_vector   = true
-        ps.whitespace_newline = false
-        f()
-    finally
-        ps.space_sensitive = tmp1
-        ps.inside_vector = tmp2
-        ps.whitespace_newline = tmp3
+macro without_range_colon(ps, body) 
+    quote
+        local tmp1 = $(esc(ps)).range_colon_enabled
+        try
+            $(esc(ps)).range_colon_enabled = false
+            $(esc(body))
+        finally
+            $(esc(ps)).range_colon_enabled = tmp1
+        end
     end
 end
 
-with_end_symbol(f::Function, ps::ParseState) = begin
-    tmp = ps.end_symbol
-    try
-        ps.end_symbol = true
-        f()
-    finally
-        ps.end_symbol = tmp
+macro with_inside_vec(ps, body)
+    quote
+        local tmp1 = $(esc(ps)).space_sensitive
+        local tmp2 = $(esc(ps)).inside_vector
+        local tmp3 = $(esc(ps)).whitespace_newline
+        try
+            $(esc(ps)).space_sensitive = true
+            $(esc(ps)).inside_vector   = true
+            $(esc(ps)).whitespace_newline = false
+            $(esc(body))
+        finally
+            $(esc(ps)).space_sensitive = tmp1
+            $(esc(ps)).inside_vector   = tmp2
+            $(esc(ps)).whitespace_newline = tmp3
+        end
     end
 end
 
-with_whitespace_newline(f::Function, ps::ParseState) = begin
-    tmp = ps.whitespace_newline
-    try
-        ps.whitespace_newline = true
-        f()
-    finally
-        ps.whitespace_newline = tmp
+macro with_end_symbol(ps, body)
+    quote
+        local tmp1 = $(esc(ps)).end_symbol
+        try
+            $(esc(ps)).end_symbol = true
+            $(esc(body))
+        finally
+            $(esc(ps)).end_symbol = tmp1
+        end
     end
 end
 
-without_whitespace_newline(f::Function, ps::ParseState) = begin
-    tmp = ps.whitespace_newline
-    try
-        ps.whitespace_newline = false
-        f()
-    finally
-        ps.whitespace_newline = tmp
+macro with_whitespace_newline(ps, body)
+    quote
+        local tmp1 = $(esc(ps)).whitespace_newline
+        try
+            $(esc(ps)).whitespace_newline = true
+            $(esc(body))
+        finally
+            $(esc(ps)).whitespace_newline = tmp1
+        end
     end
 end
 
-with_space_sensitive(f::Function, ps::ParseState) = begin
-    tmp1 = ps.space_sensitive
-    tmp2 = ps.whitespace_newline
-    try
-        ps.space_sensitive = true
-        ps.whitespace_newline = false
-        f()
-    finally
-        ps.space_sensitive = tmp1
-        ps.whitespace_newline = tmp2
+macro without_whitespace_newline(ps, body)
+    quote
+        local tmp1 = $(esc(ps)).whitespace_newline
+        try
+            $(esc(ps)).whitespace_newline = false
+            $(esc(body))
+        finally
+            $(esc(ps)).whitespace_newline = tmp1
+        end
+    end
+end
+
+macro space_sensitive(ps, body)
+    quote
+        local tmp1 = $(esc(ps)).space_sensitive
+        local tmp2 = $(esc(ps)).whitespace_newline
+        try 
+            $(esc(ps)).space_sensitive = true
+            $(esc(ps)).whitespace_newline = false
+            $(esc(body))
+        finally 
+            $(esc(ps)).space_sensitive    = tmp1
+            $(esc(ps)).whitespace_newline = tmp2
+        end
     end
 end
 
@@ -243,7 +257,7 @@ function parse_cond(ps::ParseState, ts::TokenStream)
     ex = parse_or(ps, ts)
     if peek_token(ps, ts) === :(?)
         take_token(ts)
-        then = without_range_colon(ps) do
+        then = @without_range_colon ps begin
             parse_eqs(ps, ts)
         end
         take_token(ts) === :(:) || error("colon expected in \"?\" expression")
@@ -621,7 +635,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
         elseif t === '['
             take_token(ts)
             # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
-            al = with_end_symbol(ps) do 
+            al = @with_end_symbol ps begin
                 parse_cat(ps, ts, ']')
             end
             if (al.head === :cell1d || al.head === :vcat) && isempty(al.args)
@@ -724,8 +738,8 @@ parse_subtype_spec(ps::ParseState, ts::TokenStream) = subtype_syntax(parse_ineq(
 # parse expressions or blocks introduced by syntatic reserved words
 function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
     expect_end_current_line = curline(ts)
-    with_normal_ops(ps) do
-        without_whitespace_newline(ps) do
+    @with_normal_ops ps begin
+        @without_whitespace_newline ps begin
             if word === :quote || word === :begin
                 Lexer.skipws_and_comments(ts)
                 loc = line_number_filename_node(ts)
@@ -847,7 +861,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 return ex
 
             elseif word === :bitstype
-                stmnt = with_space_sensitive(ps) do
+                stmnt = @space_sensitive ps begin
                     parse_cond(ps, ts)
                 end
                 return Expr(:bitstype, stmnt, parse_subtype_spec(ps, ts))
@@ -992,9 +1006,8 @@ function add_filename_to_block!(body::Expr, loc::Expr)
 end
 
 function parse_do(ps::ParseState, ts::TokenStream)
-    #TODO: line endings
     expect_end_current_line = curline(ts)
-    without_whitespace_newline(ps) do
+    @without_whitespace_newline ps begin
         doargs = Lexer.isnewline(peek_token(ps, ts)) ? {} : parse_comma_sep(ps, ts, parse_range)
         loc = line_number_filename_node(ts)
         blk = parse_block(ps, ts)
@@ -1128,7 +1141,7 @@ function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
 end
        
 function parse_space_separated_exprs(ps::ParseState, ts::TokenStream)
-    with_space_sensitive(ps) do
+    @space_sensitive ps begin
         exprs = {}
         while true 
             nt = peek_token(ps, ts)
@@ -1193,8 +1206,8 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer::Token)
 end
 
 function parse_arglist(ps::ParseState, ts::TokenStream, closer::Token)
-    with_normal_ops(ps) do
-        with_whitespace_newline(ps) do
+    @with_normal_ops ps begin
+        @with_whitespace_newline ps begin
             return _parse_arglist(ps, ts, closer)
         end
     end
@@ -1330,8 +1343,8 @@ function peek_non_newline_token(ps::ParseState, ts::TokenStream)
 end
 
 function parse_cat(ps::ParseState, ts::TokenStream, closer)
-    with_normal_ops(ps) do
-        with_inside_vec(ps) do
+    @with_normal_ops ps begin
+        @with_inside_vec ps begin
             if require_token(ps, ts) === closer
                 take_token(ts)
                 if closer === '}'
@@ -1582,8 +1595,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     # parens or tuple
     elseif t === '('
         take_token(ts)
-        with_normal_ops(ps) do
-            with_whitespace_newline(ps) do
+        @with_normal_ops ps begin
+            @with_whitespace_newline ps begin
                 if require_token(ps, ts) === ')'
                     # empty tuple
                     take_token(ts)
@@ -1715,7 +1728,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     # macro call
     elseif t === '@'
         take_token(ts)
-        with_space_sensitive(ps) do
+        @space_sensitive ps begin
             head = parse_unary_prefix(ps, ts)
             if (peek_token(ps, ts); ts.isspace)
                 ex = Expr(:macrocall, macroify_name(head))
