@@ -132,8 +132,7 @@ is_syntactic_op(op) = false
 is_syntactic_unary_op(op::Symbol) = in(op, syntactic_unary_ops)
 is_syntactic_unary_op(op) = false
 
-const is_special_char = let 
-    const chars = Set{Char}("()[]{},;\"`@")
+const is_special_char = let chars = Set{Char}("()[]{},;\"`@")
     is_special_char(c::Char)  = in(c, chars)
 end
 
@@ -246,8 +245,7 @@ const operator_chars = union([Set(string(op)) for op in operators]...)
 is_opchar(c::Char) = in(c, operator_chars)
 
 #= Characters that can follow a . in an operator =#
-const is_dot_opchar = let
-    const chars = Set{Char}(".*^/\\+-'<>!=%≥≤≠")
+const is_dot_opchar = let chars = Set{Char}(".*^/\\+-'<>!=%≥≤≠")
     is_dot_opchar(c::Char) = in(c, chars)
 end
 
@@ -314,11 +312,8 @@ TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io), 
 TokenStream(str::String) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
-
 skip(ts::TokenStream, n)  = Base.skip(ts.io, n)
-
 position(ts::TokenStream) = Base.position(ts.io)
-
 peekchar(ts::TokenStream) = peekchar(ts.io)
 
 readchar(ts::TokenStream) = begin
@@ -382,7 +377,7 @@ end
 #=============#
 
 function sized_uint_literal(s::String, b::Integer)
-    i = s[1] == '-' ? 3 : 2
+    i = s[1] === '-' ? 3 : 2
     l = (length(s) - i) * b
     l <= 8   && return parseint(Uint8,   s)
     l <= 16  && return parseint(Uint16,  s)
@@ -763,9 +758,7 @@ function next_token(ts::TokenStream, whitespace_newline::Bool)
 end
 
 next_token(ts::TokenStream) = next_token(ts, false)
-
 last_token(ts::TokenStream) = ts.lasttoken
-
 set_token!(ts::TokenStream, t::Token) = (ts.lasttoken = t; ts)
 
 function put_back!(ts::TokenStream, t::Token)
