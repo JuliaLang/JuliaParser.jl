@@ -71,7 +71,7 @@ function testall(srcdir::String)
                 past = Parser.parse(src)
                 t1 = toq()
                  
-                if without_linenums(past) == without_linenums(bast)
+                if norm_ast(past) == norm_ast(bast)
                     println(green("OK:     $fname"))
                     push!(passed, jlpath)
                     ptime += t1
