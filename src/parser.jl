@@ -1205,7 +1205,7 @@ end
 is_assignment(ex::Expr) = ex.head === :(=) && length(ex.args) == 2
 is_assignment(ex) = false
 
-to_kws(lst) = map((ex) -> is_assignment(ex) ? (kex = Expr(:kw, ex.args...) : ex, lst)
+to_kws(lst) = map((ex) -> is_assignment(ex) ? Expr(:kw, ex.args...) : ex, lst)
 
 # handle function call argument list, or any comma-delimited list
 # * an extra comma at the end is allowed
