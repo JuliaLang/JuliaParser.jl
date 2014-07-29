@@ -7,7 +7,13 @@ const Lexer  = JuliaParser.Lexer
 include("ast.jl")
 include("util.jl")
 
-const BASEPATH = ARGS[1]
+# TODO: Julia does not really have a good way to do this so
+# this only currently works from source builds.
+if length(ARGS) > 0
+    const BASEPATH = ARGS[1]
+else
+    const BASEPATH = abspath(joinpath(JULIA_HOME, "..", ".."))
+end
 
 passed = 0
 failed = 0
