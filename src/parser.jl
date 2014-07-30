@@ -160,7 +160,7 @@ end
 
 const is_closing_token = let closing = Set({',', ')', ']', '}', ';', sym_else, sym_elseif, sym_catch, sym_finally})
     is_closing_token(ps::ParseState, t) = 
-        (Lexer.eof(t) || (isa(t, CharSymbol) && t in closing) || (t === sym_end && !ps.end_symbol))
+        ((t === sym_end && !ps.end_symbol) || Lexer.eof(t) || (isa(t, CharSymbol) && t in closing))
 end
 
 is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
@@ -191,14 +191,12 @@ function parse_with_chains{T}(ps::ParseState, ts::TokenStream, down::Function, o
         t = peek_token(ps, ts)
         !(t in ops) && return ex
         take_token(ts)
-        if (ps.space_sensitive && ts.isspace &&
-            (t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts) != ' ')
+        if (ps.space_sensitive && ts.isspace && (t in Lexer.unary_and_binary_ops) && Lexer.peekchar(ts) != ' ')
             # here we have "x -y"
             put_back!(ts, t)
             return ex
         elseif t === chain_op
-            ex = Expr(:call, t, ex, parse_chain(ps, ts, down, t)...)
+            ex = Expr(:call, t, ex); append!(ex.args, parse_chain(ps, ts, down, t))
         else
             ex = Expr(:call, t, ex, down(ps, ts))
         end
@@ -225,8 +223,7 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
         !(t in ops) && return ex
         take_token(ts)
         if (ps.space_sensitive && ts.isspace &&
-            (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
-            Lexer.peekchar(ts) !== ' ')
+            (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) && Lexer.peekchar(ts) !== ' ')
             put_back!(ts, t)
             return ex
         elseif Lexer.is_syntactic_op(t)
@@ -244,7 +241,6 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
             else
                 ex = Expr(:macrocall, symbol("@~"), ex); append!(ex.args, args)
                 return ex
-
             end
         else
             return Expr(:call, t, ex, parse_RtoL(ps, ts, down, ops))
@@ -759,11 +755,9 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ps, ts)
                 expect_end(ps, ts, word)
-                
                 local ex::Expr
                 if !isempty(blk.args) && 
-                    ((isa(blk.args[1], Expr) && blk.args[1].head === :line) ||
-                     (isa(blk.args[1], LineNumberNode)))
+                    ((isa(blk.args[1], Expr) && blk.args[1].head === :line) || (isa(blk.args[1], LineNumberNode)))
                     ex = Expr(:block, loc)
                     for i in 2:length(blk.args)
                         push!(ex.args, blk.args[i])
@@ -821,8 +815,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 nt = peek_token(ps, ts)
                 binds = Lexer.isnewline(nt) || nt === ';' ? {} : parse_comma_sep_assigns(ps, ts)
                 nt = peek_token(ps, ts)
-                if !(Lexer.eof(nt) || 
-                    (isa(nt, CharSymbol) && (nt === '\n' || nt ===  ';' || nt === sym_end)))
+                if !(Lexer.eof(nt) || (isa(nt, CharSymbol) && (nt === '\n' || nt ===  ';' || nt === sym_end)))
                     error("let variables should end in \";\" or newline")
                 end
                 ex = parse_block(ps, ts)
@@ -1605,12 +1598,9 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 continue
             end
             str = unescape_string(bytestring(b))
-            
-            #TODO: this does not make any sense and is broken 
             if length(str) == 1
                 # one byte e.g. '\xff' maybe not valid UTF-8
                 # but we want to use the raw value as a codepoint in this case
-                # wchar str[0] 
                 return str[1] 
             else
                 if length(str) != 1  || !is_valid_utf8(str)
