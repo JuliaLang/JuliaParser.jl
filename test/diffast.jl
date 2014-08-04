@@ -51,4 +51,4 @@ append!(topast.args, ast.args)
 
 #eval(Main, topast)
 
-run(`gvimdiff $tmp1 $tmp2`)
+run(`vimdiff $tmp1 $tmp2`)
