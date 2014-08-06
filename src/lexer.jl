@@ -376,55 +376,6 @@ end
 # Read Number
 #=============#
 
-function sized_uint_literal(s::String, b::Integer)
-    i = s[1] === '-' ? 3 : 2
-    l = (length(s) - i) * b
-    l <= 8   && return parseint(Uint8,   s)
-    l <= 16  && return parseint(Uint16,  s)
-    l <= 32  && return parseint(Uint32,  s)
-    l <= 64  && return parseint(Uint64,  s)
-    l <= 128 && return parseint(Uint128, s)
-    return BigInt(s)
-end
-
-function sized_uint_oct_literal(s::String)
-    contains(s, "o0") && return sized_uint_literal(s, 3)
-    len = length(s)
-    (len < 5  || (len == 5  && s <= "0o377")) && return uint8(s)
-    (len < 8  || (len == 8  && s <= "0o177777")) && return uint16(s)
-    (len < 13 || (len == 13 && s <= "0o37777777777")) && return uint32(s)
-    (len < 24 || (len == 24 && s <= "0o1777777777777777777777")) && return uint64(s)
-    (len < 45 || (len == 45 && s <= "0o3777777777777777777777777777777777777777777")) && return uint128(s)
-    return BigInt(s)
-end
-
-function compare_num_strings(s1::String, s2::String)
-    s1, s2 = lstrip(s1, '0'), lstrip(s2, '0') 
-    l1, l2 = length(s1), length(s2)
-    return l1 == l2 ? s1 <= s2 : l1 <= l2
-end
-   
-function is_oct_within_uint128(s::String)
-    len = length(s)
-    max = "0o3777777777777777777777777777777777777777777"
-    len < 45  && return true
-    len > 45  && return false
-    len == 45 && s[1] === '-' ? s[2:end] <= max : s <= max
-end
-
-function is_within_int128(s::String)
-    len = length(s)
-    if s[1] === '-' 
-        len < 40  && return true
-        len > 40  && return false
-        len == 40 && return s <= "-170141183460469231731687303715884105728"
-    else
-        len < 39  && return true
-        len > 39  && return false
-        len == 39 && s <= "170141183460469231731687303715884105727"
-    end
-end
-
 # Notes:
 # expressions starting with 0x are always hexadecimal literals
 # expressions starting with a numeric literal followed by e or E
@@ -465,17 +416,7 @@ function string_to_number(str::String)
     elseif isfloat64
         return float64(str)
     else
-        try
-            return int64(str)
-        catch ex
-            # its better to ask for forgiveness...
-            !isa(ex, OverflowError) && rethrow(ex)
-            if is_within_int128(str)
-                return int128(str)
-            else
-                return BigInt(str)
-            end
-        end
+        return BigInt(str)
     end
 end
 
@@ -510,9 +451,6 @@ function accum_digits(ts::TokenStream, pred::Function, c::Char, leading_zero::Bo
     return (charr, true)
 end
 
-#TODO: can we get rid of this? 
-fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
-
 function disallow_dot!(ts::TokenStream)
     if peekchar(ts) === '.'
         skip(ts, 1)
@@ -532,7 +470,6 @@ function read_digits!(ts::TokenStream, pred::Function, charr::Vector{Char}, lead
     return true 
 end
 
-#TODO: try to remove neg as it is not needed for the lexer 
 function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     charr = Char[] 
     pred::Function = isdigit 
@@ -607,15 +544,14 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     (neg && base != 10 && !is_hexfloat_literal) && (str = str[2:end])
     if is_hexfloat_literal
         return float64(str)
-    elseif pred == is_char_hex
-        return fix_uint_neg(neg, sized_uint_literal(str, 4))
-    elseif pred == is_char_oct
-        return fix_uint_neg(neg, sized_uint_oct_literal(str))
-    elseif pred == is_char_bin
-        return fix_uint_neg(neg, sized_uint_literal(str, 1))
     elseif is_float32_literal
-        n = string_to_number(str)
-        return float32(n)
+        return float32(string_to_number(str))
+    elseif pred == is_char_hex
+        return BigInt(str)
+    elseif pred == is_char_oct
+        return BigInt(str) 
+    elseif pred == is_char_bin
+        return BigInt(str) 
     else
         return string_to_number(str)
     end
