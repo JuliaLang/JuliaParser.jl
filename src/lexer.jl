@@ -236,7 +236,8 @@ function is_identifier_start_char(c::Char)
     elseif (c < 0xA1 || c > 0x10ffff)
         return false
     end
-    return is_cat_id_start(c, UTF8proc.category_code(c))
+    cat = UTF8proc.category_code(c)
+    return is_cat_id_start(c, cat) 
 end
 
 #= Characters that can be in an operator =#

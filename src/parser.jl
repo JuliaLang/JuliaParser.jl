@@ -1613,7 +1613,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     # symbol / expression quote
     elseif t === :(:)
         take_token(ts)
-        if is_closing_token(ps, peek_token(ps, ts))
+        nt = peek_token(ps, ts)
+        if is_closing_token(ps, nt) && (ps.space_sensitive || !isa(nt, Symbol))
             return :(:)
         end
         return Expr(:quote, _parse_atom(ps, ts)) 
