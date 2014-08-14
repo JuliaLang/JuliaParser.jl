@@ -1816,13 +1816,15 @@ function is_valid_modref(ex::Expr)
            (isa(ex.args[1], Symbol) || is_valid_modref(ex.args[1]))
 end
 
+is_valid_modref(ex) = false
+
 function macroify_name(ex)
     if isa(ex, Symbol)
         return symbol(string('@', ex))
     elseif is_valid_modref(ex)
         return Expr(:(.), ex.args[1], Expr(:quote, macroify_name(ex.args[2].args[1])))
     else
-        error("invalid macro use \"@($ex)")
+        error("invalid macro use \"@($ex)\"")
     end
 end
 
