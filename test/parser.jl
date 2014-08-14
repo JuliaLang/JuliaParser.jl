@@ -935,3 +935,16 @@ ordtype(o::by, vs::abstractarray) = try typeof(o.by(vs[1])) catch; any end
     @fact typeof(Parser.parse("0o724")) => typeof(parse("0o724"))
     @fact typeof(Parser.parse("0o1111111111111111111111")) => Uint64
 end
+
+facts("misc errors") do
+    context("disallow dot error") do 
+        ex = nothing
+        try
+            Parser.parse("2.2.")
+        catch ex
+            ex = ex
+        end
+        @fact isa(ex, ErrorException) => true
+        @fact ex.msg => "invalid numeric constant \"2.2.\""
+    end
+end 

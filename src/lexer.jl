@@ -514,13 +514,13 @@ end
 #TODO: can we get rid of this? 
 fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
 
-function disallow_dot!(ts::TokenStream)
+function disallow_dot!(ts::TokenStream, charr::Vector{Char})
     if peekchar(ts) === '.'
         skip(ts, 1)
         if is_dot_opchar(peekchar(ts))
             skip(ts, -1)
         else
-            error("invalid numeric constant \"$(utf32(charr))."\"")
+            error("invalid numeric constant \"$(utf32(charr)).\"")
         end
     end
 end
@@ -576,7 +576,7 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
         else
             push!(charr, '.')
             read_digits!(ts, pred, charr, false)
-            disallow_dot!(ts)
+            disallow_dot!(ts, charr)
         end
     end
     c = peekchar(ts)
@@ -590,7 +590,7 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
             push!(charr, c)
             push!(charr, nc)
             read_digits!(ts, pred, charr, false)
-            disallow_dot!(ts)
+            disallow_dot!(ts, charr)
         else
             skip(ts, -1)
         end
