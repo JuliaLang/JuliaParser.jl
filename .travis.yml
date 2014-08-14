@@ -11,16 +11,7 @@ before_install:
   - sudo add-apt-repository ppa:staticfloat/${JULIAVERSION} -y
   - sudo apt-get update -qq -y
   - sudo apt-get install libpcre3-dev julia -y
+  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 script:
-  - julia -e 'Pkg.init(); Pkg.clone(pwd());'
-  - cd test
-  - julia lexer.jl
-  - julia parser.jl
-  - git clone --depth 1 --single-branch https://github.com/JuliaLang/julia 
-  - julia --code-coverage=all base.jl julia
-
-on_success:
-  - julia -e 'cd(Pkg.dir("JuliaParser"));
-              Pkg.add("Coverage"); 
-              using Coverage; 
-              Coveralls.submit(Coveralls.process_folder())'
+  - git clone --depth 1 --single-branch https://github.com/JuliaLang/julia
+  - julia -e 'Pkg.init(); Pkg.clone(pwd()); ARGS = [joinpath(Pkg.dir("JuliaParser"), "julia")]; Pkg.test("JuliaParser")'
