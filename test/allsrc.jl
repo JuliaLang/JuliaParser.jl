@@ -15,6 +15,7 @@ else
     const BASEPATH = abspath(joinpath(JULIA_HOME, "..", ".."))
 end
 const PKGDIR = Pkg.dir()
+@show ARGS, BASEPATH, PKGDIR
 
 passed = {}
 failed = {}
