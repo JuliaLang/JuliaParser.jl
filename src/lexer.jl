@@ -137,7 +137,7 @@ const is_special_char = let chars = Set{Char}("()[]{},;\"`@")
     is_special_char(c::Char)  = in(c, chars)
 end
 
-isnewline(c::Char) = c === '\n''
+isnewline(c::Char) = c === '\n'
 isnewline(c) = false
 
 function isuws(c::Char)
