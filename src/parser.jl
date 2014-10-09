@@ -1809,7 +1809,7 @@ end
 
 function parse_atom(ps::ParseState, ts::TokenStream)
     ex = _parse_atom(ps, ts)
-    if (ex in Lexer.syntactic_ops) || ex === :(...)
+    if  (ex !== :(=>) && (ex in Lexer.syntactic_ops)) || ex === :(...)
         error("invalid identifier name \"$ex\"")
     end
     return ex
