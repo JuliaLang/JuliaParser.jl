@@ -16,9 +16,9 @@ else
 end
 const PKGDIR = Pkg.dir()
 
-passed = {}
-failed = {}
-errors = {}
+passed = Any[]
+failed = Any[]
+errors = Any[]
 
 ptime = 0.0
 btime = 0.0
@@ -30,7 +30,7 @@ function testall(srcdir::String)
     global ptime
     global btime 
 
-    dirs, files = {}, {}
+    dirs, files = Any[], Any[]
 
     for fname in sort(readdir(srcdir))
         path = joinpath(srcdir, fname) 
@@ -112,7 +112,7 @@ else
 Could not find julia base sources in $BASEPATH,
 perhaps you are using a Julia not built from source?""")
 end
-
+#=
 for pkg in Pkg.available()
     pkgpath = joinpath(PKGDIR, pkg)
     if !isdir(pkgpath)
@@ -120,7 +120,7 @@ for pkg in Pkg.available()
     end
     testall(pkgpath)
 end
-
+=#
 npassed, nfailed, nerrors = length(passed), length(failed), length(errors)
 
 println("\n"^2)

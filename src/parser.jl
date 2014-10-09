@@ -142,32 +142,33 @@ function short_form_function_loc(ex, lno, filename)
    return ex
 end
 
-const sym_do      = symbol("do")
-const sym_else    = symbol("else")
-const sym_elseif  = symbol("elseif")
-const sym_end     = symbol("end")
-const sym_else    = symbol("else")
-const sym_elseif  = symbol("elseif")
-const sym_catch   = symbol("catch")
-const sym_finally = symbol("finally")
-const sym_squote  = symbol("'")
+const SYM_DO      = symbol("do")
+const SYM_ELSE    = symbol("else")
+const SYM_ELSEIF  = symbol("elseif")
+const SYM_END     = symbol("end")
+const SYM_CATCH   = symbol("catch")
+const SYM_FINALLY = symbol("finally")
+const SYM_SQUOTE  = symbol("'")
 
-const EOF = char(-1)
+const EOF = Lexer.EOF
 
-const is_invalid_initial_token = let invalid = Set({')', ']', '}', sym_else, sym_elseif, sym_catch, sym_finally}) 
+const is_invalid_initial_token = let invalid = Set([')', ']', '}', SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
     is_invalid_initial_token(t) = isa(t, CharSymbol) && t in invalid
 end
 
-const is_closing_token = let closing = Set({',', ')', ']', '}', ';', sym_else, sym_elseif, sym_catch, sym_finally})
+const is_closing_token = let closing = Set([',', ')', ']', '}', ';', SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
     is_closing_token(ps::ParseState, t) = 
-        ((t === sym_end && !ps.end_symbol) || Lexer.eof(t) || (isa(t, CharSymbol) && t in closing))
+        ((t === SYM_END && !ps.end_symbol) || Lexer.eof(t) || (isa(t, CharSymbol) && t in closing))
 end
 
 is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
 is_dict_literal(ex) = false
 
+is_parameter(ex::Expr) = ex.head === :parameters && length(ex.args) == 1
+is_parameter(ex) = false
+
 function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op) 
-    chain = {down(ps, ts)}
+    chain = Any[down(ps, ts)]
     while true 
         t = peek_token(ps, ts)
         t !== op && return chain
@@ -273,13 +274,13 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
     local args::Vector{Any}
     # in allow empty mode, skip leading runs of operator
     if allow_empty && isa(t, CharSymbol) && t in ops 
-        args = {}
+        args = Any[]
     elseif '\n' in ops
         # line-number must happend before (down s)
         loc  = line_number_node(ts)
-        args = {loc, down(ps, ts)}
+        args = Any[loc, down(ps, ts)]
     else
-        args = {down(ps, ts)}
+        args = Any[down(ps, ts)]
     end
     isfirst = true
     t = peek_token(ps, ts)
@@ -289,13 +290,13 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
                 error("extra token \"$t\" after end of expression")
             end
             if isempty(args) || length(args) >= 2 || !isfirst
-                # {} => Expr(:head)
-                # {ex1, ex2} => Expr(head, ex1, ex2)
+                # [] => Expr(:head)
+                # [ex1, ex2] => Expr(head, ex1, ex2)
                 # (ex1) if operator appeared => Expr(head,ex1) (handles "x;")
                 ex = Expr(head); ex.args = args
                 return ex
             else
-                # {ex1} => ex1
+                # [ex1] => ex1
                 return args[1]
             end
         end
@@ -321,7 +322,7 @@ end
 
 # the principal non-terminals follow, in increasing precedence order
 const BLOCK_OPS = Set(['\n', ';'])
-const BLOCK_CLOSERS = Set([sym_end, sym_else, sym_elseif, sym_catch, sym_finally])
+const BLOCK_CLOSERS = Set([SYM_END, SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
 function parse_block(ps::ParseState, ts::TokenStream)
     parse_Nary(ps, ts, parse_eq, BLOCK_OPS, :block, BLOCK_CLOSERS, true)
 end
@@ -457,7 +458,7 @@ function parse_range(ps::ParseState, ts::TokenStream)
                     op = symbol(string(ex, t))
                     Lexer.is_operator(op) && return op
                 end
-                error("deprecated syntax arr[i:]")
+                error("missing last argument in \"$(ex):\"range expression")
             end
             if Lexer.isnewline(peek_token(ps, ts))
                 error("line break in \":\" expression")
@@ -602,7 +603,7 @@ function parse_call(ps::ParseState, ts::TokenStream)
 end
 
 function separate(f::Function, collection)
-    tcoll, fcoll = {}, {}
+    tcoll, fcoll = Any[], Any[]
     for c in collection
         f(c) ? push!(tcoll, c) : push!(fcoll, c)
     end
@@ -615,16 +616,15 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
     while true 
         t = peek_token(ps, ts)
         if (ps.space_sensitive && ts.isspace && 
-           (t === sym_squote || t in BEGIN_CHARS) ||
+           (t === SYM_SQUOTE || t in BEGIN_CHARS) ||
            (isa(ex, Number) && t === '('))
             return ex
         end
         if t === '('
             take_token(ts)
             arglist = parse_arglist(ps, ts, ')')
-            isparam = (ex) -> isa(ex, Expr) && ex.head === :parameters && length(ex.args) == 1
-            params, args = separate(isparam, arglist)
-            if peek_token(ps, ts) === sym_do
+            params, args = separate(is_parameter, arglist)
+            if peek_token(ps, ts) === SYM_DO
                 take_token(ts)
                 ex = Expr(:call, ex)
                 append!(ex.args, params)
@@ -641,7 +641,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             take_token(ts)
             # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
             al = @with_end_symbol ps begin
-                parse_cat(ps, ts, ']')
+                parse_cat(ps, ts, ']', is_dict_literal(ex))
             end
             if (al.head === :cell1d || al.head === :vcat) && isempty(al.args)
                 ex = is_dict_literal(ex) ? Expr(:typed_dict, ex) : Expr(:ref, ex)
@@ -688,7 +688,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             end
             continue
 
-        elseif t === :(.') || t === sym_squote
+        elseif t === :(.') || t === SYM_SQUOTE 
             take_token(ts)
             ex = Expr(t, ex)
             continue
@@ -732,7 +732,7 @@ const expect_end_current_line = 0
 
 function expect_end(ps::ParseState, ts::TokenStream, word::Symbol)
     t = peek_token(ps, ts)
-    if t === sym_end
+    if t === SYM_END 
         take_token(ts)
     elseif Lexer.eof(t)
         err_msg = "incomplete: \"$word\" at \"$(filename(ts))\" : {expected} requires end"
@@ -787,19 +787,19 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
             elseif word === :if
                 test = parse_cond(ps, ts)
                 t    = require_token(ps, ts)
-                then = (t === sym_else || t === sym_elseif) ? Expr(:block) : 
+                then = (t === SYM_ELSE || t === SYM_ELSEIF) ? Expr(:block) : 
                                                               parse_block(ps, ts)
                 nxt = require_token(ps, ts)
                 take_token(ts)
-                if nxt === sym_end
+                if nxt === SYM_END 
                     return Expr(:if, test, then)
-                elseif nxt === sym_elseif
+                elseif nxt === SYM_ELSEIF 
                     if Lexer.isnewline(peek_token(ps, ts))
                         error("missing condition in elseif at {filename} : {line}")
                     end
                     blk = Expr(:block, line_number_node(ts), parse_resword(ps, ts, :if))
                     return Expr(:if, test, then, blk)
-                elseif nxt === sym_else
+                elseif nxt === SYM_ELSE 
                     if peek_token(ps, ts) === :if
                         error("use elseif instead of else if")
                     end
@@ -813,9 +813,9 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :let
                 nt = peek_token(ps, ts)
-                binds = Lexer.isnewline(nt) || nt === ';' ? {} : parse_comma_sep_assigns(ps, ts)
+                binds = Lexer.isnewline(nt) || nt === ';' ? Any[] : parse_comma_sep_assigns(ps, ts)
                 nt = peek_token(ps, ts)
-                if !(Lexer.eof(nt) || (isa(nt, CharSymbol) && (nt === '\n' || nt ===  ';' || nt === sym_end)))
+                if !(Lexer.eof(nt) || (isa(nt, CharSymbol) && (nt === '\n' || nt ===  ';' || nt === SYM_END)))
                     error("let variables should end in \";\" or newline")
                 end
                 ex = parse_block(ps, ts)
@@ -826,7 +826,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
             elseif word === :global || word === :local
                 lno = curline(ts)
                 isconst = peek_token(ps, ts) === :const ? (take_token(ts); true) : false
-                args = {}
+                args = Any[]
                 for aex in parse_comma_sep_assigns(ps, ts)
                     push!(args, short_form_function_loc(aex, lno, filename(ts)))
                 end
@@ -858,7 +858,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                         error("expected \"(\" in $word definition")
                     end
                 end
-                peek_token(ps, ts) !== sym_end && Lexer.skipws_and_comments(ts)
+                peek_token(ps, ts) !== SYM_END && Lexer.skipws_and_comments(ts)
                 loc  = line_number_filename_node(ts)
                 body = parse_block(ps, ts)
                 expect_end(ps, ts, word)
@@ -895,14 +895,14 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :try
                 t = require_token(ps, ts)
-                tryb = t === sym_catch || t === sym_finally ? Expr(:block) : parse_block(ps, ts)
+                tryb = t === SYM_CATCH || t === SYM_FINALLY ? Expr(:block) : parse_block(ps, ts)
                 t = require_token(ps, ts)
                 catchb = nothing
                 catchv = false
                 finalb = nothing
                 while true
                     take_token(ts)
-                    if t === sym_end 
+                    if t === SYM_END 
                         if finalb != nothing
                             return catchb != nothing ? Expr(:try, tryb, catchv, catchb, finalb) :
                                                        Expr(:try, tryb, catchv, false, finalb)
@@ -911,7 +911,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                                                        Expr(:try, tryb, catchv, false)
                         end
                     end
-                    if t === sym_catch && catchb == nothing
+                    if t === SYM_CATCH && catchb == nothing
                         nb = false # do we delineate a new block after a catch token (with ; or \n)? 
                         nt = peek_token(ps, ts)
                         if Lexer.isnewline(nt) || nt === ';'
@@ -919,14 +919,14 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                             nt === ';' && take_token(ts)
                         end
                         t   = require_token(ps, ts)
-                        if t === sym_end || t === sym_finally
+                        if t === SYM_END || t === SYM_FINALLY 
                             catchb = Expr(:block)
                             catchv = false 
                             continue
                         else 
                             var   = parse_eqs(ps, ts)
                             isvar = nb == false && isa(var, Symbol)
-                            catch_block = require_token(ps, ts) === sym_finally ? Expr(:block) : 
+                            catch_block = require_token(ps, ts) === SYM_FINALLY ? Expr(:block) : 
                                                                                   parse_block(ps, ts)
                             t = require_token(ps, ts)
                             if isvar
@@ -939,8 +939,8 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                             catchv = isvar ? var : false
                             continue
                         end
-                    elseif t === sym_finally && finalb == nothing
-                        finalb = require_token(ps, ts) === sym_catch ? Expr(:block) : 
+                    elseif t === SYM_FINALLY && finalb == nothing
+                        finalb = require_token(ps, ts) === SYM_CATCH ? Expr(:block) : 
                                                                        parse_block(ps, ts)
                         t = require_token(ps, ts)
                         continue 
@@ -1042,7 +1042,7 @@ end
 function parse_do(ps::ParseState, ts::TokenStream)
     expect_end_current_line = curline(ts)
     @without_whitespace_newline ps begin
-        doargs = Lexer.isnewline(peek_token(ps, ts)) ? {} : parse_comma_sep(ps, ts, parse_range)
+        doargs = Lexer.isnewline(peek_token(ps, ts)) ? Any[] : parse_comma_sep(ps, ts, parse_range)
         loc = line_number_filename_node(ts)
         blk = parse_block(ps, ts)
         add_filename_to_block!(blk, loc)
@@ -1054,7 +1054,7 @@ end
 macrocall_to_atsym(ex) = isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : ex
 
 function parse_imports(ps::ParseState, ts::TokenStream, word::Symbol)
-    frst = {parse_import(ps, ts, word)}
+    frst = Any[parse_import(ps, ts, word)]
     nt   = peek_token(ps, ts)
     from = nt === :(:) && !ts.isspace 
     done = false
@@ -1068,7 +1068,7 @@ function parse_imports(ps::ParseState, ts::TokenStream, word::Symbol)
     else
         done = false
     end
-    rest = done? {} : parse_comma_sep(ps, ts, (ps, ts) -> parse_import(ps, ts, word))
+    rest = done? Any[] : parse_comma_sep(ps, ts, (ps, ts) -> parse_import(ps, ts, word))
     if from
         module_syms = frst[1].args
         imports = Expr[]
@@ -1087,7 +1087,7 @@ const sym_3dots = symbol("...")
 const sym_4dots = symbol("....")
 
 function parse_import_dots(ps::ParseState, ts::TokenStream)
-    l = {}
+    l = Any[]
     t = peek_token(ps, ts)
     while true
         if t === sym_1dot
@@ -1097,17 +1097,17 @@ function parse_import_dots(ps::ParseState, ts::TokenStream)
             continue
         elseif t === sym_2dots
             take_token(ts)
-            append!(l, {:(.), :(.)})
+            append!(l, [:(.), :(.)])
             t = peek_token(ps, ts)
             continue
         elseif t === sym_3dots
             take_token(ts)
-            append!(l, {:(.), :(.), :(.)})
+            append!(l, [:(.), :(.), :(.)])
             t = peek_token(ps, ts)
             continue
         elseif t === sym_4dots
             take_token(ts)
-            append!(l, {:(.), :(.), :(.), :(.)})
+            append!(l, [:(.), :(.), :(.), :(.)])
             t = peek_token(ps, ts)
             continue
         end
@@ -1137,7 +1137,7 @@ function parse_import(ps::ParseState, ts::TokenStream, word::Symbol)
 end
 
 function parse_comma_sep(ps::ParseState, ts::TokenStream, what::Function)
-    exprs = {}
+    exprs = Any[]
     while true 
         r = what(ps, ts)
         if peek_token(ps, ts) === ','
@@ -1155,7 +1155,7 @@ parse_comma_sep_assigns(ps::ParseState, ts::TokenStream) = parse_comma_sep(ps, t
 # as above, but allows both "i=r" and "i in r"
 # return a list of range expressions
 function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
-    ranges = {}
+    ranges = Any[]
     while true 
         r = parse_eqs(ps, ts)
         if r === :(:)
@@ -1177,7 +1177,7 @@ end
        
 function parse_space_separated_exprs(ps::ParseState, ts::TokenStream)
     @space_sensitive ps begin
-        exprs = {}
+        exprs = Any[]
         while true 
             nt = peek_token(ps, ts)
             if is_closing_token(ps, nt) ||
@@ -1195,17 +1195,27 @@ function parse_space_separated_exprs(ps::ParseState, ts::TokenStream)
     end
 end
 
-is_assignment(ex::Expr) = ex.head === :(=) && length(ex.args) == 2
-is_assignment(ex) = false
-
-to_kws(lst) = map((ex) -> is_assignment(ex) ? Expr(:kw, ex.args...) : ex, lst)
+function to_kws(lst)
+    n = length(lst)
+    kwargs = Array(Any, n)
+    for i = 1:n
+        ex = lst[i]
+        if isa(ex, Expr) && ex.head === :(=) && length(ex.args) == 2
+            nex = Expr(:kw); nex.args = ex.args
+            kwargs[i] = nex
+        else
+            kwargs[i] = ex
+        end
+    end
+    return kwargs
+end
 
 # handle function call argument list, or any comma-delimited list
 # * an extra comma at the end is allowed
 # * expressions after a ; are enclosed in (parameters ....)
 # * an expression followed by ... becomes (.... x)
 function _parse_arglist(ps::ParseState, ts::TokenStream, closer)
-    lst = {} 
+    lst = Any[]
     while true 
         t = require_token(ps, ts)
         if t === closer
@@ -1250,7 +1260,7 @@ end
 
 # parse [] concatenation exprs and {} cell exprs
 function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
-    lst = {}
+    lst = Any[]
     nxt = frst
     while true 
         t = require_token(ps, ts)
@@ -1326,8 +1336,8 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
     end
 
     semicolon = peek_token(ps, ts) === ';'
-    vec   = {frst}
-    outer = {}
+    vec   = Any[frst]
+    outer = Any[]
     while true 
         t = peek_token(ps, ts) === '\n' ? '\n' : require_token(ps, ts)
         if t === closer
@@ -1347,7 +1357,7 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
         if t === ';' || t === '\n'
             take_token(ts)
             outer = update_outer!(vec, outer)
-            vec   = {}
+            vec   = Any[]
             continue
         elseif t === ','
             error("unexpected comma in matrix expression")
@@ -1378,7 +1388,7 @@ function peek_non_newline_token(ps::ParseState, ts::TokenStream)
     end
 end
 
-function parse_cat(ps::ParseState, ts::TokenStream, closer)
+function parse_cat(ps::ParseState, ts::TokenStream, closer, isdict::Bool=false)
     @with_normal_ops ps begin
         @with_inside_vec ps begin
             if require_token(ps, ts) === closer
@@ -1415,7 +1425,7 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer)
 end
 
 function parse_tuple(ps::ParseState, ts::TokenStream, frst)
-    args = {}
+    args = Any[]
     nxt = frst
     while true
         t = require_token(ps, ts)
@@ -1544,7 +1554,8 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
             continue
         elseif c === '$' && !custom
             iex = parse_interpolate(ps, ts)
-            append!(ex.args, {tostr(b, custom), iex})
+            push!(ex.args, tostr(b, custom))
+            push!(ex.args, iex)
             c = Lexer.readchar(ts)
             b = IOBuffer()
             quotes = 0
@@ -1575,7 +1586,6 @@ end
 
 function _parse_atom(ps::ParseState, ts::TokenStream)
     t = require_token(ps, ts)
-    #Note: typeof(t) == Char, isa(t, Number) == true
     if !isa(t, Char) && isa(t, Number)
         return take_token(ts)
     
@@ -1616,7 +1626,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         nt = peek_token(ps, ts)
         if is_closing_token(ps, nt) && (ps.space_sensitive || !isa(nt, Symbol))
             return :(:)
-        end
+        end 
         return Expr(:quote, _parse_atom(ps, ts)) 
     
     # misplaced =

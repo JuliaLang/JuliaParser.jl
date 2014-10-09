@@ -7,7 +7,7 @@ const Lexer  = JuliaParser.Lexer
 const TokenStream = JuliaParser.Parser.TokenStream 
 
 tokens(ts::TokenStream) = begin
-    toks = {}
+    toks = Any[]
     while !eof(ts.io)
         push!(toks, Lexer.next_token(ts))
     end

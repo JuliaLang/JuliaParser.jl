@@ -9,9 +9,9 @@ const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false") 
 const SYM_CTRANSPOSE = symbol("'")
 
-const EOF = char(-1)
+const EOF = char(typemax(Uint32))
 
-const ops_by_precedent =  {
+const ops_by_precedent = Any[
        [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=), 
         :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=), 
         :(|=),  :(&=),  :($=), :(=>),  :(<<=), :(>>=),  :(>>>=), :(~),
@@ -80,7 +80,8 @@ const ops_by_precedent =  {
         :(⤒), :(⤓),  :(⥉), :(⥌), :(⥍), :(⥏), :(⥑), :(⥔), :(⥕), :(⥘), :(⥙), 
         :(⥜), :(⥝),  :(⥠), :(⥡), :(⥣), :(⥥), :(⥮), :(⥯), :(￪), :(￬)],
        [:(::)],
-       [:(.)]}
+       [:(.)]
+]
 
 precedent_ops(n::Integer) = Set{Symbol}(ops_by_precedent[n])
 
