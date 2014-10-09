@@ -1281,7 +1281,12 @@ function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
             nxt = parse_eqs(ps, ts)
             continue
         elseif t === ';'
-            error("unexpected semicolon in array expression")
+            take_token(ts)
+            peek_token(ps, ts) === closer && continue
+            params = parse_arglist(ps, ts, closer)
+            unshift!(lst, Expr(:parameters, params...))
+            ex = Expr(:vcat); ex.args = reverse(push!(lst, next))
+            return ex
         elseif t === ']' || t === '}'
             error("unexpected \"$t\" in array expression")
         else
