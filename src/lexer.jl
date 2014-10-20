@@ -107,14 +107,12 @@ const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...), 
                              :(.'), SYM_CTRANSPOSE]), 
 			                 [Set(ops) for ops in ops_by_precedent]...)
 
-const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try,
-                                    :return, :break, :continue, :function, 
-                                    :macro, :quote, :let, :local, :global, 
-                                    :const, :abstract, :typealias, :type, 
-                                    :bitstype, :immutable, :ccall, :do, 
-                                    :module, :baremodule, :using, :import,
+const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try, :return, 
+                                    :break, :continue, :function, :stagedfunction,
+                                    :macro, :quote, :let, :local, :global, :const,
+                                    :abstract, :typealias, :type, :bitstype, :immutable, 
+                                    :ccall, :do, :module, :baremodule, :using, :import,
                                     :export, :importall])
-
 #= Helper functions =#
 
 const operator_prescedence = let 

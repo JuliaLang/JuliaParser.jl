@@ -838,7 +838,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                     return ex
                 end 
 
-            elseif word === :function || word === :macro
+            elseif word === :function || word === :macro || word === :stagedfunction
                 paren = require_token(ps, ts) === '('
                 sig   = parse_call(ps, ts)
                 local def::Expr
