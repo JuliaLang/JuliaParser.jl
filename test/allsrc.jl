@@ -14,7 +14,7 @@ if length(ARGS) > 0 && ispath(ARGS[1])
 else
     const BASEPATH = abspath(joinpath(JULIA_HOME, "..", ".."))
 end
-const PKGDIR = Pkg.dir()
+const PKGDIR = "/Users/jacobbolewski/.julia/v0.3/"
 
 passed = Any[]
 failed = Any[]
@@ -112,7 +112,6 @@ else
 Could not find julia base sources in $BASEPATH,
 perhaps you are using a Julia not built from source?""")
 end
-#=
 for pkg in Pkg.available()
     pkgpath = joinpath(PKGDIR, pkg)
     if !isdir(pkgpath)
@@ -120,7 +119,7 @@ for pkg in Pkg.available()
     end
     testall(pkgpath)
 end
-=#
+
 npassed, nfailed, nerrors = length(passed), length(failed), length(errors)
 
 println("\n"^2)
@@ -149,4 +148,4 @@ else
     println(bold("Parser is ~$pctstr% faster than base"))
 end
 
-exit(nfailed + nerrors)
+#exit(nfailed + nerrors)
