@@ -59,7 +59,7 @@ function testall(srcdir::String)
             src = bytestring(buf)
             
             local bast::Expr
-            local past::Expr
+            local past::MyExpr
             
             local t1::Float64
             local t2::Float64

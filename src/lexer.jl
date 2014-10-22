@@ -1,5 +1,6 @@
 module Lexer
 
+import ..MyExpr
 import Base.UTF8proc
 
 export Token, TokenStream, next_token, set_token!, last_token, 
@@ -511,7 +512,7 @@ function accum_digits(ts::TokenStream, pred::Function, c::Char, leading_zero::Bo
 end
 
 #TODO: can we get rid of this? 
-fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
+fix_uint_neg(neg::Bool, n::Number) = neg? MyExpr(:call, :- , n) : n
 
 function disallow_dot!(ts::TokenStream, charr::Vector{Char})
     if peekchar(ts) === '.'

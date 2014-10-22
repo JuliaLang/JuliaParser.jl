@@ -1,6 +1,7 @@
 # Julia Source Parser
 module Parser
 
+import ..MyExpr
 using ..Lexer
 
 export parse
@@ -130,14 +131,14 @@ curline(ts::TokenStream)  = ts.lineno
 filename(ts::TokenStream) = symbol("none")
 
 line_number_node(ts) = LineNumberNode(curline(ts))
-line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts)) 
+line_number_filename_node(ts::TokenStream) = MyExpr(:line, curline(ts), filename(ts)) 
 
 # insert line/file for short form function defs, otherwise leave alone
 function short_form_function_loc(ex, lno, filename)
-    if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
-       block = Expr(:block, Expr(:line, lno, filename))
+    if isa(ex, MyExpr) && ex.head === :(=) && isa(ex.args[1], MyExpr) && ex.args[1].head === :call
+       block = MyExpr(:block, MyExpr(:line, lno, filename))
        append!(block.args, ex.args[2:end])
-       return Expr(:(=), ex.args[1], block) 
+       return MyExpr(:(=), ex.args[1], block) 
    end
    return ex
 end
@@ -161,10 +162,10 @@ const is_closing_token = let closing = Set([',', ')', ']', '}', ';', SYM_ELSE, S
         ((t === SYM_END && !ps.end_symbol) || Lexer.eof(t) || (isa(t, CharSymbol) && t in closing))
 end
 
-is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
+is_dict_literal(ex::MyExpr) = ex.head === :(=>) && length(ex.args) == 2
 is_dict_literal(ex) = false
 
-is_parameter(ex::Expr) = ex.head === :parameters && length(ex.args) == 1
+is_parameter(ex::MyExpr) = ex.head === :parameters && length(ex.args) == 1
 is_parameter(ex) = false
 
 function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op) 
@@ -197,9 +198,9 @@ function parse_with_chains{T}(ps::ParseState, ts::TokenStream, down::Function, o
             put_back!(ts, t)
             return ex
         elseif t === chain_op
-            ex = Expr(:call, t, ex); append!(ex.args, parse_chain(ps, ts, down, t))
+            ex = MyExpr(:call, t, ex); append!(ex.args, parse_chain(ps, ts, down, t))
         else
-            ex = Expr(:call, t, ex, down(ps, ts))
+            ex = MyExpr(:call, t, ex, down(ps, ts))
         end
     end
 end
@@ -210,9 +211,9 @@ function parse_LtoR{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
         !(t in ops) && return ex
         take_token(ts)
         if Lexer.is_syntactic_op(t) || t === :(in) || t === :(::)
-            ex = Expr(t, ex, down(ps, ts))
+            ex = MyExpr(t, ex, down(ps, ts))
         else
-            ex = Expr(:call, t, ex, down(ps, ts))
+            ex = MyExpr(:call, t, ex, down(ps, ts))
         end
         t = peek_token(ps, ts)
     end
@@ -228,23 +229,23 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
             put_back!(ts, t)
             return ex
         elseif Lexer.is_syntactic_op(t)
-            return Expr(t, ex, parse_RtoL(ps, ts, down, ops))
+            return MyExpr(t, ex, parse_RtoL(ps, ts, down, ops))
         elseif t === :(~)
             args = parse_chain(ps, ts, down, :(~))
             nt   = peek_token(ps, ts)
             if isa(nt, CharSymbol) && nt in ops
-                ex = Expr(:macrocall, symbol("@~"), ex)
+                ex = MyExpr(:macrocall, symbol("@~"), ex)
                 for i=1:length(args)-1
                     push!(ex.args, args[i])
                 end
                 push!(ex.args, parse_RtoL(ps, ts, down, ops, args[end]))
                 return ex 
             else
-                ex = Expr(:macrocall, symbol("@~"), ex); append!(ex.args, args)
+                ex = MyExpr(:macrocall, symbol("@~"), ex); append!(ex.args, args)
                 return ex
             end
         else
-            return Expr(:call, t, ex, parse_RtoL(ps, ts, down, ops))
+            return MyExpr(:call, t, ex, parse_RtoL(ps, ts, down, ops))
         end
     end
 end
@@ -257,7 +258,7 @@ function parse_cond(ps::ParseState, ts::TokenStream)
             parse_eqs(ps, ts)
         end
         take_token(ts) === :(:) || error("colon expected in \"?\" expression")
-        return Expr(:if, ex, then, parse_eqs(ps, ts))
+        return MyExpr(:if, ex, then, parse_eqs(ps, ts))
     end
     return ex
 end
@@ -269,7 +270,7 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
     is_invalid_initial_token(t) && error("unexpected \"$t\"")
     # empty block
     if isa(t, CharSymbol) && t in closers
-        return Expr(head)
+        return MyExpr(head)
     end
     local args::Vector{Any}
     # in allow empty mode, skip leading runs of operator
@@ -293,7 +294,7 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
                 # [] => Expr(:head)
                 # [ex1, ex2] => Expr(head, ex1, ex2)
                 # (ex1) if operator appeared => Expr(head,ex1) (handles "x;")
-                ex = Expr(head); ex.args = args
+                ex = MyExpr(head); ex.args = args
                 return ex
             else
                 # [ex1] => ex1
@@ -400,7 +401,7 @@ function parse_comparison(ps::ParseState, ts::TokenStream, ops)
         take_token(ts)
         if isfirst
             isfirst = false
-            ex = Expr(:comparison, ex, t, parse_range(ps, ts))
+            ex = MyExpr(:comparison, ex, t, parse_range(ps, ts))
         else
             push!(ex.args, t)
             push!(ex.args, parse_range(ps, ts))
@@ -419,7 +420,7 @@ const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
                !(t in Lexer.reserved_words) &&
                !(is_closing_token(ps, t)) &&
                !(Lexer.isnewline(t)) &&
-               !(isa(ex, Expr) && ex.head === :(...)) &&
+               !(isa(ex, MyExpr) && ex.head === :(...)) &&
                (isa(t, Number) || !(isa(t, Char) && t in invalid_chars))
     end
 end
@@ -428,7 +429,7 @@ end
 function parse_juxtaposed(ps::ParseState, ts::TokenStream, ex) 
     # numeric literal juxtaposition is a unary operator
     if is_juxtaposed(ps, ex, peek_token(ps, ts)) && !ts.isspace
-        return Expr(:call, :(*), ex, parse_unary(ps, ts))
+        return MyExpr(:call, :(*), ex, parse_unary(ps, ts))
     end
     return ex
 end
@@ -440,7 +441,7 @@ function parse_range(ps::ParseState, ts::TokenStream)
         t = peek_token(ps, ts)
         if isfirst && t === :(..)
            take_token(ts)
-           return Expr(:call, t, ex, parse_expr(ps, ts))
+           return MyExpr(:call, t, ex, parse_expr(ps, ts))
         end
         if ps.range_colon_enabled && t === :(:)
             take_token(ts)
@@ -468,7 +469,7 @@ function parse_range(ps::ParseState, ts::TokenStream)
                 error("\":$argument\" found instead of \"$argument:\"")
             end
             if isfirst
-                ex = Expr(t, ex, arg)
+                ex = MyExpr(t, ex, arg)
                 isfirst = false
             else
                 push!(ex.args, arg)
@@ -477,7 +478,7 @@ function parse_range(ps::ParseState, ts::TokenStream)
             continue
         elseif t === :(...)
             take_token(ts)
-            return Expr(:(...), ex)
+            return MyExpr(:(...), ex)
         else
             return ex
         end
@@ -491,7 +492,7 @@ function parse_decl(ps::ParseState, ts::TokenStream)
         # type assertion => x::Int
         if nt === :(::)
             take_token(ts)
-            ex = Expr(:(::), ex, parse_call(ps, ts))
+            ex = MyExpr(:(::), ex, parse_call(ps, ts))
             continue
         end
         # anonymous function => (x) -> x + 1
@@ -499,7 +500,7 @@ function parse_decl(ps::ParseState, ts::TokenStream)
             take_token(ts)
             # -> is unusual it binds tightly on the left and loosely on the right
             lno = line_number_filename_node(ts)
-            return Expr(:(->), ex, Expr(:block, lno, parse_eqs(ps, ts)))
+            return MyExpr(:(->), ex, MyExpr(:block, lno, parse_eqs(ps, ts)))
         end
         return ex
     end
@@ -512,10 +513,10 @@ function parse_factorh(ps::ParseState, ts::TokenStream, down::Function, ops)
     !(nt in ops) && return ex
     take_token(ts)
     pf = parse_factorh(ps, ts, parse_unary, ops)  
-    return Expr(:call, nt, ex, pf)
+    return MyExpr(:call, nt, ex, pf)
 end
 
-negate(ex::Expr) = ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : Expr(:-, ex) 
+negate(ex::MyExpr) = ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : MyExpr(:-, ex) 
 negate(n::Int128) = n == -170141183460469231731687303715884105728 ? # promote to BigInt
                           170141183460469231731687303715884105728 : -n
 negate(n::Int64)  = n == -9223372036854775808 ? # promote to Int128
@@ -548,7 +549,7 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         if nt === :(^) || nt === :(.^)
             # -2^x parsed as (- (^ 2 x))
             put_back!(ts, neg ? negate(num) : num)
-            return Expr(:call, op, parse_factor(ps, ts))
+            return MyExpr(:call, op, parse_factor(ps, ts))
         end 
         return num
     end
@@ -562,17 +563,17 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         return parse_factor(ps, ts)
     else
         arg = parse_unary(ps, ts)
-        if isa(arg, Expr) && arg.head === :tuple
-            ex = Expr(:call, op); append!(ex.args, arg.args)
+        if isa(arg, MyExpr) && arg.head === :tuple
+            ex = MyExpr(:call, op); append!(ex.args, arg.args)
             return ex
         end 
-        return Expr(:call, op, arg)
+        return MyExpr(:call, op, arg)
     end
 end
 
 function subtype_syntax(ex)
-    if isa(ex, Expr) && ex.head === :comparison && length(ex.args) == 3 && ex.args[2] === :(<:)
-        return Expr(:(<:), ex.args[1], ex.args[3])
+    if isa(ex, MyExpr) && ex.head === :comparison && length(ex.args) == 3 && ex.args[2] === :(<:)
+        return MyExpr(:(<:), ex.args[1], ex.args[3])
     end
     return ex
 end
@@ -584,9 +585,9 @@ function parse_unary_prefix(ps::ParseState, ts::TokenStream)
         if is_closing_token(ps, peek_token(ps, ts))
             return op
         elseif op === :(&) || op === :(::)
-            return Expr(op, parse_call(ps, ts))
+            return MyExpr(op, parse_call(ps, ts))
         else
-            return Expr(op, parse_atom(ps, ts))
+            return MyExpr(op, parse_atom(ps, ts))
         end
     end
     return parse_atom(ps, ts)
@@ -626,12 +627,12 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             params, args = separate(is_parameter, arglist)
             if peek_token(ps, ts) === SYM_DO
                 take_token(ts)
-                ex = Expr(:call, ex)
+                ex = MyExpr(:call, ex)
                 append!(ex.args, params)
                 push!(ex.args, parse_do(ps, ts))
                 append!(ex.args, args)
             else
-                ex = Expr(:call, ex)
+                ex = MyExpr(:call, ex)
                 append!(ex.args, arglist)
             end
             one_call && return ex
@@ -644,25 +645,25 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 parse_cat(ps, ts, ']', is_dict_literal(ex))
             end
             if (al.head === :cell1d || al.head === :vcat) && isempty(al.args)
-                ex = is_dict_literal(ex) ? Expr(:typed_dict, ex) : Expr(:ref, ex)
+                ex = is_dict_literal(ex) ? MyExpr(:typed_dict, ex) : MyExpr(:ref, ex)
                 continue
             end
             if al.head === :dict
-                ex = Expr(:typed_dict, ex); append!(ex.args, al.args)
+                ex = MyExpr(:typed_dict, ex); append!(ex.args, al.args)
             elseif al.head === :hcat
-                ex = Expr(:typed_hcat, ex); append!(ex.args, al.args)
+                ex = MyExpr(:typed_hcat, ex); append!(ex.args, al.args)
             elseif al.head === :vcat
-                ex = Expr(:ref, ex)
+                ex = MyExpr(:ref, ex)
                 for arg in al.args
-                    if isa(arg, Expr) && arg.head === :row
+                    if isa(arg, MyExpr) && arg.head === :row
                         ex.head = :typed_vcat
                     end
                     push!(ex.args, arg)
                 end
             elseif al.head === :comprehension
-                ex = Expr(:typed_comprehension, ex); append!(ex.args, al.args)
+                ex = MyExpr(:typed_comprehension, ex); append!(ex.args, al.args)
             elseif al.head === :dict_comprehension
-                ex = Expr(:typed_dict_comprehension, ex); append!(ex.args, al.args)
+                ex = MyExpr(:typed_dict_comprehension, ex); append!(ex.args, al.args)
             else
                 error("unknown parse-cat result (internal error)")
             end
@@ -672,36 +673,36 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             take_token(ts)
             nt = peek_token(ps, ts)
             if nt === '('
-                ex = Expr(:(.), ex, parse_atom(ps, ts))
+                ex = MyExpr(:(.), ex, parse_atom(ps, ts))
             elseif nt === :($)
                 dollar_ex = parse_unary(ps, ts)
-                call_ex   = Expr(:call, TopNode(:Expr), Expr(:quote, :quote), dollar_ex.args[1])
-                ex = Expr(:(.), ex, Expr(:($), call_ex))
+                call_ex   = MyExpr(:call, TopNode(:Expr), MyExpr(:quote, :quote), dollar_ex.args[1])
+                ex = MyExpr(:(.), ex, MyExpr(:($), call_ex))
             else
                 name = parse_atom(ps, ts)
-                if isa(name, Expr) && name.head === :macrocall
-                    ex = Expr(:macrocall, Expr(:(.), ex, Expr(:quote, name.args[1])))
+                if isa(name, MyExpr) && name.head === :macrocall
+                    ex = MyExpr(:macrocall, MyExpr(:(.), ex, MyExpr(:quote, name.args[1])))
                     append!(ex.args, name.args[2:end])
                 else
-                    ex = Expr(:(.), ex, Expr(:quote, name))
+                    ex = MyExpr(:(.), ex, MyExpr(:quote, name))
                 end
             end
             continue
 
         elseif t === :(.') || t === SYM_SQUOTE 
             take_token(ts)
-            ex = Expr(t, ex)
+            ex = MyExpr(t, ex)
             continue
 
         elseif t === '{'
             take_token(ts)
             args = map(subtype_syntax, parse_arglist(ps, ts, '}'))
             # ::Type{T}
-            if isa(ex, Expr) && ex.head == :(::)
-                ty = Expr(:curly, ex.args[1]); append!(ty.args, args)
-                ex = Expr(:(::), ty)
+            if isa(ex, MyExpr) && ex.head == :(::)
+                ty = MyExpr(:curly, ex.args[1]); append!(ty.args, args)
+                ex = MyExpr(:(::), ty)
             else
-                ex = Expr(:curly, ex); append!(ex.args, args)
+                ex = MyExpr(:curly, ex); append!(ex.args, args)
             end
             continue
 
@@ -716,9 +717,9 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 macstr  = str.args[1]
                 if isa(nt, Symbol) && !Lexer.is_operator(nt) && !ts.isspace
                     # string literal suffix "s"x
-                    ex = Expr(:macrocall, macname, macstr, string(take_token(ts)))
+                    ex = MyExpr(:macrocall, macname, macstr, string(take_token(ts)))
                 else
-                    ex = Expr(:macrocall, macname, macstr)
+                    ex = MyExpr(:macrocall, macname, macstr)
                 end
                 continue
             end
@@ -755,20 +756,20 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ps, ts)
                 expect_end(ps, ts, word)
-                local ex::Expr
+                local ex::MyExpr
                 if !isempty(blk.args) && 
-                    ((isa(blk.args[1], Expr) && blk.args[1].head === :line) || (isa(blk.args[1], LineNumberNode)))
-                    ex = Expr(:block, loc)
+                    ((isa(blk.args[1], MyExpr) && blk.args[1].head === :line) || (isa(blk.args[1], LineNumberNode)))
+                    ex = MyExpr(:block, loc)
                     for i in 2:length(blk.args)
                         push!(ex.args, blk.args[i])
                     end
                 else
                     ex = blk
                 end
-                return word === :quote ? Expr(:quote, ex) : ex
+                return word === :quote ? MyExpr(:quote, ex) : ex
 
             elseif word === :while
-                ex = Expr(:while, parse_cond(ps, ts), parse_block(ps, ts))
+                ex = MyExpr(:while, parse_cond(ps, ts), parse_block(ps, ts))
                 expect_end(ps, ts, word)
                 return ex
 
@@ -778,33 +779,33 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 body = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 if nranges == 1
-                    return Expr(:for, ranges[1], body)
+                    return MyExpr(:for, ranges[1], body)
                 else
-                    blk = Expr(:block); blk.args = ranges
-                    return Expr(:for, blk, body)
+                    blk = MyExpr(:block); blk.args = ranges
+                    return MyExpr(:for, blk, body)
                 end 
 
             elseif word === :if
                 test = parse_cond(ps, ts)
                 t    = require_token(ps, ts)
-                then = (t === SYM_ELSE || t === SYM_ELSEIF) ? Expr(:block) : 
+                then = (t === SYM_ELSE || t === SYM_ELSEIF) ? MyExpr(:block) : 
                                                               parse_block(ps, ts)
                 nxt = require_token(ps, ts)
                 take_token(ts)
                 if nxt === SYM_END 
-                    return Expr(:if, test, then)
+                    return MyExpr(:if, test, then)
                 elseif nxt === SYM_ELSEIF 
                     if Lexer.isnewline(peek_token(ps, ts))
                         error("missing condition in elseif at {filename} : {line}")
                     end
-                    blk = Expr(:block, line_number_node(ts), parse_resword(ps, ts, :if))
-                    return Expr(:if, test, then, blk)
+                    blk = MyExpr(:block, line_number_node(ts), parse_resword(ps, ts, :if))
+                    return MyExpr(:if, test, then, blk)
                 elseif nxt === SYM_ELSE 
                     if peek_token(ps, ts) === :if
                         error("use elseif instead of else if")
                     end
                     blk = parse_block(ps, ts)
-                    ex = Expr(:if, test, then, blk) 
+                    ex = MyExpr(:if, test, then, blk) 
                     expect_end(ps, ts, word)
                     return ex
                 else
@@ -820,7 +821,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 end
                 ex = parse_block(ps, ts)
                 expect_end(ps, ts, word)
-                ex = Expr(:let, ex); append!(ex.args, binds)
+                ex = MyExpr(:let, ex); append!(ex.args, binds)
                 return ex
 
             elseif word === :global || word === :local
@@ -831,28 +832,28 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                     push!(args, short_form_function_loc(aex, lno, filename(ts)))
                 end
                 if isconst
-                    ex = Expr(word); ex.args = args
-                    return Expr(:const, ex)
+                    ex = MyExpr(word); ex.args = args
+                    return MyExpr(:const, ex)
                 else
-                    ex = Expr(word); ex.args = args
+                    ex = MyExpr(word); ex.args = args
                     return ex
                 end 
 
             elseif word === :function || word === :macro || word === :stagedfunction
                 paren = require_token(ps, ts) === '('
                 sig   = parse_call(ps, ts)
-                local def::Expr
+                local def::MyExpr
                 if isa(sig, Symbol) || 
-                    (isa(sig, Expr) && sig.head === :(::) && isa(sig.args[1], Symbol))
+                    (isa(sig, MyExpr) && sig.head === :(::) && isa(sig.args[1], Symbol))
                    if paren
                        # in function(x) the (x) is a tuple
-                       def = Expr(:tuple, sig)
+                       def = MyExpr(:tuple, sig)
                     else
                        # function foo => syntax error
                        error("expected \"(\" in $word definition")
                     end
                 else
-                    if (isa(sig, Expr) && (sig.head === :call || sig.head === :tuple))
+                    if (isa(sig, MyExpr) && (sig.head === :call || sig.head === :tuple))
                         def = sig
                     else
                         error("expected \"(\" in $word definition")
@@ -863,10 +864,10 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 body = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 add_filename_to_block!(body, loc)
-                return Expr(word, def, body)
+                return MyExpr(word, def, body)
 
             elseif word === :abstract
-                return Expr(:abstract, parse_subtype_spec(ps, ts))
+                return MyExpr(:abstract, parse_subtype_spec(ps, ts))
 
             elseif word === :type || word === :immutable
                 istype = word === :type
@@ -874,7 +875,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 (!istype && peek_token(ps, ts) === :type) && take_token(ts)
                 sig = parse_subtype_spec(ps, ts)
                 blk = parse_block(ps, ts)
-                ex  = Expr(:type, istype, sig, blk) 
+                ex  = MyExpr(:type, istype, sig, blk) 
                 expect_end(ps, ts, word)
                 return ex
 
@@ -882,20 +883,20 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 stmnt = @space_sensitive ps begin
                     parse_cond(ps, ts)
                 end
-                return Expr(:bitstype, stmnt, parse_subtype_spec(ps, ts))
+                return MyExpr(:bitstype, stmnt, parse_subtype_spec(ps, ts))
 
             elseif word === :typealias
                 lhs = parse_call(ps, ts)
-                if isa(lhs, Expr) && lhs.head === :call 
+                if isa(lhs, MyExpr) && lhs.head === :call 
                     # typealias X (...) is a tuple type alias, not call
-                    return Expr(:typealias, lhs.args[1], Expr(:tuple, lhs.args[2:end]...))
+                    return MyExpr(:typealias, lhs.args[1], MyExpr(:tuple, lhs.args[2:end]...))
                 else
-                    return Expr(:typealias, lhs, parse_arrow(ps, ts))
+                    return MyExpr(:typealias, lhs, parse_arrow(ps, ts))
                 end
 
             elseif word === :try
                 t = require_token(ps, ts)
-                tryb = t === SYM_CATCH || t === SYM_FINALLY ? Expr(:block) : parse_block(ps, ts)
+                tryb = t === SYM_CATCH || t === SYM_FINALLY ? MyExpr(:block) : parse_block(ps, ts)
                 t = require_token(ps, ts)
                 catchb = nothing
                 catchv = false
@@ -904,11 +905,11 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                     take_token(ts)
                     if t === SYM_END 
                         if finalb != nothing
-                            return catchb != nothing ? Expr(:try, tryb, catchv, catchb, finalb) :
-                                                       Expr(:try, tryb, catchv, false, finalb)
+                            return catchb != nothing ? MyExpr(:try, tryb, catchv, catchb, finalb) :
+                                                       MyExpr(:try, tryb, catchv, false, finalb)
                         else
-                            return catchb != nothing ? Expr(:try, tryb, catchv, catchb) :
-                                                       Expr(:try, tryb, catchv, false)
+                            return catchb != nothing ? MyExpr(:try, tryb, catchv, catchb) :
+                                                       MyExpr(:try, tryb, catchv, false)
                         end
                     end
                     if t === SYM_CATCH && catchb == nothing
@@ -920,19 +921,19 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                         end
                         t   = require_token(ps, ts)
                         if t === SYM_END || t === SYM_FINALLY 
-                            catchb = Expr(:block)
+                            catchb = MyExpr(:block)
                             catchv = false 
                             continue
                         else 
                             var   = parse_eqs(ps, ts)
                             isvar = nb == false && isa(var, Symbol)
-                            catch_block = require_token(ps, ts) === SYM_FINALLY ? Expr(:block) : 
+                            catch_block = require_token(ps, ts) === SYM_FINALLY ? MyExpr(:block) : 
                                                                                   parse_block(ps, ts)
                             t = require_token(ps, ts)
                             if isvar
                                 catchb = catch_block
                             else
-                                exb = Expr(:block, var)
+                                exb = MyExpr(:block, var)
                                 append!(exb.args, catch_block.args); 
                                 catchb = exb
                             end
@@ -940,7 +941,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                             continue
                         end
                     elseif t === SYM_FINALLY && finalb == nothing
-                        finalb = require_token(ps, ts) === SYM_CATCH ? Expr(:block) : 
+                        finalb = require_token(ps, ts) === SYM_CATCH ? MyExpr(:block) : 
                                                                        parse_block(ps, ts)
                         t = require_token(ps, ts)
                         continue 
@@ -951,19 +952,19 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :return
                 t  = peek_token(ps, ts)
-                return Lexer.isnewline(t) || is_closing_token(ps, t) ? Expr(:return, nothing) :
-                                                                       Expr(:return, parse_eq(ps, ts))
+                return Lexer.isnewline(t) || is_closing_token(ps, t) ? MyExpr(:return, nothing) :
+                                                                       MyExpr(:return, parse_eq(ps, ts))
             elseif word === :break || word === :continue
-                return Expr(word)
+                return MyExpr(word)
 
             elseif word === :const
                 assgn = parse_eq(ps, ts)
-                if !(isa(assgn, Expr) && (assgn.head === :(=) || 
+                if !(isa(assgn, MyExpr) && (assgn.head === :(=) || 
                                           assgn.head === :global || 
                                           assgn.head === :local))
                     error("expected assignment after \"const\"")
                 end
-                return Expr(:const, assgn)
+                return MyExpr(:const, assgn)
 
             elseif word === :module || word === :baremodule
                 isbare = word === :baremodule
@@ -972,31 +973,31 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 expect_end(ps, ts, word)
                 if !isbare
                     # add definitions for module_local eval
-                    block = Expr(:block)
+                    block = MyExpr(:block)
                     x = name === :x ? :y : :x
                     push!(block.args, 
-                        Expr(:(=), Expr(:call, :eval, x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core), 
-                                               Expr(:quote, :eval)), name, x)))
+                        MyExpr(:(=), MyExpr(:call, :eval, x),
+                                   MyExpr(:call, MyExpr(:(.), TopNode(:Core), 
+                                               MyExpr(:quote, :eval)), name, x)))
                     push!(block.args,
-                        Expr(:(=), Expr(:call, :eval, :m, :x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core),
-                                               Expr(:quote, :eval)), :m, :x)))
+                        MyExpr(:(=), MyExpr(:call, :eval, :m, :x),
+                                   MyExpr(:call, MyExpr(:(.), TopNode(:Core),
+                                               MyExpr(:quote, :eval)), :m, :x)))
                     append!(block.args, body.args)
                     body = block
                 end
-                return Expr(:module, !isbare, name, body) 
+                return MyExpr(:module, !isbare, name, body) 
 
             elseif word === :export
                 exports = map(macrocall_to_atsym, parse_comma_sep(ps, ts, parse_atom))
                 !all(x -> isa(x, Symbol), exports) && error("invalid \"export\" statement")
-                ex = Expr(:export); ex.args = exports
+                ex = MyExpr(:export); ex.args = exports
                 return ex
 
             elseif word === :import || word === :using || word === :importall
                 imports = parse_imports(ps, ts, word)
                 length(imports) == 1 && return imports[1]
-                ex = Expr(:toplevel); ex.args = imports
+                ex = MyExpr(:toplevel); ex.args = imports
                 return ex
 
             elseif word === :ccall
@@ -1007,15 +1008,15 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                     al1, al2 = al[1], al[2]
                     if al2 === :cdecl || al2 === :stdcall || al2 == :fastcall || al2 == :thiscall
                         # place calling convention at end of arglist
-                        ex = Expr(:ccall, al1)
+                        ex = MyExpr(:ccall, al1)
                         for i = 3:length(al)
                             push!(ex.args, al[i])
                         end
-                        push!(ex.args, Expr(al2))
+                        push!(ex.args, MyExpr(al2))
                         return ex
                     end
                 end
-                ex = Expr(:ccall); ex.args = al
+                ex = MyExpr(:ccall); ex.args = al
                 return ex
 
             elseif word === :do
@@ -1028,9 +1029,9 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
     end
 end
 
-function add_filename_to_block!(body::Expr, loc::Expr)
+function add_filename_to_block!(body::MyExpr, loc::MyExpr)
     if !isempty(body.args)
-        if isa(body.args[1], Expr) && body.args[1].head === :line
+        if isa(body.args[1], MyExpr) && body.args[1].head === :line
             body.args[1] = loc
         elseif isa(body.args[1], LineNumberNode)
             body.args[1] = loc
@@ -1047,11 +1048,11 @@ function parse_do(ps::ParseState, ts::TokenStream)
         blk = parse_block(ps, ts)
         add_filename_to_block!(blk, loc)
         expect_end(ps, ts, :do)
-        return Expr(:(->), Expr(:tuple, doargs...), blk)
+        return MyExpr(:(->), MyExpr(:tuple, doargs...), blk)
     end
 end
 
-macrocall_to_atsym(ex) = isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : ex
+macrocall_to_atsym(ex) = isa(ex, MyExpr) && ex.head === :macrocall ? ex.args[1] : ex
 
 function parse_imports(ps::ParseState, ts::TokenStream, word::Symbol)
     frst = Any[parse_import(ps, ts, word)]
@@ -1071,9 +1072,9 @@ function parse_imports(ps::ParseState, ts::TokenStream, word::Symbol)
     rest = done? Any[] : parse_comma_sep(ps, ts, (ps, ts) -> parse_import(ps, ts, word))
     if from
         module_syms = frst[1].args
-        imports = Expr[]
+        imports = MyExpr[]
         for expr in rest
-            ex = Expr(expr.head, module_syms..., expr.args...)
+            ex = MyExpr(expr.head, module_syms..., expr.args...)
             push!(imports, ex)
         end
         return imports
@@ -1128,7 +1129,7 @@ function parse_import(ps::ParseState, ts::TokenStream, word::Symbol)
         nt = peek_token(ps, ts)
         if (Lexer.eof(nt) || 
             (isa(nt, CharSymbol) && (nt === '\n' || nt === ';' || nt === ',' || nt === :(:))))
-            ex = Expr(word); ex.args = path
+            ex = MyExpr(word); ex.args = path
             return ex
         else
             error("invalid \"$word\" statement")
@@ -1159,9 +1160,9 @@ function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
     while true 
         r = parse_eqs(ps, ts)
         if r === :(:)
-        elseif isa(r, Expr) && r.head === :(=)
-        elseif isa(r, Expr) && r.head === :in
-            tmp = r; r = Expr(:(=)); r.args = tmp.args
+        elseif isa(r, MyExpr) && r.head === :(=)
+        elseif isa(r, MyExpr) && r.head === :in
+            tmp = r; r = MyExpr(:(=)); r.args = tmp.args
         else
             error("invalid iteration spec")
         end
@@ -1200,8 +1201,8 @@ function to_kws(lst)
     kwargs = Array(Any, n)
     for i = 1:n
         ex = lst[i]
-        if isa(ex, Expr) && ex.head === :(=) && length(ex.args) == 2
-            nex = Expr(:kw); nex.args = ex.args
+        if isa(ex, MyExpr) && ex.head === :(=) && length(ex.args) == 2
+            nex = MyExpr(:kw); nex.args = ex.args
             kwargs[i] = nex
         else
             kwargs[i] = ex
@@ -1228,7 +1229,7 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer)
             peek_token(ps, ts) === closer && continue
             params = parse_arglist(ps, ts, closer)
             lst = closer === ')' ? to_kws(lst) : lst
-            return unshift!(lst, Expr(:parameters, params...))
+            return unshift!(lst, MyExpr(:parameters, params...))
         end
         nxt = parse_eqs(ps, ts)
         nt  = require_token(ps, ts)
@@ -1266,7 +1267,7 @@ function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
         t = require_token(ps, ts)
         if t === closer
             take_token(ts)
-            ex = Expr(:vcat); ex.args = push!(lst, nxt)
+            ex = MyExpr(:vcat); ex.args = push!(lst, nxt)
             return ex
         end
         if t === ','
@@ -1274,7 +1275,7 @@ function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
             if require_token(ps, ts) === closer
                 # allow ending with ,
                 take_token(ts)
-                ex = Expr(:vcat); ex.args = push!(lst, nxt)
+                ex = MyExpr(:vcat); ex.args = push!(lst, nxt)
                 return ex
             end
             lst = push!(lst, nxt) 
@@ -1284,8 +1285,8 @@ function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
             take_token(ts)
             peek_token(ps, ts) === closer && continue
             params = parse_arglist(ps, ts, closer)
-            unshift!(lst, Expr(:parameters, params...))
-            ex = Expr(:vcat); ex.args = reverse(push!(lst, next))
+            unshift!(lst, MyExpr(:parameters, params...))
+            ex = MyExpr(:vcat); ex.args = reverse(push!(lst, next))
             return ex
         elseif t === ']' || t === '}'
             error("unexpected \"$t\" in array expression")
@@ -1304,7 +1305,7 @@ function parse_dict(ps::ParseState, ts::TokenStream, frst, closer)
         alldl || break
     end
     if alldl
-        ex = Expr(:dict); ex.args = v.args 
+        ex = MyExpr(:dict); ex.args = v.args 
         return ex
     else
         error("invalid dict literal")
@@ -1315,14 +1316,14 @@ function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer)
     itrs = parse_comma_sep_iters(ps, ts)
     t = require_token(ps, ts)
     t === closer ? take_token(ts) : error("expected $closer")
-    ex = Expr(:comprehension, frst); append!(ex.args, itrs)
+    ex = MyExpr(:comprehension, frst); append!(ex.args, itrs)
     return ex
 end
 
 function parse_dict_comprehension(ps::ParseState, ts::TokenStream, frst, closer)
     c = parse_comprehension(ps, ts, frst, closer)
     if is_dict_literal(c.args[1])
-        ex = Expr(:dict_comprehension); ex.args = c.args
+        ex = MyExpr(:dict_comprehension); ex.args = c.args
         return ex
     else
         error("invalid dict comprehension")
@@ -1336,7 +1337,7 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
         len = length(v)
         len == 0 && return outer
         len == 1 && return push!(outer, v[1])
-        row = Expr(:row); row.args = v
+        row = MyExpr(:row); row.args = v
         return push!(outer, row) 
     end
 
@@ -1347,15 +1348,15 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
         t = peek_token(ps, ts) === '\n' ? '\n' : require_token(ps, ts)
         if t === closer
             take_token(ts)
-            local ex::Expr
+            local ex::MyExpr
             if !isempty(outer)
-                ex = Expr(:vcat); ex.args = update_outer!(vec, outer)
+                ex = MyExpr(:vcat); ex.args = update_outer!(vec, outer)
             elseif length(vec) <= 1
                 # [x] => (vcat x)
-                ex = Expr(:vcat); ex.args = vec
+                ex = MyExpr(:vcat); ex.args = vec
             else
                 # [x y] => (hcat x y)
-                ex = Expr(:hcat); ex.args = vec
+                ex = MyExpr(:hcat); ex.args = vec
             end
             return ex
         end
@@ -1399,9 +1400,9 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer, isdict::Bool=false)
             if require_token(ps, ts) === closer
                 take_token(ts)
                 if closer === '}'
-                    return Expr(:cell1d)
+                    return MyExpr(:cell1d)
                 elseif closer === ']'
-                    return Expr(:vcat)
+                    return MyExpr(:vcat)
                 else
                     error("unknown closer $closer")
                 end
@@ -1436,7 +1437,7 @@ function parse_tuple(ps::ParseState, ts::TokenStream, frst)
         t = require_token(ps, ts)
         if t === ')'
             take_token(ts)
-            ex = Expr(:tuple); ex.args = push!(args, nxt)
+            ex = MyExpr(:tuple); ex.args = push!(args, nxt)
             return ex
         end
         if t === ','
@@ -1444,7 +1445,7 @@ function parse_tuple(ps::ParseState, ts::TokenStream, frst)
             if require_token(ps, ts) === ')'
                 # allow ending with ,
                 take_token(ts)
-                ex = Expr(:tuple); ex.args = push!(args, nxt)
+                ex = MyExpr(:tuple); ex.args = push!(args, nxt)
                 return ex
             end
             args = push!(args, nxt) 
@@ -1496,7 +1497,7 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
         c = Lexer.readchar(ts)
         continue
     end
-    return Expr(:macrocall, symbol("@cmd"), bytestring(buf))
+    return MyExpr(:macrocall, symbol("@cmd"), bytestring(buf))
 end
 
 function parse_interpolate(ps::ParseState, ts::TokenStream)
@@ -1525,7 +1526,7 @@ end
 function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n::Integer, custom::Bool)
     c  = Lexer.readchar(ts)
     b  = IOBuffer()
-    ex = Expr(head)
+    ex = MyExpr(head)
     quotes = 0
     while true 
         if c == '"'
@@ -1574,8 +1575,8 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
     end
 end
 
-interpolate_string_literal(ex) = isa(ex, Expr) && length(ex.args) > 1
-triplequote_string_literal(ex) = isa(ex, Expr) && ex.head === :triple_quoted_string
+interpolate_string_literal(ex) = isa(ex, MyExpr) && length(ex.args) > 1
+triplequote_string_literal(ex) = isa(ex, MyExpr) && ex.head === :triple_quoted_string
 
 function parse_string_literal(ps::ParseState, ts::TokenStream, custom)
     if Lexer.peekchar(ts)  === '"'
@@ -1584,7 +1585,7 @@ function parse_string_literal(ps::ParseState, ts::TokenStream, custom)
             Lexer.takechar(ts)
             return _parse_string_literal(ps, ts, :triple_quoted_string, 2, custom)
         end
-        return Expr(:single_quoted_string, "")
+        return MyExpr(:single_quoted_string, "")
     end
     return _parse_string_literal(ps, ts, :single_quoted_string, 0, custom)
 end
@@ -1632,7 +1633,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         if is_closing_token(ps, nt) && (ps.space_sensitive || !isa(nt, Symbol))
             return :(:)
         end 
-        return Expr(:quote, _parse_atom(ps, ts)) 
+        return MyExpr(:quote, _parse_atom(ps, ts)) 
     
     # misplaced =
     elseif t === :(=)
@@ -1650,7 +1651,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 if require_token(ps, ts) === ')'
                     # empty tuple
                     take_token(ts)
-                    return Expr(:tuple)
+                    return MyExpr(:tuple)
                 elseif peek_token(ps, ts) in Lexer.syntactic_ops
                     # allow (=) etc.
                     t = take_token(ts)
@@ -1665,9 +1666,9 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     t  = require_token(ps, ts)
                     if t === ')'
                         take_token(ts)
-                        if isa(ex, Expr) && ex.head === :(...)
+                        if isa(ex, MyExpr) && ex.head === :(...)
                             # (ex...)
-                            return Expr(:tuple, ex)
+                            return MyExpr(:tuple, ex)
                         else
                             # value in parens (x)
                             return ex
@@ -1681,7 +1682,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                         if require_token(ps, ts) === ')'
                             # (ex;)
                             take_token(ts)
-                            return Expr(:block, ex)
+                            return MyExpr(:block, ex)
                         else
                             blk = parse_stmts_within_expr(ps, ts)
                             tok = require_token(ps, ts)
@@ -1691,7 +1692,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                                 error("missing separator in statement block")
                             end
                             take_token(ts)
-                            return Expr(:block, ex, blk)
+                            return MyExpr(:block, ex, blk)
                         end
                     elseif t === ']' || t === '}'
                         error("unexpected \"$t\" in tuple")
@@ -1707,35 +1708,35 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         take_token(ts)
         if require_token(ps, ts) === '}'
             take_token(ts)
-            return Expr(:cell1d)
+            return MyExpr(:cell1d)
         end
         vex = parse_cat(ps, ts, '}')
         if isempty(vex.args)
-            return Expr(:cell1d)
+            return MyExpr(:cell1d)
         elseif vex.head === :comprehension
-            ex = Expr(:typed_comprehension, TopNode(:Any))
+            ex = MyExpr(:typed_comprehension, TopNode(:Any))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :dict_comprehension
-            ex = Expr(:typed_dict_comprehension, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
+            ex = MyExpr(:typed_dict_comprehension, MyExpr(:(=>), TopNode(:Any), TopNode(:Any)))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :dict
-            ex = Expr(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
+            ex = MyExpr(:typed_dict, MyExpr(:(=>), TopNode(:Any), TopNode(:Any)))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :hcat
-            ex = Expr(:cell2d, 1, length(vex.args))
+            ex = MyExpr(:cell2d, 1, length(vex.args))
             append!(ex.args, vex.args)
             return ex
         else # Expr(:vcat, ...)
             nr = length(vex.args)
-            if isa(vex.args[1], Expr) && vex.args[1].head === :row
+            if isa(vex.args[1], MyExpr) && vex.args[1].head === :row
                 nc = length(vex.args[1].args)
-                ex = Expr(:cell2d, nr, nc) 
+                ex = MyExpr(:cell2d, nr, nc) 
                 for i = 2:nr
                     row = vex.args[i]
-                    if !(isa(row, Expr) && row.head === :row && length(row.args) == nc)
+                    if !(isa(row, MyExpr) && row.head === :row && length(row.args) == nc)
                         error("inconsistent shape in cell expression")
                     end
                 end
@@ -1748,11 +1749,11 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             else
                 for i = 2:nr
                     row = vex.args[i]
-                    if isa(row, Expr) && row.head === :row
+                    if isa(row, MyExpr) && row.head === :row
                         error("inconsistent shape in cell expression")
                     end
                 end
-                ex = Expr(:cell1d); ex.args = vex.args
+                ex = MyExpr(:cell1d); ex.args = vex.args
                 return ex
             end
         end
@@ -1768,10 +1769,10 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         take_token(ts)
         sl = parse_string_literal(ps, ts, false)
         if triplequote_string_literal(sl)
-            return Expr(:macrocall, symbol("@mstr"), sl.args...)
+            return MyExpr(:macrocall, symbol("@mstr"), sl.args...)
         elseif interpolate_string_literal(sl) 
             notzerolen = (s) -> !(isa(s, String) && isempty(s))
-            return Expr(:string, filter(notzerolen, sl.args)...)
+            return MyExpr(:string, filter(notzerolen, sl.args)...)
         end
         return sl.args[1]
 
@@ -1781,21 +1782,21 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         @space_sensitive ps begin
             head = parse_unary_prefix(ps, ts)
             if (peek_token(ps, ts); ts.isspace)
-                ex = Expr(:macrocall, macroify_name(head))
+                ex = MyExpr(:macrocall, macroify_name(head))
                 append!(ex.args, parse_space_separated_exprs(ps, ts))
                 return ex
             else
                 call = parse_call_chain(ps, ts, head, true)
-                if isa(call, Expr) && call.head === :call
+                if isa(call, MyExpr) && call.head === :call
                     nargs = length(call.args)
-                    ex = Expr(:macrocall, macroify_name(call.args[1]))
+                    ex = MyExpr(:macrocall, macroify_name(call.args[1]))
                     Base.sizehint(ex.args, nargs)
                     for i = 2:nargs
                         push!(ex.args, call.args[i])
                     end
                     return ex
                 else
-                    ex = Expr(:macrocall, macroify_name(call))
+                    ex = MyExpr(:macrocall, macroify_name(call))
                     append!(ex.args, parse_space_separated_exprs(ps, ts))
                     return ex
                 end
@@ -1820,10 +1821,10 @@ function parse_atom(ps::ParseState, ts::TokenStream)
     return ex
 end
 
-function is_valid_modref(ex::Expr)
+function is_valid_modref(ex::MyExpr)
     return length(ex.args) == 2 &&
            ex.head === :(.) &&
-           ((isa(ex.args[2], Expr) && 
+           ((isa(ex.args[2], MyExpr) && 
              ex.args[2].head === :quote && 
              isa(ex.args[2].args[1], Symbol)) ||
             (isa(ex.args[2], QuoteNode) &&
@@ -1835,7 +1836,7 @@ function macroify_name(ex)
     if isa(ex, Symbol)
         return symbol(string('@', ex))
     elseif is_valid_modref(ex)
-        return Expr(:(.), ex.args[1], Expr(:quote, macroify_name(ex.args[2].args[1])))
+        return MyExpr(:(.), ex.args[1], MyExpr(:quote, macroify_name(ex.args[2].args[1])))
     else
         error("invalid macro use \"@($ex)")
     end
