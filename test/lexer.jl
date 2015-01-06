@@ -683,7 +683,7 @@ facts("test skip ws and comment") do
 end
 
 tokens(ts::TokenStream) = begin
-    toks = {}
+    toks = Any[]
     while !eof(ts.io)
         push!(toks, Lexer.next_token(ts))
     end
@@ -705,7 +705,7 @@ end
 facts("test set_token! / last_token") do
     code = "1 + 1"
     tks = tokens(code) 
-    @fact tks => {1, :+, 1} 
+    @fact tks => Any[1, :+, 1]
     
     ts = TokenStream(code)
     @fact Lexer.last_token(ts) => nothing
@@ -770,55 +770,55 @@ facts("test next_token") do
     @fact tok => '\n'
 
     toks = tokens("true false")
-    @fact toks => {true, false}
+    @fact toks => Any[true, false]
 
     toks = tokens("(test,)")
-    @fact toks => {'(', :test, ',', ')'}
+    @fact toks => Any['(', :test, ',', ')']
 
     toks = tokens("[10.0,2.0]")
-    @fact toks => {'[', 10.0, ',', 2.0, ']'}
+    @fact toks => Any['[', 10.0, ',', 2.0, ']']
 
     toks = tokens("#test\n{10,};")
-    @fact toks => {'\n', '{', 10, ',', '}', ';'}
+    @fact toks => Any['\n', '{', 10, ',', '}', ';']
 
     toks = tokens("#=test1\ntest2\n=#@test\n")
-    @fact toks => {'@', :test, '\n'}
+    @fact toks => Any['@', :test, '\n']
 
     toks = tokens("1<=2")
-    @fact toks => {1, :(<=), 2}
+    @fact toks => Any[1, :(<=), 2]
 
     toks = tokens("1.0 .+ 2")
-    @fact toks => {1.0, :(.+), 2}
+    @fact toks => Any[1.0, :(.+), 2]
 
     toks = tokens("abc .+ .1")
-    @fact toks => {:abc, :(.+), 0.1}
+    @fact toks => Any[:abc, :(.+), 0.1]
 
     toks = tokens("`ls`")
-    @fact toks => {'`', :ls, '`'}
+    @fact toks => Any['`', :ls, '`']
 
     toks = tokens("@testmacro")
-    @fact toks => {'@', :testmacro}
+    @fact toks => Any['@', :testmacro]
 
     toks = tokens("x::Int32 + 1")
-    @fact toks => {:x, :(::), :Int32, :(+), 1}
+    @fact toks => Any[:x, :(::), :Int32, :(+), 1]
 
     toks = tokens("func(2) |> send!")
-    @fact toks => {:func, '(', 2, ')', :(|>), :(send!)}
+    @fact toks => Any[:func, '(', 2, ')', :(|>), :(send!)]
 
     sym_end = symbol("end")
     
     toks = tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend")
-    @fact toks => {:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
+    @fact toks => Any[:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
                    :a, :(::), :T, '\n', 
                    :b, :(::), :T, '\n', 
-                   sym_end} 
+                   sym_end]
 
     toks = tokens("function(x::Int)\n\treturn x^2\nend")
-    @fact toks => {:function, '(', :x, :(::), :Int, ')', '\n',
+    @fact toks => Any[:function, '(', :x, :(::), :Int, ')', '\n',
                    :return , :x, :(^), 2, '\n',
-                   sym_end}
+                   sym_end]
 
     toks = tokens("+(x::Bool, y::Bool) = int(x) + int(y)")
-    @fact toks => {:+, '(', :x, :(::), :Bool, ',', :y, :(::), :Bool, ')',
-                   :(=), :int, '(', :x, ')', :+, :int, '(', :y, ')'}
+    @fact toks => Any[:+, '(', :x, :(::), :Bool, ',', :y, :(::), :Bool, ')',
+                   :(=), :int, '(', :x, ')', :+, :int, '(', :y, ')']
 end

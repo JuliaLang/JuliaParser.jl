@@ -235,7 +235,7 @@ facts("test prefixed string literals") do
 end
 
 facts("test cell expressions") do
-    exprs = [
+    exprs = VERSION < v"0.4.0-dev" ? [
         "{}",
         "{1,2}",
         "{1 2 3}",
@@ -246,6 +246,17 @@ facts("test cell expressions") do
             {1,2,3}}""",
         "{:a => 1,'b' => 2}",
         "{i for i=1:10}",
+    ] : [
+        "[]",
+        "Any[1,2]",
+        "Any[1 2 3]",
+        "Any[1;2;3]",
+        "Any[Any[1 2 3], Any[1 2 3]]",
+        "Any[Any[1,2,3] Any[1,2,3,]]",
+        """Any[Any[1,2,3]
+            Any[1,2,3]]""",
+        "Any[:a => 1,'b' => 2]",
+        "Any[i for i=1:10]",
     ]
     for ex in exprs
         @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
@@ -262,7 +273,7 @@ facts("test cat expressions") do
         "[[1,2,3] [1,2,3,]]",
         """[[1,2,3]
             [1,2,3]]""",
-        "[:a => 1, :b => 2]",
+        VERSION < v"0.4.0-dev+980" ? "[:a => 1, :b => 2]" : "Dict(:a => 1, :b => 2)",
         "[i for i=1:10]"
     ]
     for ex in exprs
