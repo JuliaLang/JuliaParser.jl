@@ -706,7 +706,9 @@ end
 
 function next_token(ts::TokenStream, whitespace_newline::Bool)
     ts.ateof && return EOF
-    ts.isspace = skipws(ts, whitespace_newline)
+    tmp = skipws(ts, whitespace_newline)
+    tmp == EOF && return EOF
+    ts.isspace = tmp
     while !eof(ts.io)
         c = peekchar(ts)
         if eof(c)

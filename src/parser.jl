@@ -1,6 +1,7 @@
 # Julia Source Parser
 module Parser
 
+using Compat
 using ..Lexer
 
 export parse
@@ -1789,7 +1790,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 if isa(call, Expr) && call.head === :call
                     nargs = length(call.args)
                     ex = Expr(:macrocall, macroify_name(call.args[1]))
-                    Base.sizehint(ex.args, nargs)
+                    Base.sizehint!(ex.args, nargs)
                     for i = 2:nargs
                         push!(ex.args, call.args[i])
                     end

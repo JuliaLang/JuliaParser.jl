@@ -1,5 +1,5 @@
 norm_ast(ex::Expr) = begin
-    args = {}
+    args = Any[]
     for a in ex.args
         if isa(a, Expr)
             if a.head === :line
