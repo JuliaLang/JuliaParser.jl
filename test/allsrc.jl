@@ -28,12 +28,12 @@ function testall(srcdir::String)
     global failed
     global errors
     global ptime
-    global btime 
+    global btime
 
     dirs, files = Any[], Any[]
 
     for fname in sort(readdir(srcdir))
-        path = joinpath(srcdir, fname) 
+        path = joinpath(srcdir, fname)
         if isdir(path)
             push!(dirs, path)
             continue
@@ -46,24 +46,24 @@ function testall(srcdir::String)
 
     if !isempty(files)
         println(bold("test $srcdir"))
-        
-        for jlpath in files 
-            
+
+        for jlpath in files
+
             fname = splitdir(jlpath)[end]
-            
+
             buf = IOBuffer()
             write(buf, "begin\n")
             write(buf, open(readall, jlpath))
             write(buf, "\nend")
-            
+
             src = bytestring(buf)
-            
+
             local bast::Expr
             local past::Expr
-            
+
             local t1::Float64
             local t2::Float64
-            
+
             try
                 tic()
                 bast = Base.parse(src)
@@ -74,10 +74,10 @@ function testall(srcdir::String)
             end
 
             try
-                tic() 
+                tic()
                 past = Parser.parse(src)
                 t1 = toq()
-                 
+
                 if norm_ast(past) == norm_ast(bast)
                     println(green("OK:     $fname"))
                     push!(passed, jlpath)
@@ -124,7 +124,7 @@ end
 npassed, nfailed, nerrors = length(passed), length(failed), length(errors)
 
 println("\n"^2)
-println(bold("TOTAL: $(npassed + nfailed + nerrors)")) 
+println(bold("TOTAL: $(npassed + nfailed + nerrors)"))
 println(green("Passed:\t$npassed"))
 println(red("Failed:\t$nfailed"))
 for path in failed

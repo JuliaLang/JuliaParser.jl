@@ -2,82 +2,82 @@ module Lexer
 
 import Base.UTF8proc
 
-export Token, TokenStream, next_token, set_token!, last_token, 
+export Token, TokenStream, next_token, set_token!, last_token,
        put_back!, peek_token, take_token, require_token
 
 const SYM_TRUE  = symbol("true")
-const SYM_FALSE = symbol("false") 
+const SYM_FALSE = symbol("false")
 const SYM_CTRANSPOSE = symbol("'")
 
 const EOF = char(typemax(Uint32))
 
 const ops_by_precedent = Any[
-       [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=), 
-        :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=), 
+       [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=),
+        :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=),
         :(|=),  :(&=),  :($=), :(=>),  :(<<=), :(>>=),  :(>>>=), :(~),
         :(.+=), :(.-=)],
        [:(?)],
        [:(||)],
        [:(&&)],
-       [:(--), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦), 
-        :(↮), :(⇎), :(⇏), :(⇒), :(⇔), :(⇴), :(⇶), :(⇷), :(⇸), :(⇹), 
-        :(⇺), :(⇻), :(⇼), :(⇽), :(⇾), :(⇿), :(⟵), :(⟶), :(⟷), :(⟷), 
-        :(⟹), :(⟺), :(⟻), :(⟼), :(⟽), :(⟾), :(⟿), :(⤀), :(⤁), :(⤂), 
+       [:(--), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦),
+        :(↮), :(⇎), :(⇏), :(⇒), :(⇔), :(⇴), :(⇶), :(⇷), :(⇸), :(⇹),
+        :(⇺), :(⇻), :(⇼), :(⇽), :(⇾), :(⇿), :(⟵), :(⟶), :(⟷), :(⟷),
+        :(⟹), :(⟺), :(⟻), :(⟼), :(⟽), :(⟾), :(⟿), :(⤀), :(⤁), :(⤂),
         :(⤃), :(⤄), :(⤅), :(⤆), :(⤇), :(⤌), :(⤍), :(⤎), :(⤏), :(⤐),
-        :(⤑), :(⤔), :(⤕), :(⤖), :(⤗), :(⤘), :(⤝), :(⤞), :(⤟), :(⤠), 
-        :(⥄), :(⥅), :(⥆), :(⥇), :(⥈), :(⥊), :(⥋), :(⥎), :(⥐), :(⥒), 
-        :(⥓), :(⥖), :(⥗), :(⥚), :(⥛), :(⥞), :(⥟), :(⥢), :(⥤), :(⥦), 
-        :(⥧), :(⥨), :(⥩), :(⥪), :(⥫), :(⥬), :(⥭), :(⥰), :(⧴), :(⬱), 
-        :(⬰), :(⬲), :(⬳), :(⬴), :(⬵), :(⬶), :(⬷), :(⬸), :(⬹), :(⬺), 
-        :(⬻), :(⬼), :(⬽), :(⬾), :(⬿), :(⭀), :(⭁), :(⭂), :(⭃), :(⭄), 
+        :(⤑), :(⤔), :(⤕), :(⤖), :(⤗), :(⤘), :(⤝), :(⤞), :(⤟), :(⤠),
+        :(⥄), :(⥅), :(⥆), :(⥇), :(⥈), :(⥊), :(⥋), :(⥎), :(⥐), :(⥒),
+        :(⥓), :(⥖), :(⥗), :(⥚), :(⥛), :(⥞), :(⥟), :(⥢), :(⥤), :(⥦),
+        :(⥧), :(⥨), :(⥩), :(⥪), :(⥫), :(⥬), :(⥭), :(⥰), :(⧴), :(⬱),
+        :(⬰), :(⬲), :(⬳), :(⬴), :(⬵), :(⬶), :(⬷), :(⬸), :(⬹), :(⬺),
+        :(⬻), :(⬼), :(⬽), :(⬾), :(⬿), :(⭀), :(⭁), :(⭂), :(⭃), :(⭄),
         :(⭇), :(⭈), :(⭉), :(⭊), :(⭋), :(⭌), :(￩), :(￫)],
-       [:(>),  :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡), 
-        :(!=), :(≠), :(!==), :(≢), :(.>), :(.<), :(.>=), :(.≥), :(.<=), 
-        :(.≤), :(.==), :(.!=), :(.≠), :(.=), :(.!), :(<:), :(>:), :(∈), 
-        :(∉), :(∋), :(∌), :(⊆), :(⊈), :(⊂), :(⊄), :(⊊), :(∝), :(∊), :(∍), 
-        :(∥), :(∦), :(∷), :(∺), :(∻), :(∽), :(∾), :(≁), :(≃), :(≄), :(≅), 
-        :(≆), :(≇), :(≈), :(≉), :(≊), :(≋), :(≌), :(≍), :(≎), :(≐), :(≑), 
-        :(≒), :(≓), :(≔), :(≕), :(≖), :(≗), :(≘), :(≙), :(≚), :(≛), :(≜), 
-        :(≝), :(≞), :(≟), :(≣), :(≦), :(≧), :(≨), :(≩), :(≪), :(≫), :(≬), 
-        :(≭), :(≮), :(≯), :(≰), :(≱), :(≲), :(≳), :(≴), :(≵), :(≶), :(≷), 
-        :(≸), :(≹), :(≺), :(≻), :(≼), :(≽), :(≾), :(≿), :(⊀), :(⊁), :(⊃), 
-        :(⊅), :(⊇), :(⊉), :(⊋), :(⊏), :(⊐), :(⊑), :(⊒), :(⊜), :(⊩), :(⊬), 
-        :(⊮), :(⊰), :(⊱), :(⊲), :(⊳), :(⊴), :(⊵), :(⊶), :(⊷), :(⋍), :(⋐), 
-        :(⋑), :(⋕), :(⋖), :(⋗), :(⋘), :(⋙), :(⋚), :(⋛), :(⋜), :(⋝), :(⋞), 
-        :(⋟), :(⋠), :(⋡), :(⋢), :(⋣), :(⋤), :(⋥), :(⋦), :(⋧), :(⋨), :(⋩), 
-        :(⋪), :(⋫), :(⋬), :(⋭), :(⋲), :(⋳), :(⋴), :(⋵), :(⋶), :(⋷), :(⋸), 
-        :(⋹), :(⋺), :(⋻), :(⋼), :(⋽), :(⋾), :(⋿), :(⟈), :(⟉), :(⟒), :(⦷), 
-        :(⧀), :(⧁), :(⧡), :(⧣), :(⧤), :(⧥), :(⩦), :(⩧), :(⩪), :(⩫), :(⩬), 
-        :(⩭), :(⩮), :(⩯), :(⩰), :(⩱), :(⩲), :(⩳), :(⩴), :(⩵), :(⩶), :(⩷), 
-        :(⩸), :(⩹), :(⩺), :(⩻), :(⩼), :(⩽), :(⩾), :(⩿), :(⪀), :(⪁), :(⪂), 
-        :(⪃), :(⪄), :(⪅), :(⪆), :(⪇), :(⪈), :(⪉), :(⪊), :(⪋), :(⪌), :(⪍), 
-        :(⪎), :(⪏), :(⪐), :(⪑), :(⪒), :(⪓), :(⪔), :(⪕), :(⪖), :(⪗), :(⪘), 
-        :(⪙), :(⪚), :(⪛), :(⪜), :(⪝), :(⪞), :(⪟), :(⪠), :(⪡), :(⪢), :(⪣), 
-        :(⪤), :(⪥), :(⪦), :(⪧), :(⪨), :(⪩), :(⪪), :(⪫), :(⪬), :(⪭), :(⪮), 
-        :(⪯), :(⪰), :(⪱), :(⪲), :(⪳), :(⪴), :(⪵), :(⪶), :(⪷), :(⪸), :(⪹), 
-        :(⪺), :(⪻), :(⪼), :(⪽), :(⪾), :(⪿), :(⫀), :(⫁), :(⫂), :(⫃), :(⫄), 
-        :(⫅), :(⫆), :(⫇), :(⫈), :(⫉), :(⫊), :(⫋), :(⫌), :(⫍), :(⫎), :(⫏), 
-        :(⫐), :(⫑), :(⫒), :(⫓), :(⫔), :(⫕), :(⫖), :(⫗), :(⫘), :(⫙), :(⫷), 
+       [:(>),  :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡),
+        :(!=), :(≠), :(!==), :(≢), :(.>), :(.<), :(.>=), :(.≥), :(.<=),
+        :(.≤), :(.==), :(.!=), :(.≠), :(.=), :(.!), :(<:), :(>:), :(∈),
+        :(∉), :(∋), :(∌), :(⊆), :(⊈), :(⊂), :(⊄), :(⊊), :(∝), :(∊), :(∍),
+        :(∥), :(∦), :(∷), :(∺), :(∻), :(∽), :(∾), :(≁), :(≃), :(≄), :(≅),
+        :(≆), :(≇), :(≈), :(≉), :(≊), :(≋), :(≌), :(≍), :(≎), :(≐), :(≑),
+        :(≒), :(≓), :(≔), :(≕), :(≖), :(≗), :(≘), :(≙), :(≚), :(≛), :(≜),
+        :(≝), :(≞), :(≟), :(≣), :(≦), :(≧), :(≨), :(≩), :(≪), :(≫), :(≬),
+        :(≭), :(≮), :(≯), :(≰), :(≱), :(≲), :(≳), :(≴), :(≵), :(≶), :(≷),
+        :(≸), :(≹), :(≺), :(≻), :(≼), :(≽), :(≾), :(≿), :(⊀), :(⊁), :(⊃),
+        :(⊅), :(⊇), :(⊉), :(⊋), :(⊏), :(⊐), :(⊑), :(⊒), :(⊜), :(⊩), :(⊬),
+        :(⊮), :(⊰), :(⊱), :(⊲), :(⊳), :(⊴), :(⊵), :(⊶), :(⊷), :(⋍), :(⋐),
+        :(⋑), :(⋕), :(⋖), :(⋗), :(⋘), :(⋙), :(⋚), :(⋛), :(⋜), :(⋝), :(⋞),
+        :(⋟), :(⋠), :(⋡), :(⋢), :(⋣), :(⋤), :(⋥), :(⋦), :(⋧), :(⋨), :(⋩),
+        :(⋪), :(⋫), :(⋬), :(⋭), :(⋲), :(⋳), :(⋴), :(⋵), :(⋶), :(⋷), :(⋸),
+        :(⋹), :(⋺), :(⋻), :(⋼), :(⋽), :(⋾), :(⋿), :(⟈), :(⟉), :(⟒), :(⦷),
+        :(⧀), :(⧁), :(⧡), :(⧣), :(⧤), :(⧥), :(⩦), :(⩧), :(⩪), :(⩫), :(⩬),
+        :(⩭), :(⩮), :(⩯), :(⩰), :(⩱), :(⩲), :(⩳), :(⩴), :(⩵), :(⩶), :(⩷),
+        :(⩸), :(⩹), :(⩺), :(⩻), :(⩼), :(⩽), :(⩾), :(⩿), :(⪀), :(⪁), :(⪂),
+        :(⪃), :(⪄), :(⪅), :(⪆), :(⪇), :(⪈), :(⪉), :(⪊), :(⪋), :(⪌), :(⪍),
+        :(⪎), :(⪏), :(⪐), :(⪑), :(⪒), :(⪓), :(⪔), :(⪕), :(⪖), :(⪗), :(⪘),
+        :(⪙), :(⪚), :(⪛), :(⪜), :(⪝), :(⪞), :(⪟), :(⪠), :(⪡), :(⪢), :(⪣),
+        :(⪤), :(⪥), :(⪦), :(⪧), :(⪨), :(⪩), :(⪪), :(⪫), :(⪬), :(⪭), :(⪮),
+        :(⪯), :(⪰), :(⪱), :(⪲), :(⪳), :(⪴), :(⪵), :(⪶), :(⪷), :(⪸), :(⪹),
+        :(⪺), :(⪻), :(⪼), :(⪽), :(⪾), :(⪿), :(⫀), :(⫁), :(⫂), :(⫃), :(⫄),
+        :(⫅), :(⫆), :(⫇), :(⫈), :(⫉), :(⫊), :(⫋), :(⫌), :(⫍), :(⫎), :(⫏),
+        :(⫐), :(⫑), :(⫒), :(⫓), :(⫔), :(⫕), :(⫖), :(⫗), :(⫘), :(⫙), :(⫷),
         :(⫸), :(⫹), :(⫺), :(⊢), :(⊣)],
        [:(|>),  :(<|)],
        [:(:), :(..)],
-       [:(+), :(-), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪), :(∨), 
-        :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽), 
-        :(⋎), :(⋓), :(⧺), :(⧻), :(⨈), :(⨢), :(⨣), :(⨤), :(⨥), :(⨦), :(⨧), 
+       [:(+), :(-), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪), :(∨),
+        :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽),
+        :(⋎), :(⋓), :(⧺), :(⧻), :(⨈), :(⨢), :(⨣), :(⨤), :(⨥), :(⨦), :(⨧),
         :(⨨), :(⨩), :(⨪), :(⨫), :(⨬), :(⨭), :(⨮), :(⨹), :(⨺), :(⩁), :(⩂),
         :(⩅), :(⩊), :(⩌), :(⩏), :(⩐), :(⩒), :(⩔), :(⩖), :(⩗), :(⩛), :(⩝),
         :(⩡), :(⩢), :(⩣)],
        [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
-       [:(*), :(/), :(./), :(÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*), :(\), :(.\), 
-        :(&), :(∩), :(∧), :(⊗), :(⊘), :(⊙), :(⊚), :(⊛), :(⊠), :(⊡), :(⊓), :(∗), 
-        :(∙), :(∤), :(⅋), :(≀), :(⊼), :(⋄), :(⋆), :(⋇), :(⋉), :(⋊), :(⋋), :(⋌), 
-        :(⋏), :(⋒), :(⟑), :(⦸), :(⦼), :(⦾), :(⦿), :(⧶), :(⧷), :(⨇), :(⨰), :(⨱), 
-        :(⨲), :(⨳), :(⨴), :(⨵), :(⨶), :(⨷), :(⨸), :(⨻), :(⨼), :(⨽), :(⩀), :(⩃), 
-        :(⩄), :(⩋), :(⩍), :(⩎), :(⩑), :(⩓), :(⩕), :(⩘), :(⩚), :(⩜), :(⩞), :(⩟), 
+       [:(*), :(/), :(./), :(÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*), :(\), :(.\),
+        :(&), :(∩), :(∧), :(⊗), :(⊘), :(⊙), :(⊚), :(⊛), :(⊠), :(⊡), :(⊓), :(∗),
+        :(∙), :(∤), :(⅋), :(≀), :(⊼), :(⋄), :(⋆), :(⋇), :(⋉), :(⋊), :(⋋), :(⋌),
+        :(⋏), :(⋒), :(⟑), :(⦸), :(⦼), :(⦾), :(⦿), :(⧶), :(⧷), :(⨇), :(⨰), :(⨱),
+        :(⨲), :(⨳), :(⨴), :(⨵), :(⨶), :(⨷), :(⨸), :(⨻), :(⨼), :(⨽), :(⩀), :(⩃),
+        :(⩄), :(⩋), :(⩍), :(⩎), :(⩑), :(⩓), :(⩕), :(⩘), :(⩚), :(⩜), :(⩞), :(⩟),
         :(⩠), :(⫛), :(⊍)],
        [:(//), :(.//)],
-       [:(^), :(.^), :(↑), :(↓), :(⇵), :(⟰), :(⟱), :(⤈), :(⤉), :(⤊), :(⤋), 
-        :(⤒), :(⤓),  :(⥉), :(⥌), :(⥍), :(⥏), :(⥑), :(⥔), :(⥕), :(⥘), :(⥙), 
+       [:(^), :(.^), :(↑), :(↓), :(⇵), :(⟰), :(⟱), :(⤈), :(⤉), :(⤊), :(⤋),
+        :(⤒), :(⤓),  :(⥉), :(⥌), :(⥍), :(⥏), :(⥑), :(⥔), :(⥕), :(⥘), :(⥙),
         :(⥜), :(⥝),  :(⥠), :(⥡), :(⥣), :(⥥), :(⥮), :(⥯), :(￪), :(￬)],
        [:(::)],
        [:(.)]
@@ -93,29 +93,29 @@ const unary_ops = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), :(¬),
 const unary_and_binary_ops = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
 
 # Operators are special forms, not function names
-const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=), 
-                                   :(/=),  :(//=), :(./=),  :(.*=), :(./=),  
+const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
+                                   :(/=),  :(//=), :(./=),  :(.*=), :(./=),
                                    :(\=),  :(.\=), :(^=),   :(.^=), :(%=),
                                    :(.%=), :(|=),  :(&=),   :($=),  :(=>),
                                    :(<<=), :(>>=), :(>>>=), :(->),  :(-->),
-                                   :(||),  :(&&),  :(.),    :(...), :(.+=), 
+                                   :(||),  :(&&),  :(.),    :(...), :(.+=),
                                    :(.-=)])
 
 const syntactic_unary_ops = Set{Symbol}([:($), :(&), :(::)])
 
 const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...), :(¬),
-                             :(.'), SYM_CTRANSPOSE]), 
+                             :(.'), SYM_CTRANSPOSE]),
 			                 [Set(ops) for ops in ops_by_precedent]...)
 
-const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try, :return, 
+const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try, :return,
                                     :break, :continue, :function, :stagedfunction,
                                     :macro, :quote, :let, :local, :global, :const,
-                                    :abstract, :typealias, :type, :bitstype, :immutable, 
+                                    :abstract, :typealias, :type, :bitstype, :immutable,
                                     :ccall, :do, :module, :baremodule, :using, :import,
                                     :export, :importall])
 #= Helper functions =#
 
-const operator_prescedence = let 
+const operator_prescedence = let
     const precedence_map = Dict{Symbol, Int}()
     for (i, ops) in enumerate(ops_by_precedent)
         for op in ops
@@ -183,7 +183,7 @@ function is_cat_id_start(c::Char, cat::Integer)
                 (c >= 0x27c0 && c <= 0x27c2) ||  # ⟀, ⟁, ⟂
                 (c >= 0x29b0 && c <= 0x29b4) ||  # ⦰, ⦱, ⦲, ⦳, ⦴
                 (c >= 0x2a00 && c <= 0x2a06) ||  # ⨀, ⨁, ⨂, ⨃, ⨄, ⨅, ⨆
-                (c >= 0x2a09 && c <= 0x2a16) ||  # ⨉, ⨊, ⨋, ⨌, ⨍, ⨎, ⨏, ⨐, ⨑, ⨒, 
+                (c >= 0x2a09 && c <= 0x2a16) ||  # ⨉, ⨊, ⨋, ⨌, ⨍, ⨎, ⨏, ⨐, ⨑, ⨒,
                                                  # ⨓, ⨔, ⨕, ⨖
                 c == 0x2a1b || c == 0x2a1c)))) || # ⨛, ⨜
 
@@ -200,15 +200,15 @@ function is_cat_id_start(c::Char, cat::Integer)
 
             # angle symbols
             (c >= 0x2220 && c <= 0x2222) || # ∠, ∡, ∢
-            (c >= 0x299b && c <= 0x29af) || # ⦛, ⦜, ⦝, ⦞, ⦟, ⦠, ⦡, ⦢, ⦣, ⦤, ⦥, 
+            (c >= 0x299b && c <= 0x29af) || # ⦛, ⦜, ⦝, ⦞, ⦟, ⦠, ⦡, ⦢, ⦣, ⦤, ⦥,
                                             # ⦦, ⦧, ⦨, ⦩, ⦪, ⦫, ⦬, ⦭, ⦮, ⦯
             # Other_ID_Start
             c == 0x2118 || c == 0x212E || # ℘, ℮
             (c >= 0x309B && c <= 0x309C)) # katakana-hiragana sound marks
 end
-    
+
 function is_identifier_char(c::Char)
-    if ((c >= 'A' && c <= 'Z') || 
+    if ((c >= 'A' && c <= 'Z') ||
         (c >= 'a' && c <= 'z') || c == '_' ||
         (c >= '0' && c <= '9') || c == '!')
         return true
@@ -220,9 +220,9 @@ function is_identifier_char(c::Char)
     if cat == UTF8proc.UTF8PROC_CATEGORY_MN || cat == UTF8proc.UTF8PROC_CATEGORY_MC ||
        cat == UTF8proc.UTF8PROC_CATEGORY_ND || cat == UTF8proc.UTF8PROC_CATEGORY_PC ||
        cat == UTF8proc.UTF8PROC_CATEGORY_SK || cat == UTF8proc.UTF8PROC_CATEGORY_ME ||
-       cat == UTF8proc.UTF8PROC_CATEGORY_NO || 
+       cat == UTF8proc.UTF8PROC_CATEGORY_NO ||
        (0x2032 <= c <= 0x2034) || # primes
-       c == 0x0387 || c == 0x19da || 
+       c == 0x0387 || c == 0x19da ||
        (0x1369 <= c <= 0x1371)
        return true
     end
@@ -236,7 +236,7 @@ function is_identifier_start_char(c::Char)
         return false
     end
     cat = UTF8proc.category_code(c)
-    return is_cat_id_start(c, cat) 
+    return is_cat_id_start(c, cat)
 end
 
 #= Characters that can be in an operator =#
@@ -308,7 +308,7 @@ type TokenStream
     filename::String
 end
 
-TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io), "") 
+TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io), "")
 TokenStream(str::String) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
@@ -327,7 +327,7 @@ takechar(ts::TokenStream) = (readchar(ts); ts)
 
 function skipws(ts::TokenStream, newlines::Bool=false)
     nc = peekchar(ts)
-    nc === EOF && return EOF
+    nc === EOF && return false
     skipped = false
     while !eof(ts) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
         takechar(ts)
@@ -341,7 +341,7 @@ function skip_to_eol(io::IO)
     while !eof(io)
         nc = peekchar(io)
         nc === '\n' && break
-        Base.skip(io, Base.utf8sizeof(nc)) 
+        Base.skip(io, Base.utf8sizeof(nc))
     end
     return io
 end
@@ -399,11 +399,11 @@ function sized_uint_oct_literal(s::String)
 end
 
 function compare_num_strings(s1::String, s2::String)
-    s1, s2 = lstrip(s1, '0'), lstrip(s2, '0') 
+    s1, s2 = lstrip(s1, '0'), lstrip(s2, '0')
     l1, l2 = length(s1), length(s2)
     return l1 == l2 ? s1 <= s2 : l1 <= l2
 end
-   
+
 function is_oct_within_uint128(s::String)
     len = length(s)
     max = "0o3777777777777777777777777777777777777777777"
@@ -414,7 +414,7 @@ end
 
 function is_within_int128(s::String)
     len = length(s)
-    if s[1] === '-' 
+    if s[1] === '-'
         len < 40  && return true
         len > 40  && return false
         len == 40 && return s <= "-170141183460469231731687303715884105728"
@@ -440,7 +440,7 @@ function string_to_number(str::String)
     # floating point literals
     didx, fidx = 0, 0
     isfloat32, isfloat64 = false, false
-    for i=1:len 
+    for i=1:len
         c = str[i]
         if c === '.'
             if isfloat64 == false
@@ -489,7 +489,7 @@ function accum_digits(ts::TokenStream, pred::Function, c::Char, leading_zero::Bo
         return (Char[], false)
     end
     charr = Char[]
-    while true 
+    while true
         if c == '_'
             skip(ts, 1)
             c = peekchar(ts)
@@ -497,7 +497,7 @@ function accum_digits(ts::TokenStream, pred::Function, c::Char, leading_zero::Bo
                 continue
             else
                 skip(ts, -1)
-                break 
+                break
             end
         elseif !eof(c) && pred(c)
             skip(ts, 1)
@@ -505,12 +505,12 @@ function accum_digits(ts::TokenStream, pred::Function, c::Char, leading_zero::Bo
             c = peekchar(ts)
             continue
         end
-        break 
+        break
     end
     return (charr, true)
 end
 
-#TODO: can we get rid of this? 
+#TODO: can we get rid of this?
 fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
 
 function disallow_dot!(ts::TokenStream, charr::Vector{Char})
@@ -529,18 +529,18 @@ function read_digits!(ts::TokenStream, pred::Function, charr::Vector{Char}, lead
     ok || error("invalid numeric constant \"$digits\"")
     isempty(digits) && return false
     append!(charr, digits)
-    return true 
+    return true
 end
 
-#TODO: try to remove neg as it is not needed for the lexer 
+#TODO: try to remove neg as it is not needed for the lexer
 function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
-    charr = Char[] 
-    pred::Function = isdigit 
-    
+    charr = Char[]
+    pred::Function = isdigit
+
     leading_zero = false
     is_float32_literal  = false
     is_hexfloat_literal = false
-    
+
     neg && push!(charr, '-')
     if leading_dot
         push!(charr, '.')
@@ -599,10 +599,10 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
         error("invalid numeric constant \"$(utf32(charr))\"")
     end
     str = utf32(charr)
-    base = pred == is_char_hex ? 16 : 
+    base = pred == is_char_hex ? 16 :
            pred == is_char_oct ? 8  :
            pred == is_char_bin ? 2  : 10
-    # for an unsigned literal starting with -, 
+    # for an unsigned literal starting with -,
     # remove the - and parse instead as a call to unary -
     (neg && base != 10 && !is_hexfloat_literal) && (str = str[2:end])
     if is_hexfloat_literal
@@ -644,7 +644,7 @@ function skip_multiline_comment(ts::TokenStream, count::Int)
             start > 0 || (start = position(ts))
             if peekchar(ts) === '#' && position(ts) != start
                 takechar(ts)
-                count <= 1 || (count -= 1; continue) 
+                count <= 1 || (count -= 1; continue)
                 unterminated = false
                 break
             end
@@ -657,7 +657,7 @@ function skip_multiline_comment(ts::TokenStream, count::Int)
     if unterminated
         error("incomplete: unterminated multi-line comment #= ... =#")
     end
-    return ts 
+    return ts
 end
 
 # if this is a mulitiline comment skip to the end
@@ -669,7 +669,7 @@ function skipcomment(ts::TokenStream)
     else
         skip_to_eol(ts)
     end
-    return ts 
+    return ts
 end
 
 # skip all whitespace before a comment,
@@ -682,7 +682,7 @@ function skipws_and_comments(ts::TokenStream)
         peekchar(ts) !== '#' && break
         skipcomment(ts)
     end
-    return ts 
+    return ts
 end
 
 function accum_julia_symbol(ts::TokenStream, c::Char)
@@ -782,7 +782,7 @@ function peek_token(ts::TokenStream, whitespace_newline::Bool)
     return last_token(ts)
 end
 peek_token(ts::TokenStream) = peek_token(ts, false)
-        
+
 function take_token(ts::TokenStream)
     ts.ateof && return EOF
     if ts.putback !== nothing

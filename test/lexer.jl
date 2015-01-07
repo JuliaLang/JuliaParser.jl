@@ -24,7 +24,7 @@ facts("test skip to end of line") do
     Lexer.readchar(io)
     @fact eof(io) => true
 
-    context("no line break in buffer") do 
+    context("no line break in buffer") do
         io = IOBuffer("abcde")
         Lexer.skip_to_eol(io)
         @fact position(io) => 5
@@ -50,7 +50,7 @@ facts("test read operator") do
 end
 
 facts("test string_to_number") do
-   
+
     @fact_throws Lexer.string_to_number("")
     @fact_throws Lexer.string_to_number("1x10")
     @fact_throws Lexer.string_to_number("x10")
@@ -58,7 +58,7 @@ facts("test string_to_number") do
     @fact_throws Lexer.string_to_number("b10")
     @fact_throws Lexer.string_to_number("0xzz")
     @fact_throws Lexer.string_to_number("0b22")
-    
+
     context("NaN") do
         for s in ("NaN", "+NaN", "-NaN")
             n = Lexer.string_to_number(s)
@@ -103,7 +103,7 @@ facts("test string_to_number") do
         @fact n => parse(s)
         @fact typeof(n) => Float64
         @fact typeof(n) => typeof(parse(s))
-        
+
         s = "-1E10"
         n = Lexer.string_to_number(s)
         @fact n => -1.0e10
@@ -143,7 +143,7 @@ facts("test string_to_number") do
         end
     end
 
-    context("float32") do 
+    context("float32") do
         s = "1.0f0"
         n = Lexer.string_to_number(s)
         @fact n => 1.0
@@ -167,7 +167,7 @@ facts("test string_to_number") do
 
         s = "1f"
         @fact_throws Lexer.string_to_number(n)
-        
+
         for _ = 1:10
             tn = rand(Float32)
             s  = repr(tn)
@@ -193,13 +193,13 @@ facts("test string_to_number") do
         s = repr(typemin(Int64))
         n = Lexer.string_to_number(s)
         @fact n => typemin(Int64)
-        @fact typeof(n) => Int64 
+        @fact typeof(n) => Int64
 
         s = repr(typemax(Int64))
         n = Lexer.string_to_number(s)
         @fact n => typemax(Int64)
         @fact typeof(n) => Int64
-        
+
         #=
         s = repr(typemax(Uint64))
         n = Lexer.string_to_number(s)
@@ -270,14 +270,14 @@ end
 
 
 facts("test sized uint literal") do
-    
+
     context("hexadecimal") do
         s  = "0x0"
         sn = int(s)
         n  = Lexer.sized_uint_literal(s, 4)
         @fact sn => n
         @fact typeof(n) => Uint8
-        
+
         for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
             @eval begin
                 s = repr(typemax($ty))
@@ -292,9 +292,9 @@ facts("test sized uint literal") do
                 @fact typeof(pn) => $ty
             end
         end
-        
+
         s  = string(repr(typemax(Uint128)), "f")
-        sn = BigInt(s) 
+        sn = BigInt(s)
         n  = Lexer.sized_uint_literal(s, 4)
         @fact sn == n => true
         @fact typeof(n) => BigInt
@@ -303,14 +303,14 @@ facts("test sized uint literal") do
         @fact pn == n => true
         @fact typeof(pn) => BigInt
     end
-    
+
     context("octal") do
         s  = "0o0"
         sn = int(s)
         n  = Lexer.sized_uint_oct_literal(s)
         @fact sn => n
         @fact typeof(n) => Uint8
-        
+
         pn = parse(s)
         @fact pn == n => true
         @fact typeof(n) => typeof(pn)
@@ -322,15 +322,15 @@ facts("test sized uint literal") do
                 n  = Lexer.sized_uint_oct_literal(s)
                 @fact sn => n
                 @fact typeof(n) => $ty
-                        
+
                 pn = eval(parse(s))
                 @fact pn => n
                 @fact typeof(pn) => $ty
             end
         end
-        
+
         s = "0o" * oct(typemax(Uint128)) * "7"
-        sn = BigInt(s) 
+        sn = BigInt(s)
         n  = Lexer.sized_uint_oct_literal(s)
         @fact sn => n
         @fact typeof(n) => BigInt
@@ -345,7 +345,7 @@ facts("test sized uint literal") do
         n  = Lexer.sized_uint_literal(s, 1)
         @fact sn => n
         @fact typeof(n) => Uint8
-        
+
         for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
             @eval begin
                 s = string("0b", bin(typemax($ty)))
@@ -355,9 +355,9 @@ facts("test sized uint literal") do
                 @fact typeof(n) => $ty
             end
         end
-        
+
         s  = string("0b", bin(typemax(Uint128)), "1")
-        sn = BigInt(s) 
+        sn = BigInt(s)
         n  = Lexer.sized_uint_literal(s, 1)
         @fact sn => n
         @fact typeof(n) => BigInt
@@ -365,14 +365,14 @@ facts("test sized uint literal") do
 end
 
 facts("test accum_digits") do
-    pred = isdigit 
-    
+    pred = isdigit
+
     io = TokenStream("1_000_000")
     c = Lexer.readchar(io)
     digits, success = Lexer.accum_digits(io, pred, c, false)
     @fact digits => [c for c in "1000000"]
     @fact success => true
-   
+
     io = TokenStream("01_000_000")
     c = Lexer.peekchar(io)
     digits, success = Lexer.accum_digits(io, pred, c, false)
@@ -395,7 +395,7 @@ end
 facts("test compare num strings") do
     a = "123"
     b = "1453"
-    isless = Lexer.compare_num_strings(a, b) 
+    isless = Lexer.compare_num_strings(a, b)
     @fact isless => true
 
     a = "123"
@@ -410,7 +410,7 @@ facts("test is oct within uint 128") do
     m = typemax(Uint128)
     @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) => true
 
-    m = typemax(Uint128) - 1 
+    m = typemax(Uint128) - 1
     @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) => true
 
     m = BigInt(typemax(Uint128)) + 1
@@ -419,13 +419,13 @@ end
 
 facts("test is within int128") do
     m = typemax(Int128)
-    @fact Lexer.is_within_int128(repr(m)) => true 
+    @fact Lexer.is_within_int128(repr(m)) => true
 
     m = BigInt(typemax(Int128)) + 1
     @fact Lexer.is_within_int128(repr(m)) => false
 
     m = typemin(Int128)
-    @fact Lexer.is_within_int128(repr(m)) => true 
+    @fact Lexer.is_within_int128(repr(m)) => true
 
     m = BigInt(typemin(Int128)) - 1
     @fact Lexer.is_within_int128(repr(m)) => false
@@ -433,9 +433,9 @@ end
 
 
 facts("test readnumber") do
-    
+
     context("signed integer") do
-        io = TokenStream("100") 
+        io = TokenStream("100")
         n = Lexer.read_number(io, false, false)
         @fact n => 100
         @fact typeof(n) => Int64
@@ -462,7 +462,7 @@ facts("test readnumber") do
         n = Lexer.read_number(io, false, false)
         @fact n => 100.0
         @fact typeof(n) => Float64
-     
+
         io = TokenStream("100.0f0")
         n = Lexer.read_number(io, false, false)
         @fact n => 100.0
@@ -490,7 +490,7 @@ facts("test readnumber") do
         @fact typeof(n) => Float64
     end
 
-    context("leading dot") do 
+    context("leading dot") do
         io = TokenStream(".01")
         Lexer.skip(io, 1)
         n = Lexer.read_number(io, true, false)
@@ -525,7 +525,7 @@ facts("test readnumber") do
         Lexer.skip(io, 1)
         n = Lexer.read_number(io, true, false)
         @fact n => 0.0001f0
-        @fact typeof(n) => Float32 
+        @fact typeof(n) => Float32
 
         io = TokenStream("-.01f0")
         Lexer.skip(io, 2)
@@ -537,7 +537,7 @@ facts("test readnumber") do
         Lexer.skip(io, 2)
         n = Lexer.read_number(io, true, true)
         @fact n => -0.0001f0
-        @fact typeof(n) => Float32 
+        @fact typeof(n) => Float32
     end
 
     context("floating point hex") do
@@ -556,14 +556,14 @@ facts("test readnumber") do
         io = TokenStream(string("0b", bin(10)))
         n = Lexer.read_number(io, false, false)
         @fact n => 10
-        #@show typeof(n)  
+        #@show typeof(n)
     end
 
     context("hex") do
         io = TokenStream(string("0x", hex(10), " "))
         n = Lexer.read_number(io, false, false)
-        @fact n => 10 
-        
+        @fact n => 10
+
         io = TokenStream("0xffff7f000001")
         n = Lexer.read_number(io, false, false)
         @fact n => 0xffff7f000001
@@ -608,11 +608,11 @@ facts("test skip comment") do
 
     io = TokenStream("#")
     Lexer.skipcomment(io)
-    @fact Lexer.position(io) => 1 
+    @fact Lexer.position(io) => 1
 
     io = TokenStream("# ")
     Lexer.skipcomment(io)
-    @fact Lexer.position(io) => 2 
+    @fact Lexer.position(io) => 2
 
     context("must start with a comment symbol") do
         io = TokenStream("test")
@@ -661,11 +661,11 @@ end
 
 facts("test skip ws and comment") do
     io = TokenStream("")
-    Lexer.skipws_and_comments(io) 
+    Lexer.skipws_and_comments(io)
     @fact Lexer.eof(io) => true
 
     io = TokenStream(" \n")
-    Lexer.skipws_and_comments(io) 
+    Lexer.skipws_and_comments(io)
     @fact Lexer.eof(io) => true
 
     io = TokenStream("  # test comment\n")
@@ -693,7 +693,7 @@ tokens(str::String) = tokens(TokenStream(str))
 
 
 facts("test TokenStream constructor") do
-    io = TokenStream("testfunc(i) = i * i") 
+    io = TokenStream("testfunc(i) = i * i")
     try
         ts = TokenStream(io)
         @fact true => true
@@ -704,12 +704,12 @@ end
 
 facts("test set_token! / last_token") do
     code = "1 + 1"
-    tks = tokens(code) 
-    @fact tks => {1, :+, 1} 
-    
+    tks = tokens(code)
+    @fact tks => {1, :+, 1}
+
     ts = TokenStream(code)
     @fact Lexer.last_token(ts) => nothing
-    
+
     Lexer.set_token!(ts, tks[1])
     @fact Lexer.last_token(ts) => tks[1]
 
@@ -736,7 +736,7 @@ facts("test peek_token") do
     @fact_throws Lexer.put_back!(ts, :test2)
     Lexer.set_token!(ts, :test2)
     @fact Lexer.peek_token(ts) => :test
-end 
+end
 
 # you must peek before you can take
 facts("test take_token") do
@@ -746,7 +746,7 @@ facts("test take_token") do
     for t in tokens(code)
         tk = Lexer.peek_token(ts)
         @fact tk => t
-        Lexer.take_token(ts) 
+        Lexer.take_token(ts)
     end
 end
 
@@ -806,12 +806,12 @@ facts("test next_token") do
     @fact toks => {:func, '(', 2, ')', :(|>), :(send!)}
 
     sym_end = symbol("end")
-    
+
     toks = tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend")
     @fact toks => {:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
-                   :a, :(::), :T, '\n', 
-                   :b, :(::), :T, '\n', 
-                   sym_end} 
+                   :a, :(::), :T, '\n',
+                   :b, :(::), :T, '\n',
+                   sym_end}
 
     toks = tokens("function(x::Int)\n\treturn x^2\nend")
     @fact toks => {:function, '(', :x, :(::), :Int, ')', '\n',
