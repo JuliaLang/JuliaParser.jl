@@ -288,9 +288,8 @@ peekchar(s::IOStream) = begin
     return _chtmp[1]
 end
 
-eof(io::IO)  = Base.eof(io)
-eof(c::Char) = is(c, EOF)
-eof(c)       = false
+eof(io::IO) = Base.eof(io)
+eof(c) = is(c, EOF)
 
 readchar(io::IO) = eof(io) ? EOF : read(io, Char)
 takechar(io::IO) = (readchar(io); io)
