@@ -516,6 +516,22 @@ function parse_factorh(ps::ParseState, ts::TokenStream, down::Function, ops)
     return Expr(:call, nt, ex, pf)
 end
 
+function negate(val)
+    if isa(val, Number)
+        if isa(val, Int64) && n == -9223372036854775808
+            return 9223372036854775808
+        end
+        if isa(val, Int128) && n == -170141183460469231731687303715884105728
+            return 170141183460469231731687303715884105728
+        end
+        return -n
+    elseif isa(val, Expr)
+        return ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : Expr(:-, ex)
+    else
+        throw(ArgumentError("negate argument is not a Number or Expr"))
+    end
+end
+
 # -2^3 is parsed as -(2^3) so call parse-decl for the first arg,
 # and parse unary from then on (handles 2^-3)
 const FAC_OPS = Lexer.precedent_ops(13)
