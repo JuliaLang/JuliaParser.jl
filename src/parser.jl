@@ -9,18 +9,18 @@ typealias CharSymbol Union(Char, Symbol)
 
 type ParseState
     # disable range colon for parsing ternary cond op
-    range_colon_enabled::Bool 
-    
+    range_colon_enabled::Bool
+
     # in space sensitvie mode "x -y" is 2 exprs, not subtraction
     space_sensitive::Bool
-    
-    # treat "end" like a normal symbol, instead of a reserved word 
-    inside_vector::Bool 
-    
+
+    # treat "end" like a normal symbol, instead of a reserved word
+    inside_vector::Bool
+
     # treat newline like ordinary whitespace instead of a reserved word
     end_symbol::Bool
-    
-    # treat newline like ordinary whitespace instead of as a potential separator 
+
+    # treat newline like ordinary whitespace instead of as a potential separator
     whitespace_newline::Bool
 end
 
@@ -45,7 +45,7 @@ macro with_normal_ops(ps, body)
     end
 end
 
-macro without_range_colon(ps, body) 
+macro without_range_colon(ps, body)
     quote
         local tmp1 = $(esc(ps)).range_colon_enabled
         try
@@ -115,11 +115,11 @@ macro space_sensitive(ps, body)
     quote
         local tmp1 = $(esc(ps)).space_sensitive
         local tmp2 = $(esc(ps)).whitespace_newline
-        try 
+        try
             $(esc(ps)).space_sensitive = true
             $(esc(ps)).whitespace_newline = false
             $(esc(body))
-        finally 
+        finally
             $(esc(ps)).space_sensitive    = tmp1
             $(esc(ps)).whitespace_newline = tmp2
         end
@@ -130,14 +130,14 @@ curline(ts::TokenStream)  = ts.lineno
 filename(ts::TokenStream) = symbol("none")
 
 line_number_node(ts) = LineNumberNode(curline(ts))
-line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts)) 
+line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts))
 
 # insert line/file for short form function defs, otherwise leave alone
 function short_form_function_loc(ex, lno, filename)
     if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
        block = Expr(:block, Expr(:line, lno, filename))
        append!(block.args, ex.args[2:end])
-       return Expr(:(=), ex.args[1], block) 
+       return Expr(:(=), ex.args[1], block)
    end
    return ex
 end
@@ -157,7 +157,7 @@ const is_invalid_initial_token = let invalid = Set([')', ']', '}', SYM_ELSE, SYM
 end
 
 const is_closing_token = let closing = Set([',', ')', ']', '}', ';', SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
-    is_closing_token(ps::ParseState, t) = 
+    is_closing_token(ps::ParseState, t) =
         ((t === SYM_END && !ps.end_symbol) || Lexer.eof(t) || (isa(t, CharSymbol) && t in closing))
 end
 
@@ -167,17 +167,17 @@ is_dict_literal(ex) = false
 is_parameter(ex::Expr) = ex.head === :parameters && length(ex.args) == 1
 is_parameter(ex) = false
 
-function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op) 
+function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op)
     chain = Any[down(ps, ts)]
-    while true 
+    while true
         t = peek_token(ps, ts)
         t !== op && return chain
         take_token(ts)
-        if (ps.space_sensitive && ts.isspace && 
+        if (ps.space_sensitive && ts.isspace &&
             (isa(t, Symbol) && t in Lexer.unary_and_binary_ops) &&
             Lexer.peekchar(ts) != ' ')
             # here we have "x -y"
-            put_back!(ts, t) 
+            put_back!(ts, t)
             return chain
         end
         push!(chain, down(ps, ts))
@@ -186,9 +186,9 @@ end
 
 # parse left to right chains of certain binary operator
 # ex. a + b + c => Expr(:call, :+, a, b, c)
-function parse_with_chains{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T}, chain_op) 
+function parse_with_chains{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T}, chain_op)
     ex = down(ps, ts)
-    while true 
+    while true
         t = peek_token(ps, ts)
         !(t in ops) && return ex
         take_token(ts)
@@ -205,7 +205,7 @@ function parse_with_chains{T}(ps::ParseState, ts::TokenStream, down::Function, o
 end
 
 function parse_LtoR{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T}, ex=down(ps, ts))
-    while true 
+    while true
         t  = peek_token(ps, ts)
         !(t in ops) && return ex
         take_token(ts)
@@ -219,7 +219,7 @@ function parse_LtoR{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
 end
 
 function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T}, ex=down(ps, ts))
-    while true 
+    while true
         t  = peek_token(ps, ts)
         !(t in ops) && return ex
         take_token(ts)
@@ -238,7 +238,7 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
                     push!(ex.args, args[i])
                 end
                 push!(ex.args, parse_RtoL(ps, ts, down, ops, args[end]))
-                return ex 
+                return ex
             else
                 ex = Expr(:macrocall, symbol("@~"), ex); append!(ex.args, args)
                 return ex
@@ -263,7 +263,7 @@ function parse_cond(ps::ParseState, ts::TokenStream)
 end
 
 
-function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T1}, 
+function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T1},
                             head::Symbol, closers::Set{T2}, allow_empty::Bool)
     t = require_token(ps, ts)
     is_invalid_initial_token(t) && error("unexpected \"$t\"")
@@ -273,7 +273,7 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
     end
     local args::Vector{Any}
     # in allow empty mode, skip leading runs of operator
-    if allow_empty && isa(t, CharSymbol) && t in ops 
+    if allow_empty && isa(t, CharSymbol) && t in ops
         args = Any[]
     elseif '\n' in ops
         # line-number must happend before (down s)
@@ -303,9 +303,9 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
         isfirst = false
         take_token(ts)
         # allow input to end with the operator, as in a;b;
-        nt = peek_token(ps, ts) 
-        if Lexer.eof(nt) || (isa(nt, CharSymbol) && nt in closers) || 
-           (allow_empty && isa(nt, CharSymbol) && nt in ops) ||  
+        nt = peek_token(ps, ts)
+        if Lexer.eof(nt) || (isa(nt, CharSymbol) && nt in closers) ||
+           (allow_empty && isa(nt, CharSymbol) && nt in ops) ||
            (length(ops) == 1 && ',' in ops && nt === :(=))
            t = nt
            continue
@@ -318,7 +318,7 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
             t = peek_token(ps, ts)
         end
     end
-end 
+end
 
 # the principal non-terminals follow, in increasing precedence order
 const BLOCK_OPS = Set(['\n', ';'])
@@ -347,22 +347,22 @@ function parse_stmts(ps::ParseState, ts::TokenStream)
 end
 
 const EQ_OPS = Lexer.precedent_ops(1)
-function parse_eq(ps::ParseState, ts::TokenStream) 
+function parse_eq(ps::ParseState, ts::TokenStream)
     lno = curline(ts)
-    ex  = parse_RtoL(ps, ts, parse_comma, EQ_OPS) 
+    ex  = parse_RtoL(ps, ts, parse_comma, EQ_OPS)
     return short_form_function_loc(ex, lno, filename(ts))
 end
 
-# parse-eqs is used where commas are special for example in an argument list 
+# parse-eqs is used where commas are special for example in an argument list
 parse_eqs(ps::ParseState, ts::TokenStream)   = parse_RtoL(ps, ts, parse_cond, EQ_OPS)
 
 # parse-comma is neeed for commas outside parens, for example a = b, c
-const EMPTY_SET = Set() 
-const COMMA_OPS = Set([',']) 
+const EMPTY_SET = Set()
+const COMMA_OPS = Set([','])
 parse_comma(ps::ParseState, ts::TokenStream) = parse_Nary(ps, ts, parse_cond, COMMA_OPS, :tuple, EMPTY_SET, false)
 
 const OR_OPS = Lexer.precedent_ops(3)
-parse_or(ps::ParseState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_and, OR_OPS) 
+parse_or(ps::ParseState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_and, OR_OPS)
 
 const AND_OPS = Lexer.precedent_ops(4)
 parse_and(ps::ParseState, ts::TokenStream)   = parse_LtoR(ps, ts, parse_arrow, AND_OPS)
@@ -371,30 +371,30 @@ const ARROW_OPS = Lexer.precedent_ops(5)
 parse_arrow(ps::ParseState, ts::TokenStream) = parse_RtoL(ps, ts, parse_ineq, ARROW_OPS)
 
 const INEQ_OPS = Lexer.precedent_ops(6)
-parse_ineq(ps::ParseState, ts::TokenStream)  = parse_comparison(ps, ts, INEQ_OPS) 
+parse_ineq(ps::ParseState, ts::TokenStream)  = parse_comparison(ps, ts, INEQ_OPS)
 
 const PIPES_OPS = Lexer.precedent_ops(7)
-parse_pipes(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_range, PIPES_OPS) 
+parse_pipes(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_range, PIPES_OPS)
 
 const IN_OPS = Set([:(in)])
-parse_in(ps::ParseState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_pipes, IN_OPS) 
+parse_in(ps::ParseState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_pipes, IN_OPS)
 
 const EXPR_OPS = Lexer.precedent_ops(9)
 parse_expr(ps::ParseState, ts::TokenStream)  = parse_with_chains(ps, ts, parse_shift, EXPR_OPS, :(+))
 
 const SHIFT_OPS = Lexer.precedent_ops(10)
-parse_shift(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_term, SHIFT_OPS) 
+parse_shift(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_term, SHIFT_OPS)
 
 const TERM_OPS = Lexer.precedent_ops(11)
 parse_term(ps::ParseState, ts::TokenStream)  = parse_with_chains(ps, ts, parse_rational, TERM_OPS, :(*))
 
 const RAT_OPS = Lexer.precedent_ops(12)
-parse_rational(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_unary, RAT_OPS) 
+parse_rational(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_unary, RAT_OPS)
 
 function parse_comparison(ps::ParseState, ts::TokenStream, ops)
     ex = parse_in(ps, ts)
     isfirst = true
-    while true 
+    while true
         t = peek_token(ps, ts)
         !(t in ops) && return ex
         take_token(ts)
@@ -425,7 +425,7 @@ const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
 end
 
 #= This handles forms such as 2x => Expr(:call, :*, 2, :x) =#
-function parse_juxtaposed(ps::ParseState, ts::TokenStream, ex) 
+function parse_juxtaposed(ps::ParseState, ts::TokenStream, ex)
     # numeric literal juxtaposition is a unary operator
     if is_juxtaposed(ps, ex, peek_token(ps, ts)) && !ts.isspace
         return Expr(:call, :(*), ex, parse_unary(ps, ts))
@@ -482,7 +482,7 @@ function parse_range(ps::ParseState, ts::TokenStream)
             return ex
         end
     end
-end 
+end
 
 function parse_decl(ps::ParseState, ts::TokenStream)
     ex = parse_call(ps, ts)
@@ -511,15 +511,15 @@ function parse_factorh(ps::ParseState, ts::TokenStream, down::Function, ops)
     nt = peek_token(ps, ts)
     !(nt in ops) && return ex
     take_token(ts)
-    pf = parse_factorh(ps, ts, parse_unary, ops)  
+    pf = parse_factorh(ps, ts, parse_unary, ops)
     return Expr(:call, nt, ex, pf)
 end
 
-negate(ex::Expr) = ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : Expr(:-, ex) 
+negate(ex::Expr) = ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : Expr(:-, ex)
 negate(n::Int128) = n == -170141183460469231731687303715884105728 ? # promote to BigInt
                           170141183460469231731687303715884105728 : -n
 negate(n::Int64)  = n == -9223372036854775808 ? # promote to Int128
-                          9223372036854775808 : -n 
+                          9223372036854775808 : -n
 negate(n::BigInt)  = -n
 negate(n::Float32) = -n
 negate(n::Float64) = -n
@@ -527,14 +527,14 @@ negate(n::Float64) = -n
 # -2^3 is parsed as -(2^3) so call parse-decl for the first arg,
 # and parse unary from then on (handles 2^-3)
 const FAC_OPS = Lexer.precedent_ops(13)
-parse_factor(ps::ParseState, ts::TokenStream) = parse_factorh(ps, ts, parse_decl, FAC_OPS) 
+parse_factor(ps::ParseState, ts::TokenStream) = parse_factorh(ps, ts, parse_decl, FAC_OPS)
 
 function parse_unary(ps::ParseState, ts::TokenStream)
     t = require_token(ps, ts)
     is_closing_token(ps, t) && error("unexpected $t")
     if !(isa(t, Symbol) && t in Lexer.unary_ops)
         pf = parse_factor(ps, ts)
-        return parse_juxtaposed(ps, ts, pf) 
+        return parse_juxtaposed(ps, ts, pf)
     end
     op = take_token(ts)
     nc = Lexer.peekchar(ts)
@@ -549,7 +549,7 @@ function parse_unary(ps::ParseState, ts::TokenStream)
             # -2^x parsed as (- (^ 2 x))
             put_back!(ts, neg ? negate(num) : num)
             return Expr(:call, op, parse_factor(ps, ts))
-        end 
+        end
         return num
     end
     nt = peek_token(ps, ts)
@@ -565,7 +565,7 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         if isa(arg, Expr) && arg.head === :tuple
             ex = Expr(:call, op); append!(ex.args, arg.args)
             return ex
-        end 
+        end
         return Expr(:call, op, arg)
     end
 end
@@ -593,7 +593,7 @@ function parse_unary_prefix(ps::ParseState, ts::TokenStream)
 end
 
 # parse function all, indexing, dot, and transpose expressions
-# also handles looking for reserved words 
+# also handles looking for reserved words
 function parse_call(ps::ParseState, ts::TokenStream)
     ex = parse_unary_prefix(ps, ts)
     if isa(ex, Symbol) && ex in Lexer.reserved_words
@@ -613,9 +613,9 @@ end
 const BEGIN_CHARS = Set(['(', '[','{', '"'])
 
 function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
-    while true 
+    while true
         t = peek_token(ps, ts)
-        if (ps.space_sensitive && ts.isspace && 
+        if (ps.space_sensitive && ts.isspace &&
            (t === SYM_SQUOTE || t in BEGIN_CHARS) ||
            (isa(ex, Number) && t === '('))
             return ex
@@ -636,7 +636,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             end
             one_call && return ex
             continue
-        
+
         elseif t === '['
             take_token(ts)
             # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
@@ -688,7 +688,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             end
             continue
 
-        elseif t === :(.') || t === SYM_SQUOTE 
+        elseif t === :(.') || t === SYM_SQUOTE
             take_token(ts)
             ex = Expr(t, ex)
             continue
@@ -726,13 +726,13 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
         end
         return ex
     end
-end 
+end
 
 const expect_end_current_line = 0
 
 function expect_end(ps::ParseState, ts::TokenStream, word::Symbol)
     t = peek_token(ps, ts)
-    if t === SYM_END 
+    if t === SYM_END
         take_token(ts)
     elseif Lexer.eof(t)
         err_msg = "incomplete: \"$word\" at \"$(filename(ts))\" : {expected} requires end"
@@ -756,7 +756,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 blk = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 local ex::Expr
-                if !isempty(blk.args) && 
+                if !isempty(blk.args) &&
                     ((isa(blk.args[1], Expr) && blk.args[1].head === :line) || (isa(blk.args[1], LineNumberNode)))
                     ex = Expr(:block, loc)
                     for i in 2:length(blk.args)
@@ -774,7 +774,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :for
                 ranges  = parse_comma_sep_iters(ps, ts)
-                nranges = length(ranges) 
+                nranges = length(ranges)
                 body = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 if nranges == 1
@@ -782,29 +782,29 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 else
                     blk = Expr(:block); blk.args = ranges
                     return Expr(:for, blk, body)
-                end 
+                end
 
             elseif word === :if
                 test = parse_cond(ps, ts)
                 t    = require_token(ps, ts)
-                then = (t === SYM_ELSE || t === SYM_ELSEIF) ? Expr(:block) : 
+                then = (t === SYM_ELSE || t === SYM_ELSEIF) ? Expr(:block) :
                                                               parse_block(ps, ts)
                 nxt = require_token(ps, ts)
                 take_token(ts)
-                if nxt === SYM_END 
+                if nxt === SYM_END
                     return Expr(:if, test, then)
-                elseif nxt === SYM_ELSEIF 
+                elseif nxt === SYM_ELSEIF
                     if Lexer.isnewline(peek_token(ps, ts))
                         error("missing condition in elseif at {filename} : {line}")
                     end
                     blk = Expr(:block, line_number_node(ts), parse_resword(ps, ts, :if))
                     return Expr(:if, test, then, blk)
-                elseif nxt === SYM_ELSE 
+                elseif nxt === SYM_ELSE
                     if peek_token(ps, ts) === :if
                         error("use elseif instead of else if")
                     end
                     blk = parse_block(ps, ts)
-                    ex = Expr(:if, test, then, blk) 
+                    ex = Expr(:if, test, then, blk)
                     expect_end(ps, ts, word)
                     return ex
                 else
@@ -836,13 +836,13 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 else
                     ex = Expr(word); ex.args = args
                     return ex
-                end 
+                end
 
             elseif word === :function || word === :macro || word === :stagedfunction
                 paren = require_token(ps, ts) === '('
                 sig   = parse_call(ps, ts)
                 local def::Expr
-                if isa(sig, Symbol) || 
+                if isa(sig, Symbol) ||
                     (isa(sig, Expr) && sig.head === :(::) && isa(sig.args[1], Symbol))
                    if paren
                        # in function(x) the (x) is a tuple
@@ -874,7 +874,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 (!istype && peek_token(ps, ts) === :type) && take_token(ts)
                 sig = parse_subtype_spec(ps, ts)
                 blk = parse_block(ps, ts)
-                ex  = Expr(:type, istype, sig, blk) 
+                ex  = Expr(:type, istype, sig, blk)
                 expect_end(ps, ts, word)
                 return ex
 
@@ -886,7 +886,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :typealias
                 lhs = parse_call(ps, ts)
-                if isa(lhs, Expr) && lhs.head === :call 
+                if isa(lhs, Expr) && lhs.head === :call
                     # typealias X (...) is a tuple type alias, not call
                     return Expr(:typealias, lhs.args[1], Expr(:tuple, lhs.args[2:end]...))
                 else
@@ -902,7 +902,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 finalb = nothing
                 while true
                     take_token(ts)
-                    if t === SYM_END 
+                    if t === SYM_END
                         if finalb != nothing
                             return catchb != nothing ? Expr(:try, tryb, catchv, catchb, finalb) :
                                                        Expr(:try, tryb, catchv, false, finalb)
@@ -912,38 +912,38 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                         end
                     end
                     if t === SYM_CATCH && catchb == nothing
-                        nb = false # do we delineate a new block after a catch token (with ; or \n)? 
+                        nb = false # do we delineate a new block after a catch token (with ; or \n)?
                         nt = peek_token(ps, ts)
                         if Lexer.isnewline(nt) || nt === ';'
                             nb = true
                             nt === ';' && take_token(ts)
                         end
                         t   = require_token(ps, ts)
-                        if t === SYM_END || t === SYM_FINALLY 
+                        if t === SYM_END || t === SYM_FINALLY
                             catchb = Expr(:block)
-                            catchv = false 
+                            catchv = false
                             continue
-                        else 
+                        else
                             var   = parse_eqs(ps, ts)
                             isvar = nb == false && isa(var, Symbol)
-                            catch_block = require_token(ps, ts) === SYM_FINALLY ? Expr(:block) : 
+                            catch_block = require_token(ps, ts) === SYM_FINALLY ? Expr(:block) :
                                                                                   parse_block(ps, ts)
                             t = require_token(ps, ts)
                             if isvar
                                 catchb = catch_block
                             else
                                 exb = Expr(:block, var)
-                                append!(exb.args, catch_block.args); 
+                                append!(exb.args, catch_block.args);
                                 catchb = exb
                             end
                             catchv = isvar ? var : false
                             continue
                         end
                     elseif t === SYM_FINALLY && finalb == nothing
-                        finalb = require_token(ps, ts) === SYM_CATCH ? Expr(:block) : 
+                        finalb = require_token(ps, ts) === SYM_CATCH ? Expr(:block) :
                                                                        parse_block(ps, ts)
                         t = require_token(ps, ts)
-                        continue 
+                        continue
                     else
                         error("unexpected \"$t\"")
                     end
@@ -958,8 +958,8 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :const
                 assgn = parse_eq(ps, ts)
-                if !(isa(assgn, Expr) && (assgn.head === :(=) || 
-                                          assgn.head === :global || 
+                if !(isa(assgn, Expr) && (assgn.head === :(=) ||
+                                          assgn.head === :global ||
                                           assgn.head === :local))
                     error("expected assignment after \"const\"")
                 end
@@ -974,9 +974,9 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                     # add definitions for module_local eval
                     block = Expr(:block)
                     x = name === :x ? :y : :x
-                    push!(block.args, 
+                    push!(block.args,
                         Expr(:(=), Expr(:call, :eval, x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core), 
+                                   Expr(:call, Expr(:(.), TopNode(:Core),
                                                Expr(:quote, :eval)), name, x)))
                     push!(block.args,
                         Expr(:(=), Expr(:call, :eval, :m, :x),
@@ -985,7 +985,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                     append!(block.args, body.args)
                     body = block
                 end
-                return Expr(:module, !isbare, name, body) 
+                return Expr(:module, !isbare, name, body)
 
             elseif word === :export
                 exports = map(macrocall_to_atsym, parse_comma_sep(ps, ts, parse_atom))
@@ -1023,7 +1023,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             else
                 error("unhandled reserved word $word")
-            end 
+            end
         end
     end
 end
@@ -1056,7 +1056,7 @@ macrocall_to_atsym(ex) = isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : 
 function parse_imports(ps::ParseState, ts::TokenStream, word::Symbol)
     frst = Any[parse_import(ps, ts, word)]
     nt   = peek_token(ps, ts)
-    from = nt === :(:) && !ts.isspace 
+    from = nt === :(:) && !ts.isspace
     done = false
     if from || nt === ','
         take_token(ts)
@@ -1126,7 +1126,7 @@ function parse_import(ps::ParseState, ts::TokenStream, word::Symbol)
             continue
         end
         nt = peek_token(ps, ts)
-        if (Lexer.eof(nt) || 
+        if (Lexer.eof(nt) ||
             (isa(nt, CharSymbol) && (nt === '\n' || nt === ';' || nt === ',' || nt === :(:))))
             ex = Expr(word); ex.args = path
             return ex
@@ -1138,25 +1138,25 @@ end
 
 function parse_comma_sep(ps::ParseState, ts::TokenStream, what::Function)
     exprs = Any[]
-    while true 
+    while true
         r = what(ps, ts)
         if peek_token(ps, ts) === ','
             take_token(ts)
             push!(exprs, r)
             continue
-        end 
+        end
         push!(exprs, r)
         return exprs
     end
 end
 
-parse_comma_sep_assigns(ps::ParseState, ts::TokenStream) = parse_comma_sep(ps, ts, parse_eqs) 
+parse_comma_sep_assigns(ps::ParseState, ts::TokenStream) = parse_comma_sep(ps, ts, parse_eqs)
 
 # as above, but allows both "i=r" and "i in r"
 # return a list of range expressions
 function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
     ranges = Any[]
-    while true 
+    while true
         r = parse_eqs(ps, ts)
         if r === :(:)
         elseif isa(r, Expr) && r.head === :(=)
@@ -1174,14 +1174,14 @@ function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
         return ranges
     end
 end
-       
+
 function parse_space_separated_exprs(ps::ParseState, ts::TokenStream)
     @space_sensitive ps begin
         exprs = Any[]
-        while true 
+        while true
             nt = peek_token(ps, ts)
             if is_closing_token(ps, nt) ||
-               Lexer.isnewline(nt) || 
+               Lexer.isnewline(nt) ||
                (ps.inside_vector && nt === :for)
                 return exprs
             end
@@ -1216,7 +1216,7 @@ end
 # * an expression followed by ... becomes (.... x)
 function _parse_arglist(ps::ParseState, ts::TokenStream, closer)
     lst = Any[]
-    while true 
+    while true
         t = require_token(ps, ts)
         if t === closer
             take_token(ts)
@@ -1262,7 +1262,7 @@ end
 function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
     lst = Any[]
     nxt = frst
-    while true 
+    while true
         t = require_token(ps, ts)
         if t === closer
             take_token(ts)
@@ -1277,7 +1277,7 @@ function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
                 ex = Expr(:vcat); ex.args = push!(lst, nxt)
                 return ex
             end
-            lst = push!(lst, nxt) 
+            lst = push!(lst, nxt)
             nxt = parse_eqs(ps, ts)
             continue
         elseif t === ';'
@@ -1304,7 +1304,7 @@ function parse_dict(ps::ParseState, ts::TokenStream, frst, closer)
         alldl || break
     end
     if alldl
-        ex = Expr(:dict); ex.args = v.args 
+        ex = Expr(:dict); ex.args = v.args
         return ex
     else
         error("invalid dict literal")
@@ -1337,13 +1337,13 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
         len == 0 && return outer
         len == 1 && return push!(outer, v[1])
         row = Expr(:row); row.args = v
-        return push!(outer, row) 
+        return push!(outer, row)
     end
 
     semicolon = peek_token(ps, ts) === ';'
     vec   = Any[frst]
     outer = Any[]
-    while true 
+    while true
         t = peek_token(ps, ts) === '\n' ? '\n' : require_token(ps, ts)
         if t === closer
             take_token(ts)
@@ -1409,7 +1409,7 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer, isdict::Bool=false)
             frst = parse_eqs(ps, ts)
             if is_dict_literal(frst)
                 nt = peek_non_newline_token(ps, ts)
-                if nt === :for 
+                if nt === :for
                     take_token(ts)
                     return parse_dict_comprehension(ps, ts, frst, closer)
                 else
@@ -1447,7 +1447,7 @@ function parse_tuple(ps::ParseState, ts::TokenStream, frst)
                 ex = Expr(:tuple); ex.args = push!(args, nxt)
                 return ex
             end
-            args = push!(args, nxt) 
+            args = push!(args, nxt)
             nxt  = parse_eqs(ps, ts)
             continue
         elseif t === ';'
@@ -1474,13 +1474,13 @@ end
 function not_eof_3(c)
     Lexer.eof(c) && error("incomplete: invalid string syntax")
     return c
-end 
+end
 
 #TODO; clean up eof handling
 function parse_backquote(ps::ParseState, ts::TokenStream)
     buf = IOBuffer()
     c   = Lexer.readchar(ts)
-    while true 
+    while true
         c === '`' && break
         if c === '\\'
             nc = Lexer.readchar(ts)
@@ -1527,7 +1527,7 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
     b  = IOBuffer()
     ex = Expr(head)
     quotes = 0
-    while true 
+    while true
         if c == '"'
             if quotes < n
                 c = Lexer.readchar(ts)
@@ -1550,7 +1550,7 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
             continue
         elseif c === '\\'
             nxch = not_eof_3(Lexer.readchar(ts))
-            if !custom || nxch !== '"' 
+            if !custom || nxch !== '"'
                 write(b, '\\')
             end
             write(b, nxch)
@@ -1593,7 +1593,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     t = require_token(ps, ts)
     if !isa(t, Char) && isa(t, Number)
         return take_token(ts)
-    
+
     # char literal
     elseif t === symbol("'")
         take_token(ts)
@@ -1616,7 +1616,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             if length(str) == 1
                 # one byte e.g. '\xff' maybe not valid UTF-8
                 # but we want to use the raw value as a codepoint in this case
-                return str[1] 
+                return str[1]
             else
                 if length(str) != 1  || !is_valid_utf8(str)
                     error("invalid character literal, got \'$str\'")
@@ -1624,16 +1624,16 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 return str[1]
             end
         end
-    
+
     # symbol / expression quote
     elseif t === :(:)
         take_token(ts)
         nt = peek_token(ps, ts)
         if is_closing_token(ps, nt) && (ps.space_sensitive || !isa(nt, Symbol))
             return :(:)
-        end 
-        return Expr(:quote, _parse_atom(ps, ts)) 
-    
+        end
+        return Expr(:quote, _parse_atom(ps, ts))
+
     # misplaced =
     elseif t === :(=)
         error("unexpected \"=\"")
@@ -1701,7 +1701,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 end
             end
         end
-   
+
     # cell expression
     elseif t === '{'
         take_token(ts)
@@ -1732,7 +1732,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             nr = length(vex.args)
             if isa(vex.args[1], Expr) && vex.args[1].head === :row
                 nc = length(vex.args[1].args)
-                ex = Expr(:cell2d, nr, nc) 
+                ex = Expr(:cell2d, nr, nc)
                 for i = 2:nr
                     row = vex.args[i]
                     if !(isa(row, Expr) && row.head === :row && length(row.args) == nc)
@@ -1769,7 +1769,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         sl = parse_string_literal(ps, ts, false)
         if triplequote_string_literal(sl)
             return Expr(:macrocall, symbol("@mstr"), sl.args...)
-        elseif interpolate_string_literal(sl) 
+        elseif interpolate_string_literal(sl)
             notzerolen = (s) -> !(isa(s, String) && isempty(s))
             return Expr(:string, filter(notzerolen, sl.args)...)
         end
@@ -1801,7 +1801,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 end
             end
         end
-    
+
     # command syntax
     elseif t === '`'
         take_token(ts)
@@ -1823,8 +1823,8 @@ end
 function is_valid_modref(ex::Expr)
     return length(ex.args) == 2 &&
            ex.head === :(.) &&
-           ((isa(ex.args[2], Expr) && 
-             ex.args[2].head === :quote && 
+           ((isa(ex.args[2], Expr) &&
+             ex.args[2].head === :quote &&
              isa(ex.args[2].args[1], Symbol)) ||
             (isa(ex.args[2], QuoteNode) &&
              isa(ex.args[2].value, Symbol))) &&

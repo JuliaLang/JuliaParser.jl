@@ -7,4 +7,4 @@ colored(s::String, color) = string(color, s, DEFAULT)
 
 red(s::String)   = colored(s, RED)
 green(s::String) = colored(s, GREEN)
-bold(s::String)  = colored(s, BOLD) 
+bold(s::String)  = colored(s, BOLD)

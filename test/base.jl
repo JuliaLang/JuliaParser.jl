@@ -27,12 +27,12 @@ function testall(srcdir::String)
     global failed
     global errors
     global ptime
-    global btime 
+    global btime
 
     dirs, files = {}, {}
 
     for fname in sort(readdir(srcdir))
-        path = joinpath(srcdir, fname) 
+        path = joinpath(srcdir, fname)
         if isdir(path)
             push!(dirs, path)
             continue
@@ -45,22 +45,22 @@ function testall(srcdir::String)
 
     if !isempty(files)
         println(bold("test $srcdir"))
-        
-        for jlpath in files 
-            
+
+        for jlpath in files
+
             fname = splitdir(jlpath)[end]
-            
+
             buf = IOBuffer()
             write(buf, "begin\n")
             write(buf, open(readall, jlpath))
             write(buf, "\nend")
-            
+
             src = bytestring(buf)
             try
-                tic() 
+                tic()
                 past = Parser.parse(src)
                 t1 = toq()
-                
+
                 tic()
                 bast = Base.parse(src)
                 t2 = toq()
@@ -97,7 +97,7 @@ perhaps you are using a Julia not built from source?""")
 end
 
 println("\n"^2)
-println(bold("TOTAL: $(passed + failed + errors)")) 
+println(bold("TOTAL: $(passed + failed + errors)"))
 println(green("Passed:\t$passed"))
 println(red("Failed:\t$failed"))
 println(red("Errors:\t$errors"))
