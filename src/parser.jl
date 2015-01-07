@@ -516,19 +516,19 @@ function parse_factorh(ps::ParseState, ts::TokenStream, down::Function, ops)
     return Expr(:call, nt, ex, pf)
 end
 
-function negate(val)
-    if isa(val, Number)
-        if isa(val, Int64) && n == -9223372036854775808
+function negate(n)
+    if isa(n, Number)
+        if isa(n, Int64) && n == -9223372036854775808
             # promote to Int128
             return 9223372036854775808
         end
-        if isa(val, Int128) && n == -170141183460469231731687303715884105728
+        if isa(n, Int128) && n == -170141183460469231731687303715884105728
             # promote to BigInt
             return BigInt("170141183460469231731687303715884105728")
         end
         return -n
-    elseif isa(val, Expr)
-        return ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : Expr(:-, ex)
+    elseif isa(n, Expr)
+        return n.head === :(-) && length(n.args) == 1 ? n.args[1] : Expr(:-, n)
     end
     throw(ArgumentError("negate argument is not a Number or Expr"))
 end
