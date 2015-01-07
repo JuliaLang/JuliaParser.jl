@@ -516,15 +516,6 @@ function parse_factorh(ps::ParseState, ts::TokenStream, down::Function, ops)
     return Expr(:call, nt, ex, pf)
 end
 
-negate(ex::Expr) = ex.head === :(-) && length(ex.args) == 1 ? ex.args[1] : Expr(:-, ex)
-negate(n::Int128) = n == -170141183460469231731687303715884105728 ? # promote to BigInt
-                          170141183460469231731687303715884105728 : -n
-negate(n::Int64)  = n == -9223372036854775808 ? # promote to Int128
-                          9223372036854775808 : -n
-negate(n::BigInt)  = -n
-negate(n::Float32) = -n
-negate(n::Float64) = -n
-
 # -2^3 is parsed as -(2^3) so call parse-decl for the first arg,
 # and parse unary from then on (handles 2^-3)
 const FAC_OPS = Lexer.precedent_ops(13)
