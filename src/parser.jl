@@ -413,7 +413,6 @@ is_large_number(n::BigInt) = true
 is_large_number(n::Number) = false
 
 const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
-
     is_juxtaposed(ps::ParseState, ex, t) = begin
         return !(Lexer.is_operator(t)) &&
                !(Lexer.is_operator(ex)) &&
@@ -421,7 +420,7 @@ const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
                !(is_closing_token(ps, t)) &&
                !(Lexer.isnewline(t)) &&
                !(isa(ex, Expr) && ex.head === :(...)) &&
-               (isa(t, Number) || !(isa(t, Char) && t in invalid_chars))
+               ((isa(ex, Number) && !isa(ex, Char)) || !in(t, invalid_chars))
     end
 end
 
