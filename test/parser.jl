@@ -588,7 +588,7 @@ facts("test try, catch, finally expression") do
             dothis()
         end""",
     ]
-    for ex in exprs
+    for (i, ex) in enumerate(exprs)
         @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
     end
 end

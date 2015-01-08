@@ -1,10 +1,8 @@
-#!/usr/bin/julia
-
 import JuliaParser.Parser
 
 using Base.Test
 
-if length(ARGS) != 1 
+if length(ARGS) != 1
     error("need to specify filepath: ./diffast.jl [filepath]")
 elseif !ispath(ARGS[1])
     error("need to specify valid filepath, got: $(ARGS[1])")
@@ -24,7 +22,7 @@ const jlsrc = bytestring(src)
 tmp1 = tempname()
 tmp2 = tempname()
 
-ast = let 
+ast = let
     local ast1::Expr
     open("$tmp1", "w+") do io
         ast1 = Parser.parse(jlsrc) |> norm_ast
@@ -33,7 +31,7 @@ ast = let
 
     local ast2::Expr
     open("$tmp2", "w+") do io
-        ast2 = parse(jlsrc) |> norm_ast 
+        ast2 = parse(jlsrc) |> norm_ast
         Meta.show_sexpr(io, ast2)
     end
 
@@ -42,7 +40,7 @@ ast = let
     else
         print_with_color(:red, "FAILED\n")
     end
-    
+
     ast1
 end
 
