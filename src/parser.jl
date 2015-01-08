@@ -754,6 +754,22 @@ end
 
 parse_subtype_spec(ps::ParseState, ts::TokenStream) = subtype_syntax(parse_ineq(ps, ts))
 
+
+#TODO: remove this after the 0.4 dev period
+@eval function tryexpr(tryb, catchv, catchb, finalb)
+    if finalb == nothing
+        return catchb != nothing ? Expr(:try, tryb, catchv, catchb) :
+                                   $(VERSION > v"0.4.0-dev" ?
+                                        :(Expr(:try, tryb, false, Expr(:block))) :
+                                        :(Expr(:try, tryb, false, false)))
+    else
+        return catchb != nothing ? Expr(:try, tryb, catchv, catchb, finalb) :
+                                   $(VERSION > v"0.4.0-dev" ?
+                                        :(Expr(:try, tryb, false, false, finalb)) :
+                                        :(Expr(:try, tryb, false, false, finalb)))
+    end
+end
+
 # parse expressions or blocks introduced by syntatic reserved words
 function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
     expect_end_current_line = curline(ts)
@@ -912,13 +928,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                 while true
                     take_token(ts)
                     if t === SYM_END
-                        if finalb != nothing
-                            return catchb != nothing ? Expr(:try, tryb, catchv, catchb, finalb) :
-                                                       Expr(:try, tryb, catchv, false, finalb)
-                        else
-                            return catchb != nothing ? Expr(:try, tryb, catchv, catchb) :
-                                                       Expr(:try, tryb, catchv, false)
-                        end
+                        return tryexpr(tryb, catchv, catchb, finalb)
                     end
                     if t === SYM_CATCH && catchb == nothing
                         nb = false # do we delineate a new block after a catch token (with ; or \n)?
@@ -927,7 +937,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                             nb = true
                             nt === ';' && take_token(ts)
                         end
-                        t   = require_token(ps, ts)
+                        t = require_token(ps, ts)
                         if t === SYM_END || t === SYM_FINALLY
                             catchb = Expr(:block)
                             catchv = false
@@ -1292,8 +1302,8 @@ function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
         elseif t === ';'
             take_token(ts)
             peek_token(ps, ts) === closer && continue
-            params = parse_arglist(ps, ts, closer)
-            unshift!(lst, Expr(:parameters, params...))
+            pex = Expr(:parameters); ex.args = parse_arglist(ps, ts, closer)
+            unshift!(pex.args, lst)
             ex = Expr(:vcat); ex.args = reverse(push!(lst, next))
             return ex
         elseif t === ']' || t === '}'
@@ -1823,7 +1833,7 @@ end
 
 function parse_atom(ps::ParseState, ts::TokenStream)
     ex = _parse_atom(ps, ts)
-    if  (ex !== :(=>) && (ex in Lexer.syntactic_ops)) || ex === :(...)
+    if (ex !== :(=>) && (ex in Lexer.syntactic_ops)) || ex === :(...)
         error("invalid identifier name \"$ex\"")
     end
     return ex
