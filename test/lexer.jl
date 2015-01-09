@@ -4,15 +4,6 @@ using FactCheck
 const Lexer = JuliaParser.Lexer
 const TokenStream = JuliaParser.Lexer.TokenStream
 
-#=
-facts("test unicode operators") do
-    for c in Lexer.operator_chars
-        @fact Lexer.is_identifier_char(c) => true
-    end
-end
-error()
-=#
-
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
     Lexer.skip_to_eol(io)
@@ -556,7 +547,6 @@ facts("test readnumber") do
         io = TokenStream(string("0b", bin(10)))
         n = Lexer.read_number(io, false, false)
         @fact n => 10
-        #@show typeof(n)
     end
 
     context("hex") do
