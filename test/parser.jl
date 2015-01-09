@@ -938,7 +938,7 @@ isa(170141183460469231731687303715884105728,BigInt)
 """,
 """
 ordtype(o::by, vs::abstractarray) = try typeof(o.by(vs[1])) catch; any end
-"""
+""",
 ]
     for ex in exprs
         @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
@@ -957,5 +957,17 @@ facts("misc errors") do
         end
         @fact isa(ex, ErrorException) => true
         @fact ex.msg => "invalid numeric constant \"2.2.\""
+    end
+end
+
+if VERSION >= v"0.4.0-dev+2606"
+    # Julia issue 9617
+    facts("incorrect parsing of hex floats") do
+        src = """
+        let p = 15
+            @test 2p+1 == 31  # not a hex float literal
+        end
+        """
+        @fact Parser.parse(src) |> norm_ast => (Base.parse(src) |> norm_ast)
     end
 end
