@@ -579,13 +579,15 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
         end
     end
     c = peekchar(ts)
-    if c == 'e' || c == 'E' || c == 'f' || c == 'p' || c == 'P'
+    ispP = c === 'p' || c === 'P'
+    if (is_hexfloat_literal && (ispP || error("hex float literal must contain 'p' or 'P'"))) ||
+       (pred === is_char_hex && ispP) || (c === 'e' || c === 'E' || c === 'f')
         skip(ts, 1)
         nc = peekchar(ts)
         if !eof(nc) && (isdigit(nc) || nc === '+' || nc === '-')
             skip(ts, 1)
-            is_float32_literal  = (c === 'f')
-            is_hexfloat_literal = (c === 'p' || c === 'P')
+            is_float32_literal = c === 'f'
+            is_hexfloat_literal = ispP
             push!(charr, c)
             push!(charr, nc)
             read_digits!(ts, pred, charr, false)
