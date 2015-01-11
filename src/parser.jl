@@ -743,11 +743,9 @@ function expect_end(ps::ParseState, ts::TokenStream, word::Symbol)
     if t === SYM_END
         take_token(ts)
     elseif Lexer.eof(t)
-        err_msg = "incomplete: \"$word\" at \"$(filename(ts))\" : {expected} requires end"
-        error(err_msg)
+        throw(ParseError("incomplete: \"$word\" at \"$(filename(ts))\" : {expected} requires end"))
     else
-        err_msg = "incomplete: \"$word\" at \"$(filename(ts))\" : {expected} \"end\", got \"$t\""
-        error(err_msg)
+        throw(ParseError("incomplete: \"$word\" at \"$(filename(ts))\" : {expected} \"end\", got \"$t\""))
     end
 end
 
@@ -1480,17 +1478,17 @@ end
 
 # TODO: these are unnecessary if base/client.jl didn't need to parse error string
 function not_eof_1(c)
-    Lexer.eof(c) && error("incomplete: invalid character literal")
+    Lexer.eof(c) && throw(ParseError("incomplete: invalid character literal"))
     return c
 end
 
 function not_eof_2(c)
-    Lexer.eof(c) && error("incomplete: invalid \"`\" syntax")
+    Lexer.eof(c) && throw(ParseError("incomplete: invalid \"`\" syntax"))
     return c
 end
 
 function not_eof_3(c)
-    Lexer.eof(c) && error("incomplete: invalid string syntax")
+    Lexer.eof(c) && throw(ParseError("incomplete: invalid string syntax"))
     return c
 end
 
