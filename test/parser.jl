@@ -971,3 +971,14 @@ if VERSION >= v"0.4.0-dev+2606"
         @fact Parser.parse(src) |> norm_ast => (Base.parse(src) |> norm_ast)
     end
 end
+
+if VERSION >= v"0.4.0-dev+3083"
+    facts("interpolate var in cache block") do
+        src = """
+        try
+        catch \$x
+        end
+        """
+        @fact Parser.parse(src) |> norm_ast => (Base.parse(src) |> norm_ast)
+    end
+end

@@ -940,8 +940,8 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                             catchv = false
                             continue
                         else
-                            var   = parse_eqs(ps, ts)
-                            isvar = nb == false && isa(var, Symbol)
+                            var = parse_eqs(ps, ts)
+                            isvar = nb == false && (isa(var, Symbol) || (isa(var, Expr) && var.head == :($)))
                             catch_block = require_token(ps, ts) === SYM_FINALLY ? Expr(:block) :
                                                                                   parse_block(ps, ts)
                             t = require_token(ps, ts)
