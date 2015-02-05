@@ -955,7 +955,7 @@ facts("misc errors") do
         catch ex
             ex = ex
         end
-        @fact isa(ex, ErrorException) => true
+        @fact isa(ex, ParseError) => true
         @fact ex.msg => "invalid numeric constant \"2.2.\""
     end
 end
