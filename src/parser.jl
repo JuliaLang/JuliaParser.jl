@@ -983,7 +983,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :module || word === :baremodule
                 isbare = word === :baremodule
-                name = parse_atom(ps, ts)
+                name = parse_unary_prefix(ps, ts)
                 body = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 if !isbare
