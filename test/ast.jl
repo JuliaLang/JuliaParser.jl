@@ -16,7 +16,21 @@ norm_ast(ex::Expr) = begin
                     push!(args, (@compat parse(UInt128,a.args[2])))
                     continue
                 elseif fa === symbol("@bigint_str")
-                    push!(args, (@compat BigInt,a.args[2]))
+                    push!(args, (@compat parse(BigInt,a.args[2])))
+                    continue
+                elseif fa == symbol("@big_str")
+                    s = a.args[2]
+                    n = tryparse(BigInt,s)
+                    if !isnull(n)
+                        push!(args,get(n))
+                        continue
+                    end
+                    n = typarse(BigFloat,s)
+                    if !isnull(n)
+                        push!(args,get(n))
+                        continue
+                    end
+                    assert(false)
                     continue
                 end
             end
