@@ -20,42 +20,42 @@ include("ast.jl")
 facts("test parse IOBuffer") do
     io  = IOBuffer("# test comment")
     res = Parser.parse(io)
-    @fact res => nothing
+    @fact res --> nothing
 end
 
 facts("test parse IOStream") do
     io = open("testfile")
     res = Parser.parse(io)
-    @fact res => nothing
+    @fact res --> nothing
 end
 
 facts("test parse String") do
     str = "# test comment"
     res = Parser.parse(str)
-    @fact res => nothing
+    @fact res --> nothing
 end
 
 facts("test special case all whitespace") do
     io  = IOBuffer("")
     res = Parser.parse(io)
-    @fact eof(io) => true
-    @fact res => nothing
+    @fact eof(io) --> true
+    @fact res --> nothing
 
     io = IOBuffer(" \n")
     res = Parser.parse(io)
-    @fact eof(io) => true
-    @fact res => nothing
+    @fact eof(io) --> true
+    @fact res --> nothing
 
     io = IOBuffer("# test comment\n")
     res = Parser.parse(io)
-    @fact eof(io) => true
-    @fact res => nothing
+    @fact eof(io) --> true
+    @fact res --> nothing
 
     io = IOBuffer("#= test comment \n
                   another comment =#\n")
     res = Parser.parse(io)
-    @fact eof(io) => true
-    @fact res => nothing
+    @fact eof(io) --> true
+    @fact res --> nothing
 end
 
 facts("test simple numeric expressions") do
@@ -80,13 +80,13 @@ facts("test simple numeric expressions") do
              "1 & 2",
              ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 
     for i = 1:length(exprs)
         for j = i:length(exprs)
             ex = "$(exprs[i]) + $(exprs[j])"
-            @fact Parser.parse(ex) => Base.parse(ex)
+            @fact Parser.parse(ex) --> Base.parse(ex)
         end
     end
 end
@@ -99,7 +99,7 @@ facts("test assignment expressions") do
         "a = 1; b = 2"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -111,7 +111,7 @@ facts("test parse single operator") do
         code = string(op)
         try
             ex = Base.parse(code)
-            @fact Parser.parse(code) => symbol("$ex")
+            @fact Parser.parse(code) --> symbol("$ex")
         catch
             # do nothing if base cannot parse operator
         end
@@ -135,7 +135,7 @@ facts("test tuple expressions") do
         "((a,b);(c,d);)"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
     # unexpected closing token
     code = "(1,]"
@@ -165,7 +165,7 @@ facts("test parse block") do
         "(x(); nothing)",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -180,7 +180,7 @@ facts("test range expressions") do
         "10:-1:-10",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
     @fact_throws Parser.parse("1:end")
     @fact_throws Parser.parse("1:2:end")
@@ -193,7 +193,7 @@ facts("parse symbol / expression quote") do
         ":(a + 1)"
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -210,7 +210,7 @@ facts("test char literal expression") do
         "'$(char(256))'",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -219,7 +219,7 @@ facts("test string literal expression") do
         "\"test\""
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -230,7 +230,7 @@ facts("test prefixed string literals") do
         """\"test\"x""",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -259,7 +259,7 @@ facts("test cell expressions") do
         "Any[i for i=1:10]",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -277,7 +277,7 @@ facts("test cat expressions") do
         "[i for i=1:10]"
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -288,7 +288,7 @@ facts("test macrocall expression") do
         "@test(a,b)"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -298,7 +298,7 @@ facts("test backquote (cmd) expression") do
         "`pwd()`",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 
     # premature end of file
@@ -321,7 +321,7 @@ facts("test quote/begin expression") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -335,7 +335,7 @@ facts("test while expression") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -350,7 +350,7 @@ facts("test for loop expression") do
          end"""
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -367,7 +367,7 @@ facts("test if condtion expression") do
            end""",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
     # else if should throw and error => use elseif
     @fact_throws Parser.parse("""if x == 1
@@ -385,7 +385,7 @@ facts("test let expression") do
         end"""
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -398,7 +398,7 @@ facts("test global/local reserved words") do
              "local x",
              "local x = 1"]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -411,7 +411,7 @@ facts("test function expressions") do
                   return x + 1
               end"""]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -430,7 +430,7 @@ facts("test function return tuple") do
             """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -444,7 +444,7 @@ facts("test array ref") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -462,7 +462,7 @@ facts("test macro expressions") do
                   :(x + 1)
               end"""]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -475,7 +475,7 @@ facts("test abstract type expression") do
         "abstract Test1{T} <: Test2{T}"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -493,7 +493,7 @@ facts("test unary negate") do
         "-2^-x"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -505,7 +505,7 @@ facts("test multiply expressions") do
         "2x"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
     #TODO: errors when is_juxtaposed is false (reserved words, etc)
 end
@@ -518,7 +518,7 @@ facts("test type assertions") do
         "(x + 1)::Int",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -562,7 +562,7 @@ facts("test type / immutable expression") do
         end""",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -589,7 +589,7 @@ facts("test try, catch, finally expression") do
         end""",
     ]
     for (i, ex) in enumerate(exprs)
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -601,7 +601,7 @@ facts("test ternary operator") do
         """
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -611,7 +611,7 @@ facts("test return expression") do
         "return x + 1"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -627,7 +627,7 @@ facts("test break / continue expression") do
         end"""
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -638,7 +638,7 @@ facts("test const expression") do
         "const local  x = 1",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
     # expected assignment after const
     @fact_throws Parser.parse("const x")
@@ -659,7 +659,7 @@ facts("test module expressions") do
         end"""
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -671,7 +671,7 @@ facts("test export expression") do
 
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
     # you need to export at least one symbol
     @fact_throws Parser.parse("export")
@@ -697,7 +697,7 @@ facts("test import / using / importall expressions") do
         """importall Test""",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -707,7 +707,7 @@ facts("test bitstype expression") do
         "bitstype 16 Float16 <: FloatingPoint"
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 
 end
@@ -719,7 +719,7 @@ facts("test typealias expression") do
         "typealias Test (Int, Int)",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -729,7 +729,7 @@ facts("test ccall expression") do
      "ccall((:testUcharX, \"./libccalltest\"), :stdcall, Int32, (Uint8,), x)"
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 
 end
@@ -741,7 +741,7 @@ facts("test string interpolation") do
         "\"\"\"\$(1+1)\"\"\"",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -760,7 +760,7 @@ facts("test parse do") do
         """
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -771,7 +771,7 @@ facts("test parse formula") do
         """y ~ x += 2""",
     ]
     for ex in exprs
-        @fact Parser.parse(ex) => Base.parse(ex)
+        @fact Parser.parse(ex) --> Base.parse(ex)
     end
 end
 
@@ -804,7 +804,7 @@ facts("parse argument list") do
     ]
 
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -818,7 +818,7 @@ facts("parse test functions") do
        end""",
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -871,7 +871,7 @@ end
 """,
     ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
 
@@ -941,10 +941,10 @@ ordtype(o::by, vs::abstractarray) = try typeof(o.by(vs[1])) catch; any end
 """,
 ]
     for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) => (Base.parse(ex) |> norm_ast)
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
-    @fact typeof(Parser.parse("0o724")) => typeof(parse("0o724"))
-    @fact typeof(Parser.parse("0o1111111111111111111111")) => Uint64
+    @fact typeof(Parser.parse("0o724")) --> typeof(parse("0o724"))
+    @fact typeof(Parser.parse("0o1111111111111111111111")) --> Uint64
 end
 
 facts("misc errors") do
@@ -955,8 +955,8 @@ facts("misc errors") do
         catch ex
             ex = ex
         end
-        @fact isa(ex, ParseError) => true
-        @fact ex.msg => "invalid numeric constant \"2.2.\""
+        @fact isa(ex, ParseError) --> true
+        @fact ex.msg --> "invalid numeric constant \"2.2.\""
     end
 end
 
@@ -968,7 +968,7 @@ if VERSION >= v"0.4.0-dev+2606"
             @test 2p+1 == 31  # not a hex float literal
         end
         """
-        @fact Parser.parse(src) |> norm_ast => (Base.parse(src) |> norm_ast)
+        @fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
     end
 end
 
@@ -979,6 +979,6 @@ if VERSION >= v"0.4.0-dev+3083"
         catch \$x
         end
         """
-        @fact Parser.parse(src) |> norm_ast => (Base.parse(src) |> norm_ast)
+        @fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
     end
 end
