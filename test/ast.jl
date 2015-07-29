@@ -1,3 +1,4 @@
+using Compat
 norm_ast(ex::Expr) = begin
     args = Any[]
     for a in ex.args
@@ -9,13 +10,13 @@ norm_ast(ex::Expr) = begin
             if a.head === :macrocall
                 fa = a.args[1]
                 if fa === symbol("@int128_str")
-                    push!(args, int128(a.args[2]))
+                    push!(args, (@compat parse(Int128,a.args[2])))
                     continue
                 elseif fa === symbol("@uint128_str")
-                    push!(args, uint128(a.args[2]))
+                    push!(args, (@compat parse(UInt128,a.args[2])))
                     continue
                 elseif fa === symbol("@bigint_str")
-                    push!(args, BigInt(a.args[2]))
+                    push!(args, (@compat BigInt,a.args[2]))
                     continue
                 end
             end

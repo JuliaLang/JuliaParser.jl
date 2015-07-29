@@ -1534,7 +1534,9 @@ function tostr(buf::IOBuffer, custom::Bool)
     str = bytestring(buf)
     custom && return str
     str = unescape_string(str)
-    !is_valid_utf8(str) && throw(ParseError("invalid UTF-8 sequence"))
+    if !(@compat isvalid(UTF8String,str))
+        throw(ParseError("invalid UTF-8 sequence"))
+    end
    return str
 end
 

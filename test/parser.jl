@@ -207,7 +207,7 @@ facts("test char literal expression") do
         "'1'",
         "'\n'",
         "\\",
-        "'$(char(256))'",
+        "'$(convert(Char,256))'",
     ]
     for ex in exprs
         @fact Parser.parse(ex) --> Base.parse(ex)
