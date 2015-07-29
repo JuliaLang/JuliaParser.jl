@@ -9,7 +9,7 @@ const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false")
 const SYM_CTRANSPOSE = symbol("'")
 
-const EOF = char(typemax(Uint32))
+const EOF = convert(Char,typemax(Uint32))
 
 const ops_by_precedent = Any[
        [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=),
@@ -264,7 +264,7 @@ function peekchar(io::IOBuffer)
     end
     ch = uint8(io.data[io.ptr])
     if ch < 0x80
-        return char(ch)
+        return convert(Char,ch)
     end
     # mimic utf8.next function
     trailing = Base.utf8_trailing[ch+1]
@@ -276,7 +276,7 @@ function peekchar(io::IOBuffer)
     end
     c += ch
     c -= Base.utf8_offset[trailing+1]
-    return char(c)
+    return convert(Char,c)
 end
 
 # this implementation is copied from Base
