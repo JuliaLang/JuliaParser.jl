@@ -1,5 +1,6 @@
 using JuliaParser
 using FactCheck
+using Compat
 
 const Lexer = JuliaParser.Lexer
 const TokenStream = JuliaParser.Lexer.TokenStream
@@ -264,7 +265,7 @@ facts("test sized uint literal") do
 
     context("hexadecimal") do
         s  = "0x0"
-        sn = int(s)
+        sn = @compat parse(Int,s)
         n  = Lexer.sized_uint_literal(s, 4)
         @fact sn --> n
         @fact typeof(n) --> Uint8
@@ -272,7 +273,7 @@ facts("test sized uint literal") do
         for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
             @eval begin
                 s = repr(typemax($ty))
-                sn = uint128(s)
+                sn = @compat parse(UInt128,s)
                 n  = Lexer.sized_uint_literal(s, 4)
                 @fact sn --> n
                 @fact typeof(n) --> $ty
@@ -284,22 +285,24 @@ facts("test sized uint literal") do
             end
         end
 
-        s  = string(repr(typemax(Uint128)), "f")
-        sn = BigInt(s)
-        n  = Lexer.sized_uint_literal(s, 4)
-        @fact sn == n --> true
-        @fact typeof(n) --> BigInt
+        if VERSION < v"0.4-"
+            s  = string(repr(typemax(Uint128)), "f")
+            sn = BigInt(s)
+            n  = Lexer.sized_uint_literal(s, 4)
+            @fact sn == n --> true
+            @fact typeof(n) --> BigInt
 
-        pn = eval(parse(s))
-        @fact pn == n --> true
-        @fact typeof(pn) --> BigInt
+            pn = eval(parse(s))
+            @fact pn == n --> true
+            @fact typeof(pn) --> BigInt
+        end
     end
 
     context("octal") do
         s  = "0o0"
-        sn = int(s)
+        sn = @compat parse(Int,s)
         n  = Lexer.sized_uint_oct_literal(s)
-        @fact sn => n
+        @fact sn --> n
         @fact typeof(n) --> Uint8
 
         pn = parse(s)
@@ -309,7 +312,7 @@ facts("test sized uint literal") do
         for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
             @eval begin
                 s = string("0o", oct(typemax($ty)))
-                sn = uint128(s)
+                sn = @compat parse(UInt128,s)
                 n  = Lexer.sized_uint_oct_literal(s)
                 @fact sn --> n
                 @fact typeof(n) --> $ty
@@ -320,19 +323,21 @@ facts("test sized uint literal") do
             end
         end
 
-        s = "0o" * oct(typemax(Uint128)) * "7"
-        sn = BigInt(s)
-        n  = Lexer.sized_uint_oct_literal(s)
-        @fact sn => n
-        @fact typeof(n) --> BigInt
-        pn = eval(parse(s))
-        @fact n --> pn
-        @fact typeof(n) --> typeof(pn)
+        if VERSION < v"0.4-"
+            s = "0o" * oct(typemax(Uint128)) * "7"
+            sn = BigInt(s)
+            n  = Lexer.sized_uint_oct_literal(s)
+            @fact sn --> n
+            @fact typeof(n) --> BigInt
+            pn = eval(parse(s))
+            @fact n --> pn
+            @fact typeof(n) --> typeof(pn)
+        end
     end
 
     context("binary") do
         s  = "0b0"
-        sn = int(s)
+        sn = @compat parse(Int,s)
         n  = Lexer.sized_uint_literal(s, 1)
         @fact sn --> n
         @fact typeof(n) --> Uint8
@@ -340,7 +345,7 @@ facts("test sized uint literal") do
         for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
             @eval begin
                 s = string("0b", bin(typemax($ty)))
-                sn = uint128(s)
+                sn = @compat parse(UInt128,s)
                 n  = Lexer.sized_uint_literal(s, 1)
                 @fact sn --> n
                 @fact typeof(n) --> $ty
@@ -348,7 +353,7 @@ facts("test sized uint literal") do
         end
 
         s  = string("0b", bin(typemax(Uint128)), "1")
-        sn = BigInt(s)
+        sn = @compat parse(BigInt,s)
         n  = Lexer.sized_uint_literal(s, 1)
         @fact sn --> n
         @fact typeof(n) --> BigInt
@@ -485,7 +490,7 @@ facts("test readnumber") do
         io = TokenStream(".01")
         Lexer.skip(io, 1)
         n = Lexer.read_number(io, true, false)
-        @fact n => 0.01
+        @fact n --> 0.01
         @fact typeof(n) --> Float64
 
         io = TokenStream(".000_1")
@@ -562,7 +567,7 @@ facts("test readnumber") do
     context("bigint") do
         io = TokenStream("15732444386908125794514089057706229429197107928209")
         n  = Lexer.read_number(io, false, false)
-        @fact n --> BigInt("15732444386908125794514089057706229429197107928209")
+        @fact n --> @compat parse(BigInt, "15732444386908125794514089057706229429197107928209")
         @fact typeof(n) --> BigInt
     end
 end

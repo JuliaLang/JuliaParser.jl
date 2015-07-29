@@ -1,5 +1,7 @@
 module Lexer
 
+using Compat
+
 import Base.UTF8proc
 
 export Token, TokenStream, next_token, set_token!, last_token,
@@ -262,7 +264,7 @@ function peekchar(io::IOBuffer)
     if !io.readable || io.ptr > io.size
         return EOF
     end
-    ch = uint8(io.data[io.ptr])
+    ch = convert(Uint8,io.data[io.ptr])
     if ch < 0x80
         return convert(Char,ch)
     end
@@ -272,7 +274,7 @@ function peekchar(io::IOBuffer)
     for j = 1:trailing
         c += ch
         c <<= 6
-        ch = uint8(io.data[io.ptr+j])
+        ch = convert(Uint8,io.data[io.ptr+j])
     end
     c += ch
     c -= Base.utf8_offset[trailing+1]
@@ -379,23 +381,23 @@ end
 function sized_uint_literal(s::String, b::Integer)
     i = s[1] === '-' ? 3 : 2
     l = (length(s) - i) * b
-    l <= 8   && return parseint(Uint8,   s)
-    l <= 16  && return parseint(Uint16,  s)
-    l <= 32  && return parseint(Uint32,  s)
-    l <= 64  && return parseint(Uint64,  s)
-    l <= 128 && return parseint(Uint128, s)
-    return BigInt(s)
+    l <= 8   && return @compat parse(Uint8,   s)
+    l <= 16  && return @compat parse(Uint16,  s)
+    l <= 32  && return @compat parse(Uint32,  s)
+    l <= 64  && return @compat parse(Uint64,  s)
+    l <= 128 && return @compat parse(Uint128, s)
+    return @compat parse(BigInt,s)
 end
 
 function sized_uint_oct_literal(s::String)
     contains(s, "o0") && return sized_uint_literal(s, 3)
     len = length(s)
-    (len < 5  || (len == 5  && s <= "0o377")) && return uint8(s)
-    (len < 8  || (len == 8  && s <= "0o177777")) && return uint16(s)
-    (len < 13 || (len == 13 && s <= "0o37777777777")) && return uint32(s)
-    (len < 24 || (len == 24 && s <= "0o1777777777777777777777")) && return uint64(s)
-    (len < 45 || (len == 45 && s <= "0o3777777777777777777777777777777777777777777")) && return uint128(s)
-    return BigInt(s)
+    (len < 5  || (len == 5  && s <= "0o377")) && return @compat parse(UInt8,s)
+    (len < 8  || (len == 8  && s <= "0o177777")) && return @compat parse(UInt16, s)
+    (len < 13 || (len == 13 && s <= "0o37777777777")) && return @compat parse(UInt32,s)
+    (len < 24 || (len == 24 && s <= "0o1777777777777777777777")) && return @compat parse(UInt64,s)
+    (len < 45 || (len == 45 && s <= "0o3777777777777777777777777777777777777777777")) && return @compat parse(UInt128,s)
+    return @compat parse(BigInt,s)
 end
 
 function compare_num_strings(s1::String, s2::String)
@@ -459,21 +461,21 @@ function string_to_number(str::String)
         end
     end
     if isfloat32
-        base = float64(str[1:fidx-1])
-        expn = int(str[fidx+1:end])
-        return float32(base * 10.0 ^ expn)
+        base = @compat parse(Float64,str[1:fidx-1])
+        expn = @compat parse(Int,str[fidx+1:end])
+        return convert(Float32, base * 10.0 ^ expn)
     elseif isfloat64
-        return float64(str)
+        return @compat parse(Float64,str)
     else
         try
-            return int64(str)
+            return @compat parse(Int64,str)
         catch ex
             # its better to ask for forgiveness...
             !isa(ex, OverflowError) && rethrow(ex)
             if is_within_int128(str)
-                return int128(str)
+                return @compat parse(Int128,str)
             else
-                return BigInt(str)
+                return @compat parse(BigInt,str)
             end
         end
     end
@@ -608,7 +610,7 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     # remove the - and parse instead as a call to unary -
     (neg && base != 10 && !is_hexfloat_literal) && (str = str[2:end])
     if is_hexfloat_literal
-        return float64(str)
+        return @compat parse(Float64,str)
     elseif pred == is_char_hex
         return fix_uint_neg(neg, sized_uint_literal(str, 4))
     elseif pred == is_char_oct
@@ -616,8 +618,7 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     elseif pred == is_char_bin
         return fix_uint_neg(neg, sized_uint_literal(str, 1))
     elseif is_float32_literal
-        n = string_to_number(str)
-        return float32(n)
+        return convert(Float32, string_to_number(str))
     else
         return string_to_number(str)
     end
