@@ -695,6 +695,14 @@ facts("test import / using / importall expressions") do
         """import Test.Base: @a, b, c, d""",
         """using Test""",
         """importall Test""",
+        """:(using A)""",
+        """:(using A.b, B)""",
+        """:(using A: b, c.d)""",
+        """:(importall A)""",
+        """:(import A)""",
+        """:(import A.b, B)""",
+        """:(import A: b, c.d)""",
+        """begin using A end"""
     ]
     for ex in exprs
         @fact Parser.parse(ex) --> Base.parse(ex)

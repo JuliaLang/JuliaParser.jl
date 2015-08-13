@@ -1077,12 +1077,10 @@ function parse_imports(ps::ParseState, ts::TokenStream, word::Symbol)
     if from || nt === ','
         take_token(ts)
         done = false
-    elseif nt in ('\n', ';')
-        done = true
-    elseif Lexer.eof(nt)
-        done = true
-    else
+    elseif nt === '.'
         done = false
+    else
+        done = true
     end
     rest = done? Any[] : parse_comma_sep(ps, ts, (ps, ts) -> parse_import(ps, ts, word))
     if from
@@ -1139,15 +1137,9 @@ function parse_import(ps::ParseState, ts::TokenStream, word::Symbol)
         if nc === '.'
             Lexer.takechar(ts)
             push!(path, macrocall_to_atsym(parse_atom(ps, ts)))
-            continue
-        end
-        nt = peek_token(ps, ts)
-        if (Lexer.eof(nt) ||
-            (isa(nt, CharSymbol) && (nt === '\n' || nt === ';' || nt === ',' || nt === :(:))))
+        else
             ex = Expr(word); ex.args = path
             return ex
-        else
-            throw(ParseError("invalid \"$word\" statement"))
         end
     end
 end
