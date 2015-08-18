@@ -818,3 +818,11 @@ facts("test next_token") do
     @fact toks --> Any[:+, '(', :x, :(::), :Bool, ',', :y, :(::), :Bool, ')',
                    :(=), :int, '(', :x, ')', :+, :int, '(', :y, ')']
 end
+
+facts("test utf8sizeof") do
+    @fact utf8sizeof('a') --> 1
+    @fact utf8sizeof('\uff') --> 2
+    @fact utf8sizeof('\uffff') --> 3
+    @fact utf8sizeof('\U1f596') --> 4
+    @fact utf8sizeof(Char(0x110000)) --> 3
+end

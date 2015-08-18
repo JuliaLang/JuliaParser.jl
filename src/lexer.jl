@@ -318,6 +318,9 @@ skip(ts::TokenStream, n)  = Base.skip(ts.io, n)
 position(ts::TokenStream) = Base.position(ts.io)
 peekchar(ts::TokenStream) = peekchar(ts.io)
 
+# The last case is the replacement character 0xfffd (3 bytes)
+utf8sizeof(c::Char) = c < Char(0x80) ? 1 : c < Char(0x800) ? 2 : c < Char(0x10000) ? 3 : c < Char(0x110000) ? 4 : 3
+
 readchar(ts::TokenStream) = begin
     eof(ts) && return EOF
     c = read(ts.io, Char)
@@ -343,7 +346,7 @@ function skip_to_eol(io::IO)
     while !eof(io)
         nc = peekchar(io)
         nc === '\n' && break
-        Base.skip(io, Base.utf8sizeof(nc))
+        Base.skip(io, utf8sizeof(nc))
     end
     return io
 end
@@ -365,7 +368,7 @@ function read_operator(ts::TokenStream, c::Char)
             push!(str, c)
             newop = symbol(utf32(str))
             if is_operator(newop)
-                skip(ts, Base.utf8sizeof(c))
+                skip(ts, utf8sizeof(c))
                 c, opsym = peekchar(ts), newop
                 continue
             end
