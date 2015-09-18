@@ -13,7 +13,7 @@ tokens(ts::TokenStream) = begin
     end
     return toks
 end
-tokens(str::String) = tokens(TokenStream(str))
+tokens(str::AbstractString) = tokens(TokenStream(str))
 
 include("ast.jl")
 
@@ -29,7 +29,7 @@ facts("test parse IOStream") do
     @fact res --> nothing
 end
 
-facts("test parse String") do
+facts("test parse string") do
     str = "# test comment"
     res = Parser.parse(str)
     @fact res --> nothing
@@ -733,8 +733,8 @@ end
 
 facts("test ccall expression") do
      exprs = [
-     "ccall((:testUcharX, \"./libccalltest\"), Int32, (Uint8,), x)"
-     "ccall((:testUcharX, \"./libccalltest\"), :stdcall, Int32, (Uint8,), x)"
+     "ccall((:testUcharX, \"./libccalltest\"), Int32, (UInt8,), x)"
+     "ccall((:testUcharX, \"./libccalltest\"), :stdcall, Int32, (UInt8,), x)"
     ]
     for ex in exprs
         @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
@@ -900,7 +900,7 @@ end
 """,
 """
 # calling convention is Expr(:stdcall) not QuoteNode(:stdcall)
-ret=ccall(:GetEnvironmentVariableA,stdcall,Uint32,(Ptr{Uint8},Ptr{Uint8},Uint32),s,val,len)
+ret=ccall(:GetEnvironmentVariableA,stdcall,UInt32,(Ptr{UInt8},Ptr{UInt8},UInt32),s,val,len)
 """,
 """
 # type assert a string macro expression
@@ -952,7 +952,7 @@ ordtype(o::by, vs::abstractarray) = try typeof(o.by(vs[1])) catch; any end
         @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
     @fact typeof(Parser.parse("0o724")) --> typeof(parse("0o724"))
-    @fact typeof(Parser.parse("0o1111111111111111111111")) --> Uint64
+    @fact typeof(Parser.parse("0o1111111111111111111111")) --> UInt64
 end
 
 facts("misc errors") do

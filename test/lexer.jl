@@ -193,10 +193,10 @@ facts("test string_to_number") do
         @fact typeof(n) --> Int64
 
         #=
-        s = repr(typemax(Uint64))
+        s = repr(typemax(UInt64))
         n = Lexer.string_to_number(s)
-        @fact n --> typemax(Uint64)
-        @fact typeof(n) --> Uint64
+        @fact n --> typemax(UInt64)
+        @fact typeof(n) --> UInt64
         =#
 
         s = "0b010101"
@@ -268,9 +268,9 @@ facts("test sized uint literal") do
         sn = @compat parse(Int,s)
         n  = Lexer.sized_uint_literal(s, 4)
         @fact sn --> n
-        @fact typeof(n) --> Uint8
+        @fact typeof(n) --> UInt8
 
-        for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
+        for ty in (UInt8, UInt16, UInt32, UInt64, UInt128)
             @eval begin
                 s = repr(typemax($ty))
                 sn = @compat parse(UInt128,s)
@@ -286,7 +286,7 @@ facts("test sized uint literal") do
         end
 
         if VERSION < v"0.4-"
-            s  = string(repr(typemax(Uint128)), "f")
+            s  = string(repr(typemax(UInt128)), "f")
             sn = BigInt(s)
             n  = Lexer.sized_uint_literal(s, 4)
             @fact sn == n --> true
@@ -303,13 +303,13 @@ facts("test sized uint literal") do
         sn = @compat parse(Int,s)
         n  = Lexer.sized_uint_oct_literal(s)
         @fact sn --> n
-        @fact typeof(n) --> Uint8
+        @fact typeof(n) --> UInt8
 
         pn = parse(s)
         @fact pn == n --> true
         @fact typeof(n) --> typeof(pn)
 
-        for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
+        for ty in (UInt8, UInt16, UInt32, UInt64, UInt128)
             @eval begin
                 s = string("0o", oct(typemax($ty)))
                 sn = @compat parse(UInt128,s)
@@ -324,7 +324,7 @@ facts("test sized uint literal") do
         end
 
         if VERSION < v"0.4-"
-            s = "0o" * oct(typemax(Uint128)) * "7"
+            s = "0o" * oct(typemax(UInt128)) * "7"
             sn = BigInt(s)
             n  = Lexer.sized_uint_oct_literal(s)
             @fact sn --> n
@@ -340,9 +340,9 @@ facts("test sized uint literal") do
         sn = @compat parse(Int,s)
         n  = Lexer.sized_uint_literal(s, 1)
         @fact sn --> n
-        @fact typeof(n) --> Uint8
+        @fact typeof(n) --> UInt8
 
-        for ty in (Uint8, Uint16, Uint32, Uint64, Uint128)
+        for ty in (UInt8, UInt16, UInt32, UInt64, UInt128)
             @eval begin
                 s = string("0b", bin(typemax($ty)))
                 sn = @compat parse(UInt128,s)
@@ -352,7 +352,7 @@ facts("test sized uint literal") do
             end
         end
 
-        s  = string("0b", bin(typemax(Uint128)), "1")
+        s  = string("0b", bin(typemax(UInt128)), "1")
         sn = @compat parse(BigInt,s)
         n  = Lexer.sized_uint_literal(s, 1)
         @fact sn --> n
@@ -403,13 +403,13 @@ facts("test compare num strings") do
 end
 
 facts("test is oct within uint 128") do
-    m = typemax(Uint128)
+    m = typemax(UInt128)
     @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) --> true
 
-    m = typemax(Uint128) - 1
+    m = typemax(UInt128) - 1
     @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) --> true
 
-    m = BigInt(typemax(Uint128)) + 1
+    m = BigInt(typemax(UInt128)) + 1
     @fact Lexer.is_oct_within_uint128(string("0o", oct(m))) --> false
 end
 
@@ -684,7 +684,7 @@ tokens(ts::TokenStream) = begin
     end
     return toks
 end
-tokens(str::String) = tokens(TokenStream(str))
+tokens(str::AbstractString) = tokens(TokenStream(str))
 
 
 facts("test TokenStream constructor") do

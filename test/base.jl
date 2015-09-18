@@ -22,7 +22,7 @@ errors = 0
 ptime = 0.0
 btime = 0.0
 
-function testall(srcdir::String)
+function testall(srcdir::AbstractString)
     global passed
     global failed
     global errors

@@ -11,7 +11,7 @@ const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false")
 const SYM_CTRANSPOSE = symbol("'")
 
-const EOF = convert(Char,typemax(Uint32))
+const EOF = convert(Char,typemax(UInt32))
 
 const ops_by_precedent = Any[
        [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=),
@@ -264,17 +264,17 @@ function peekchar(io::IOBuffer)
     if !io.readable || io.ptr > io.size
         return EOF
     end
-    ch = convert(Uint8,io.data[io.ptr])
+    ch = convert(UInt8,io.data[io.ptr])
     if ch < 0x80
         return convert(Char,ch)
     end
     # mimic utf8.next function
     trailing = Base.utf8_trailing[ch+1]
-    c::Uint32 = 0
+    c::UInt32 = 0
     for j = 1:trailing
         c += ch
         c <<= 6
-        ch = convert(Uint8,io.data[io.ptr+j])
+        ch = convert(UInt8,io.data[io.ptr+j])
     end
     c += ch
     c -= Base.utf8_offset[trailing+1]
@@ -307,11 +307,11 @@ type TokenStream
     putback
     isspace::Bool
     ateof::Bool
-    filename::String
+    filename::AbstractString
 end
 
 TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io), "")
-TokenStream(str::String) = TokenStream(IOBuffer(str))
+TokenStream(str::AbstractString) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
 skip(ts::TokenStream, n)  = Base.skip(ts.io, n)
@@ -381,18 +381,18 @@ end
 # Read Number
 #=============#
 
-function sized_uint_literal(s::String, b::Integer)
+function sized_uint_literal(s::AbstractString, b::Integer)
     i = s[1] === '-' ? 3 : 2
     l = (length(s) - i) * b
-    l <= 8   && return @compat parse(Uint8,   s)
-    l <= 16  && return @compat parse(Uint16,  s)
-    l <= 32  && return @compat parse(Uint32,  s)
-    l <= 64  && return @compat parse(Uint64,  s)
-    l <= 128 && return @compat parse(Uint128, s)
+    l <= 8   && return @compat parse(UInt8,   s)
+    l <= 16  && return @compat parse(UInt16,  s)
+    l <= 32  && return @compat parse(UInt32,  s)
+    l <= 64  && return @compat parse(UInt64,  s)
+    l <= 128 && return @compat parse(UInt128, s)
     return @compat parse(BigInt,s)
 end
 
-function sized_uint_oct_literal(s::String)
+function sized_uint_oct_literal(s::AbstractString)
     contains(s, "o0") && return sized_uint_literal(s, 3)
     len = length(s)
     (len < 5  || (len == 5  && s <= "0o377")) && return @compat parse(UInt8,s)
@@ -403,13 +403,13 @@ function sized_uint_oct_literal(s::String)
     return @compat parse(BigInt,s)
 end
 
-function compare_num_strings(s1::String, s2::String)
+function compare_num_strings(s1::AbstractString, s2::AbstractString)
     s1, s2 = lstrip(s1, '0'), lstrip(s2, '0')
     l1, l2 = length(s1), length(s2)
     return l1 == l2 ? s1 <= s2 : l1 <= l2
 end
 
-function is_oct_within_uint128(s::String)
+function is_oct_within_uint128(s::AbstractString)
     len = length(s)
     max = "0o3777777777777777777777777777777777777777777"
     len < 45  && return true
@@ -417,7 +417,7 @@ function is_oct_within_uint128(s::String)
     len == 45 && s[1] === '-' ? s[2:end] <= max : s <= max
 end
 
-function is_within_int128(s::String)
+function is_within_int128(s::AbstractString)
     len = length(s)
     if s[1] === '-'
         len < 40  && return true
@@ -435,7 +435,7 @@ end
 # expressions starting with a numeric literal followed by e or E
 # are always floating point literals
 
-function string_to_number(str::String)
+function string_to_number(str::AbstractString)
     len = length(str)
     len > 0 || throw(ArgumentError("empty string"))
     neg = str[1] === '-'
