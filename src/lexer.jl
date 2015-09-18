@@ -319,7 +319,7 @@ position(ts::TokenStream) = Base.position(ts.io)
 peekchar(ts::TokenStream) = peekchar(ts.io)
 
 # The last case is the replacement character 0xfffd (3 bytes)
-utf8sizeof(c::Char) = c < Char(0x80) ? 1 : c < Char(0x800) ? 2 : c < Char(0x10000) ? 3 : c < Char(0x110000) ? 4 : 3
+utf8sizeof(c::Char) = c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : c < 0x110000 ? 4 : 3
 
 readchar(ts::TokenStream) = begin
     eof(ts) && return EOF
