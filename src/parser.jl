@@ -1780,7 +1780,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         if triplequote_string_literal(sl)
             return Expr(:macrocall, symbol("@mstr"), sl.args...)
         elseif interpolate_string_literal(sl)
-            notzerolen = (s) -> !(isa(s, String) && isempty(s))
+            notzerolen = (s) -> !(isa(s, AbstractString) && isempty(s))
             return Expr(:string, filter(notzerolen, sl.args)...)
         end
         return sl.args[1]
@@ -1872,6 +1872,6 @@ function parse(ts::TokenStream)
 end
 
 parse(io::IO) = parse(TokenStream(io))
-parse(str::String)  = parse(TokenStream(IOBuffer(str)))
+parse(str::AbstractString)  = parse(TokenStream(IOBuffer(str)))
 
 end
