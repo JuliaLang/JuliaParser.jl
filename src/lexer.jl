@@ -298,7 +298,7 @@ takechar(io::IO) = (readchar(io); io)
 
 #= Token Stream =#
 
-typealias Token Union(Symbol, Char, Number, Nothing)
+typealias Token Union{Symbol, Char, Number, Void}
 
 type TokenStream
     io::IO
@@ -310,7 +310,7 @@ type TokenStream
     filename::AbstractString
 end
 
-TokenStream(io::IO)      = TokenStream(io, 1, nothing, nothing, false, eof(io), "")
+TokenStream(io::IO)      = TokenStream(io, 1, Void, Void, false, eof(io), "")
 TokenStream(str::AbstractString) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
@@ -362,11 +362,11 @@ function read_operator(ts::TokenStream, c::Char)
         return symbol(c)
     end
     str, c = [c], nc
-    opsym  = symbol(utf32(str))
+    opsym  = symbol(utf32(copy(str)))
     while true
         if !eof(c) && is_opchar(c)
             push!(str, c)
-            newop = symbol(utf32(str))
+            newop = symbol(utf32(copy(str)))
             if is_operator(newop)
                 skip(ts, utf8sizeof(c))
                 c, opsym = peekchar(ts), newop

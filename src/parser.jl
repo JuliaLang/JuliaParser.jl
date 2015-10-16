@@ -6,7 +6,7 @@ using ..Lexer
 
 export parse
 
-typealias CharSymbol Union(Char, Symbol)
+typealias CharSymbol Union{Char, Symbol}
 
 type ParseState
     # disable range colon for parsing ternary cond op
