@@ -310,7 +310,7 @@ type TokenStream
     filename::AbstractString
 end
 
-TokenStream(io::IO)      = TokenStream(io, 1, Void, Void, false, eof(io), "")
+TokenStream(io::IO) = TokenStream(io, 1, nothing, nothing, false, eof(io), "")
 TokenStream(str::AbstractString) = TokenStream(IOBuffer(str))
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
