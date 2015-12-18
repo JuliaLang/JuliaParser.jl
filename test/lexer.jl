@@ -4,6 +4,7 @@ using Compat
 
 const Lexer = JuliaParser.Lexer
 const TokenStream = JuliaParser.Lexer.TokenStream
+const utf8sizeof = Lexer.utf8sizeof
 
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
