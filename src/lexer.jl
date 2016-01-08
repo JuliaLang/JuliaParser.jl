@@ -298,7 +298,7 @@ takechar(io::IO) = (readchar(io); io)
 
 #= Token Stream =#
 
-typealias Token Union{Symbol, Char, Number, Void}
+typealias Token @compat(Union{Symbol, Char, Number, Void})
 
 type TokenStream
     io::IO
