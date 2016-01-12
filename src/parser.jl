@@ -130,7 +130,12 @@ end
 curline(ts::TokenStream)  = ts.lineno
 filename(ts::TokenStream) = symbol("none")
 
-line_number_node(ts) = LineNumberNode(curline(ts))
+if VERSION < v"0.4-dev+7034"
+    line_number_node(f, n) = LineNumberNode(n)
+else
+    line_number_node(ts) = LineNumberNode(symbol(""), curline(ts))
+end
+
 line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts))
 
 # insert line/file for short form function defs, otherwise leave alone
