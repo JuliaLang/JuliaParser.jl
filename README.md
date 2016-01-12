@@ -1,6 +1,6 @@
 # JuliaParser
 
-[![Build Status](https://travis-ci.org/jakebolewski/JuliaParser.jl.svg?branch=master)](https://travis-ci.org/jakebolewski/JuliaParser.jl?branch=master)
+[![Build Status](https://travis-ci.org/JuliaLang/JuliaParser.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/JuliaParser.jl?branch=master)
 [![Coverage Status](https://img.shields.io/coveralls/jakebolewski/JuliaParser.jl.svg)](https://coveralls.io/r/jakebolewski/JuliaParser.jl)
 
 A pure Julia port of Julia's parser.  It should be fully compatible with Julia's built in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's 300+ user packages and all Julia source code in Base.
