@@ -1064,7 +1064,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
     end
 end
 
-function add_filename_to_block!(body::Expr, loc::Expr)
+function add_filename_to_block!(body::Expr, loc)
     if !isempty(body.args)
         if isa(body.args[1], Expr) && body.args[1].head === :line
             body.args[1] = loc
