@@ -787,6 +787,8 @@ parse_subtype_spec(ps::ParseState, ts::TokenStream) = subtype_syntax(parse_ineq(
     end
 end
 
+const _QuoteNode = QuoteNode
+
 # parse expressions or blocks introduced by syntatic reserved words
 function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
     expect_end_current_line = curline(ts)
@@ -1008,6 +1010,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :module || word === :baremodule
                 isbare = word === :baremodule
+                location = line_number_filename_node(ts)
                 name = parse_unary_prefix(ps, ts)
                 body = parse_block(ps, ts)
                 expect_end(ps, ts, word)
@@ -1015,14 +1018,17 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
                     # add definitions for module_local eval
                     block = Expr(:block)
                     x = name === :x ? :y : :x
+                    evalcall1 = Expr(:call, Expr(:(.), TopNode(:Core),
+                                _QuoteNode(:eval)), name, x)
                     push!(block.args,
-                        Expr(:(=), Expr(:call, :eval, x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core),
-                                               Expr(:quote, :eval)), name, x)))
+                        Expr(:(=), Expr(:call, :eval, x), VERSION < v"0.4" ?
+                            evalcall1 : Expr(:block, location, evalcall1)))
+                    evalcall2 = Expr(:call, Expr(:(.), TopNode(:Core),
+                                _QuoteNode(:eval)), :m, :x)
                     push!(block.args,
                         Expr(:(=), Expr(:call, :eval, :m, :x),
-                                   Expr(:call, Expr(:(.), TopNode(:Core),
-                                               Expr(:quote, :eval)), :m, :x)))
+                            VERSION < v"0.4" ? evalcall2 :
+                            Expr(:block, location, evalcall2)))
                     append!(block.args, body.args)
                     body = block
                 end
