@@ -1827,9 +1827,10 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     elseif t === '"'
         take_token(ts)
         sl = parse_string_literal(ps, ts, false)
-        if triplequote_string_literal(sl)
+        if VERSION < v"0.4" && triplequote_string_literal(sl)
             return Expr(:macrocall, symbol("@mstr"), sl.args...)
-        elseif interpolate_string_literal(sl)
+        end
+        if interpolate_string_literal(sl)
             notzerolen = (s) -> !(isa(s, AbstractString) && isempty(s))
             return Expr(:string, filter(notzerolen, sl.args)...)
         end
