@@ -553,16 +553,26 @@ facts("test type / immutable expression") do
         """type Test1{Test2{T} <: Test3}; end""",
         """immutable Test;end""",
         """immutable Test
-        end""",
+        end"""
+    ]
+    for ex in exprs
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
+    end
+    immutabletypeexprs = [
         """immutable type Test; end""",
         """immutable type Test
                 x
                 y
                 z
-        end""",
+        end"""
     ]
-    for ex in exprs
-        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
+
+    for ex in immutabletypeexprs
+        if VERSION < v"0.4"
+            @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
+        else
+            @fact_throws Parser.parse(ex)
+        end
     end
 end
 
