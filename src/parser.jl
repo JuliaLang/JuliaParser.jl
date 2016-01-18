@@ -137,15 +137,17 @@ else
 end
 
 if VERSION < v"0.5-"
-    line_number_filename_node(ts::TokenStream) = Expr(:line, curline(ts), filename(ts))
+    line_number_filename_node(lno, filename) = Expr(:line, lno, filename)
 else
-    line_number_filename_node(ts::TokenStream) = LineNumberNode(filename(ts), curline(ts))
+    line_number_filename_node(lno, filename) = LineNumberNode(filename, lno)
 end
+line_number_filename_node(ts::TokenStream) =
+    line_number_filename_node(curline(ts), filename(ts))
 
 # insert line/file for short form function defs, otherwise leave alone
 function short_form_function_loc(ex, lno, filename)
     if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
-       block = Expr(:block, Expr(:line, lno, filename))
+       block = Expr(:block, line_number_filename_node(lno, filename))
        append!(block.args, ex.args[2:end])
        return Expr(:(=), ex.args[1], block)
    end
