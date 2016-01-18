@@ -912,8 +912,13 @@ function parse_resword(ps::ParseState, ts::TokenStream, word::Symbol)
 
             elseif word === :type || word === :immutable
                 istype = word === :type
-                # allow "immutable type"
-                (!istype && peek_token(ps, ts) === :type) && take_token(ts)
+                if VERSION < v"0.4"
+                    # allow "immutable type"
+                    (!istype && peek_token(ps, ts) === :type) && take_token(ts)
+                elseif peek_token(ps, ts) in Lexer.reserved_words
+                    throw(ParseError(string("invalid type name \"",
+                        take_token(ts),"\"")))
+                end
                 sig = parse_subtype_spec(ps, ts)
                 blk = parse_block(ps, ts)
                 ex  = Expr(:type, istype, sig, blk)
