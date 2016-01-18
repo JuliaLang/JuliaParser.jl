@@ -660,7 +660,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             al = @with_end_symbol ps begin
                 parse_cat(ps, ts, ']', is_dict_literal(ex))
             end
-            if (al.head === :cell1d || al.head === :vcat) && isempty(al.args)
+            if isempty(al.args) && (al.head === :cell1d || al.head === :vcat)
                 ex = is_dict_literal(ex) ? Expr(:typed_dict, ex) : Expr(:ref, ex)
                 continue
             end
@@ -668,7 +668,10 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 ex = Expr(:typed_dict, ex); append!(ex.args, al.args)
             elseif al.head === :hcat
                 ex = Expr(:typed_hcat, ex); append!(ex.args, al.args)
-            elseif al.head === :vcat
+            elseif al.head === :vect
+                @assert VERSION >= v"0.4"
+                ex = Expr(:ref, ex); append!(ex.args, al.args)
+            elseif al.head === :vcat && VERSION < v"0.4"
                 ex = Expr(:ref, ex)
                 for arg in al.args
                     if isa(arg, Expr) && arg.head === :row
@@ -676,6 +679,8 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                     end
                     push!(ex.args, arg)
                 end
+            elseif al.head === :vcat
+                ex = Expr(:typed_vcat, ex); append!(ex.args, al.args)
             elseif al.head === :comprehension
                 ex = Expr(:typed_comprehension, ex); append!(ex.args, al.args)
             elseif al.head === :dict_comprehension
@@ -704,8 +709,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 end
             end
             continue
-
-        elseif t === :(.') || t === SYM_SQUOTE
+        elseif t === :(.') || t === SYM_SQUOTE # '
             take_token(ts)
             ex = Expr(t, ex)
             continue
@@ -1283,14 +1287,15 @@ function parse_arglist(ps::ParseState, ts::TokenStream, closer)
 end
 
 # parse [] concatenation exprs and {} cell exprs
-function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
+function parse_vect(ps::ParseState, ts::TokenStream, frst, closer)
     lst = Any[]
     nxt = frst
     while true
         t = require_token(ps, ts)
         if t === closer
             take_token(ts)
-            ex = Expr(:vcat); ex.args = push!(lst, nxt)
+            ex = Expr(VERSION < v"0.4" ? :vcat : :vect)
+            ex.args = push!(lst, nxt)
             return ex
         end
         if t === ','
@@ -1298,7 +1303,8 @@ function parse_vcat(ps::ParseState, ts::TokenStream, frst, closer)
             if require_token(ps, ts) === closer
                 # allow ending with ,
                 take_token(ts)
-                ex = Expr(:vcat); ex.args = push!(lst, nxt)
+                ex = Expr(VERSION < v"0.4" ? :vcat : :vect)
+                ex.args = push!(lst, nxt)
                 return ex
             end
             lst = push!(lst, nxt)
@@ -1373,10 +1379,11 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
             take_token(ts)
             local ex::Expr
             if !isempty(outer)
-                ex = Expr(:vcat); ex.args = update_outer!(vec, outer)
+                ex = Expr(:vcat)
+                ex.args = update_outer!(vec, outer)
             elseif length(vec) <= 1
-                # [x] => (vcat x)
-                ex = Expr(:vcat); ex.args = vec
+                # [x] => (vect x)
+                ex = Expr(VERSION < v"0.4" ? :vcat : :vect); ex.args = vec
             else
                 # [x y] => (hcat x y)
                 ex = Expr(:hcat); ex.args = vec
@@ -1442,7 +1449,7 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer, isdict::Bool=false)
             end
             nt = peek_token(ps, ts)
             if nt === ','
-                return parse_vcat(ps, ts, frst, closer)
+                return parse_vect(ps, ts, frst, closer)
             elseif nt === :for
                 take_token(ts)
                 return parse_comprehension(ps, ts, frst, closer)
@@ -1800,6 +1807,9 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     elseif t === '['
         take_token(ts)
         vex = parse_cat(ps, ts, ']')
+        if isempty(vex.args)
+            vex.head = :vect
+        end
         return vex
 
     # string literal
