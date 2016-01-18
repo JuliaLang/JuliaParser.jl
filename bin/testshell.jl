@@ -19,6 +19,14 @@ function printnode(io::IO, x::Expr, color = :default)
     print_with_color(:red, io, string(':', x.head))
 end
 
+function printnode(io::IO, x::LineNumberNode)
+    print_with_color(:blue, io, string(x))
+end
+
+function printnode(io::IO, x::QuoteNode)
+    print_with_color(:green, io, string(x))
+end
+
 import Base: LineEdit, REPL
 
 function RunShell()
@@ -42,7 +50,7 @@ function RunShell()
         end
         try
           show(STDOUT,Tree(isBase ? Base.parse(line) :
-            Main.JuliaParser.Parser.parse(line)))
+            eval(:(Main.JuliaParser.Parser.parse($line)))))
         catch err
           REPL.display_error(STDERR, err, Base.catch_backtrace())
           REPL.println(STDERR); REPL.println(STDERR)
@@ -57,7 +65,8 @@ function RunShell()
     REPL.history_reset_state(hp)
 
     extra_keymap = Dict{Any,Any}(
-      "^R" => (args...)->(print("Reloading... "); reload("JuliaParser"); println("Done!");),
+      "^R" => (s,o...)->(print("Reloading... "); reload("JuliaParser");
+        println("Done!"); LineEdit.refresh_line(s)),
       "^S" => (s,o...)->(isBase = !isBase; LineEdit.refresh_line(s))
     );
     search_prompt, skeymap = LineEdit.setup_prefix_keymap(hp, panel)
