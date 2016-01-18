@@ -705,7 +705,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                     ex = Expr(:macrocall, Expr(:(.), ex, Expr(:quote, name.args[1])))
                     append!(ex.args, name.args[2:end])
                 else
-                    ex = Expr(:(.), ex, Expr(:quote, name))
+                    ex = Expr(:(.), ex, QuoteNode(name))
                 end
             end
             continue
@@ -1884,7 +1884,7 @@ function macroify_name(ex)
     if isa(ex, Symbol)
         return symbol(string('@', ex))
     elseif is_valid_modref(ex)
-        return Expr(:(.), ex.args[1], Expr(:quote, macroify_name(ex.args[2].args[1])))
+        return Expr(:(.), ex.args[1], QuoteNode(macroify_name(ex.args[2].args[1])))
     else
         throw(ParseError("invalid macro use \"@($ex)"))
     end
