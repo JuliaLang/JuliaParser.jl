@@ -728,9 +728,16 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 take_token(ts)
                 str = parse_string_literal(ps, ts, true)
                 nt  = peek_token(ps, ts)
-                suffix  = triplequote_string_literal(str) ? "_mstr" : "_str"
-                macname = symbol(string('@', ex, suffix))
-                macstr  = str.args[1]
+                if VERSION < v"0.4"
+                    suffix  = triplequote_string_literal(str) ? "_mstr" : "_str"
+                    macname = symbol(string('@', ex, suffix))
+                    macstr = str.args[1]
+                else
+                    macname = symbol(string('@',ex,"_str"))
+                    macstr = triplequote_string_literal(str) ?
+                        dedent_triple_quoted_string(str.args[1]) :
+                        str.args[1]
+                end
                 if isa(nt, Symbol) && !Lexer.is_operator(nt) && !ts.isspace
                     # string literal suffix "s"x
                     ex = Expr(:macrocall, macname, macstr, string(take_token(ts)))
@@ -1606,6 +1613,19 @@ function parse_string_literal(ps::ParseState, ts::TokenStream, custom)
         return Expr(:single_quoted_string, "")
     end
     return _parse_string_literal(ps, ts, :single_quoted_string, 0, custom)
+end
+
+function longest_common_prefix(prefixa, prefixb)
+    maxplength = min(length(prefixa.data), length(prefixb.data))
+    prefixa[1:findfirst(i->(prefixa.data[i] != prefixb.data[i]),maxplength)]
+end
+
+function dedent_triple_quoted_string(str)
+    # Compute longest common prefix of ' ' and '\t'
+    prefix = reduce(longest_common_prefix, map(EachLine(IOBuffer(str))) do line
+        line[1:findfirst(c->(c != ' ' && c != '\t'),line)]
+    end)
+    replace(str,string('\n',prefix),"")
 end
 
 function _parse_atom(ps::ParseState, ts::TokenStream)
