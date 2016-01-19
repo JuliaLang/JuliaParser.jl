@@ -1925,16 +1925,16 @@ end
 
 function parse(ts::TokenStream)
     Lexer.skipws_and_comments(ts)
-    t = Lexer.next_token(ts, false)
+    t = Lexer.peek_token(ts, false)
     while true
         Lexer.eof(t) && return nothing
         if Lexer.isnewline(t)
-            t = Lexer.next_token(ts, false)
+            take_token(ts)
+            t = Lexer.peek_token(ts, false)
             continue
         end
         break
     end
-    put_back!(ts, t)
     ps = ParseState()
     return parse_stmts(ps, ts)
 end
