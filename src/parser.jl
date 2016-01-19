@@ -221,7 +221,8 @@ function parse_LtoR{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
         t  = peek_token(ps, ts)
         !(t in ops) && return ex
         take_token(ts)
-        if Lexer.is_syntactic_op(t) || t === :(in) || t === :(::)
+        if Lexer.is_syntactic_op(t) || t === :(::) ||
+                (VERSION < v"0.4.0-dev+573" && t === :(in))
             ex = Expr(t, ex, down(ps, ts))
         else
             ex = Expr(:call, t, ex, down(ps, ts))
@@ -358,7 +359,7 @@ function parse_stmts(ps::ParseState, ts::TokenStream)
     return ex
 end
 
-const EQ_OPS = Lexer.precedent_ops(1)
+const EQ_OPS = Lexer.precedent_ops(:assignment)
 function parse_eq(ps::ParseState, ts::TokenStream)
     lno = curline(ts)
     ex  = parse_RtoL(ps, ts, parse_comma, EQ_OPS)
@@ -373,42 +374,53 @@ const EMPTY_SET = Set()
 const COMMA_OPS = Set([','])
 parse_comma(ps::ParseState, ts::TokenStream) = parse_Nary(ps, ts, parse_cond, COMMA_OPS, :tuple, EMPTY_SET, false)
 
-const OR_OPS = Lexer.precedent_ops(3)
-parse_or(ps::ParseState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_and, OR_OPS)
+const OR_OPS = Lexer.precedent_ops(:lazy_or)
+function parse_or(ps::ParseState, ts::TokenStream)
+    (VERSION < v"0.4.0-dev+573" ? parse_LtoR : parse_RtoL)(
+        ps, ts, parse_and, OR_OPS)
+end
 
-const AND_OPS = Lexer.precedent_ops(4)
-parse_and(ps::ParseState, ts::TokenStream)   = parse_LtoR(ps, ts, parse_arrow, AND_OPS)
+const AND_OPS = Lexer.precedent_ops(:lazy_and)
+function parse_and(ps::ParseState, ts::TokenStream)
+    if VERSION < v"0.4.0-dev+573"
+        parse_LtoR(ps, ts, parse_arrow, AND_OPS)
+    else
+        parse_RtoL(ps, ts, parse_comparison, AND_OPS)
+    end
+end
 
-const ARROW_OPS = Lexer.precedent_ops(5)
-parse_arrow(ps::ParseState, ts::TokenStream) = parse_RtoL(ps, ts, parse_ineq, ARROW_OPS)
+const ARROW_OPS = Lexer.precedent_ops(:arrow)
+parse_arrow(ps::ParseState, ts::TokenStream) =
+    parse_RtoL(ps, ts, VERSION < v"0.4.0-dev+573" ? parse_ineq : parse_or,
+        ARROW_OPS)
 
-const INEQ_OPS = Lexer.precedent_ops(6)
+const INEQ_OPS = Lexer.precedent_ops(:comparison)
 parse_ineq(ps::ParseState, ts::TokenStream)  = parse_comparison(ps, ts, INEQ_OPS)
 
-const PIPES_OPS = Lexer.precedent_ops(7)
+const PIPES_OPS = Lexer.precedent_ops(:pipe)
 parse_pipes(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_range, PIPES_OPS)
 
 const IN_OPS = Set([:(in)])
 parse_in(ps::ParseState, ts::TokenStream)    = parse_LtoR(ps, ts, parse_pipes, IN_OPS)
 
-const EXPR_OPS = Lexer.precedent_ops(9)
+const EXPR_OPS = Lexer.precedent_ops(:plus)
 parse_expr(ps::ParseState, ts::TokenStream)  = parse_with_chains(ps, ts, parse_shift, EXPR_OPS, :(+))
 
-const SHIFT_OPS = Lexer.precedent_ops(10)
+const SHIFT_OPS = Lexer.precedent_ops(:bitshift)
 parse_shift(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_term, SHIFT_OPS)
 
-const TERM_OPS = Lexer.precedent_ops(11)
+const TERM_OPS = Lexer.precedent_ops(:times)
 parse_term(ps::ParseState, ts::TokenStream)  = parse_with_chains(ps, ts, parse_rational, TERM_OPS, :(*))
 
-const RAT_OPS = Lexer.precedent_ops(12)
+const RAT_OPS = Lexer.precedent_ops(:rational)
 parse_rational(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_unary, RAT_OPS)
 
-function parse_comparison(ps::ParseState, ts::TokenStream, ops)
-    ex = parse_in(ps, ts)
+function parse_comparison(ps::ParseState, ts::TokenStream, ops=INEQ_OPS)
+    ex = VERSION < v"0.4.0-dev+573" ? parse_in(ps, ts) : parse_pipes(ps, ts)
     isfirst = true
     while true
         t = peek_token(ps, ts)
-        !(t in ops) && return ex
+        !(t in ops || t === :in) && return ex
         take_token(ts)
         if isfirst
             isfirst = false
@@ -1201,8 +1213,11 @@ function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
         r = parse_eqs(ps, ts)
         if r === :(:)
         elseif isa(r, Expr) && r.head === :(=)
-        elseif isa(r, Expr) && r.head === :in
+        elseif VERSION <  v"0.4.0-dev+573" && (isa(r, Expr) && r.head === :in)
             tmp = r; r = Expr(:(=)); r.args = tmp.args
+        elseif VERSION >= v"0.4.0-dev+573" && isa(r,Expr) && 
+            r.head == :comparison && length(r.args) == 3 && r.args[2] == :in
+            tmp = r; r = Expr(:(=)); r.args = [tmp.args[1], tmp.args[3]]
         else
             throw(ParseError("invalid iteration spec"))
         end

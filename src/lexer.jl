@@ -13,15 +13,17 @@ const SYM_CTRANSPOSE = symbol("'")
 
 const EOF = convert(Char,typemax(UInt32))
 
-const ops_by_precedent = Any[
+const all_ops = Dict{Symbol,Any}(
+:assignment  =>
        [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=),
         :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=),
         :(|=),  :(&=),  :($=), :(=>),  :(<<=), :(>>=),  :(>>>=), :(~),
         :(.+=), :(.-=)],
-       [:(?)],
-       [:(||)],
-       [:(&&)],
-       # NOTE: -- is deprecated in 0.4
+:conditional => [:(?)],
+:lazy_or     => [:(||)],
+:lazy_and    => [:(&&)],
+# NOTE: -- is deprecated in 0.4
+:arrow       =>
        [symbol("--"), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦),
         :(↮), :(⇎), :(⇏), :(⇒), :(⇔), :(⇴), :(⇶), :(⇷), :(⇸), :(⇹),
         :(⇺), :(⇻), :(⇼), :(⇽), :(⇾), :(⇿), :(⟵), :(⟶), :(⟷), :(⟷),
@@ -34,6 +36,7 @@ const ops_by_precedent = Any[
         :(⬰), :(⬲), :(⬳), :(⬴), :(⬵), :(⬶), :(⬷), :(⬸), :(⬹), :(⬺),
         :(⬻), :(⬼), :(⬽), :(⬾), :(⬿), :(⭀), :(⭁), :(⭂), :(⭃), :(⭄),
         :(⭇), :(⭈), :(⭉), :(⭊), :(⭋), :(⭌), :(￩), :(￫)],
+:comparison =>
        [:(>),  :(<), :(>=), :(≥), :(<=), :(≤), :(==), :(===), :(≡),
         :(!=), :(≠), :(!==), :(≢), :(.>), :(.<), :(.>=), :(.≥), :(.<=),
         :(.≤), :(.==), :(.!=), :(.≠), :(.=), :(.!), :(<:), :(>:), :(∈),
@@ -62,15 +65,17 @@ const ops_by_precedent = Any[
         :(⫅), :(⫆), :(⫇), :(⫈), :(⫉), :(⫊), :(⫋), :(⫌), :(⫍), :(⫎), :(⫏),
         :(⫐), :(⫑), :(⫒), :(⫓), :(⫔), :(⫕), :(⫖), :(⫗), :(⫘), :(⫙), :(⫷),
         :(⫸), :(⫹), :(⫺), :(⊢), :(⊣)],
-       [:(|>),  :(<|)],
-       [:(:), :(..)],
+:pipe       => [:(|>),  :(<|)],
+:colon      => [:(:), :(..)],
+:plus       =>
        [:(+), :(-), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪), :(∨),
         :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽),
         :(⋎), :(⋓), :(⧺), :(⧻), :(⨈), :(⨢), :(⨣), :(⨤), :(⨥), :(⨦), :(⨧),
         :(⨨), :(⨩), :(⨪), :(⨫), :(⨬), :(⨭), :(⨮), :(⨹), :(⨺), :(⩁), :(⩂),
         :(⩅), :(⩊), :(⩌), :(⩏), :(⩐), :(⩒), :(⩔), :(⩖), :(⩗), :(⩛), :(⩝),
         :(⩡), :(⩢), :(⩣)],
-       [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
+:bitshift   => [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
+:times      =>
        [:(*), :(/), :(./), :(÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*), :(\), :(.\),
         :(&), :(∩), :(∧), :(⊗), :(⊘), :(⊙), :(⊚), :(⊛), :(⊠), :(⊡), :(⊓), :(∗),
         :(∙), :(∤), :(⅋), :(≀), :(⊼), :(⋄), :(⋆), :(⋇), :(⋉), :(⋊), :(⋋), :(⋌),
@@ -78,17 +83,28 @@ const ops_by_precedent = Any[
         :(⨲), :(⨳), :(⨴), :(⨵), :(⨶), :(⨷), :(⨸), :(⨻), :(⨼), :(⨽), :(⩀), :(⩃),
         :(⩄), :(⩋), :(⩍), :(⩎), :(⩑), :(⩓), :(⩕), :(⩘), :(⩚), :(⩜), :(⩞), :(⩟),
         :(⩠), :(⫛), :(⊍)],
-       [:(//), :(.//)],
+:rational   => [:(//), :(.//)],
+:power      =>
        [:(^), :(.^), :(↑), :(↓), :(⇵), :(⟰), :(⟱), :(⤈), :(⤉), :(⤊), :(⤋),
         :(⤒), :(⤓),  :(⥉), :(⥌), :(⥍), :(⥏), :(⥑), :(⥔), :(⥕), :(⥘), :(⥙),
         :(⥜), :(⥝),  :(⥠), :(⥡), :(⥣), :(⥥), :(⥮), :(⥯), :(￪), :(￬)],
-       [:(::)],
-       [:(.)]
-]
+:decl       => [:(::)],
+:dot        => [:(.)])
 
-precedent_ops(n::Integer) = Set{Symbol}(ops_by_precedent[n])
+if VERSION < v"0.4.0-dev+573"
+    const ops_by_precedent = Any[
+        :assignment, :conditional, :lazy_or, :lazy_and, :arrow, :comparison, :pipe,
+        :colon, :plus, :bitshift, :times, :rational, :power, :decl, :dot]
+else
+    const ops_by_precedent = Any[
+        :assignment, :conditional, :arrow, :lazy_or, :lazy_and, :comparison, :pipe,
+        :colon, :plus, :bitshift, :times, :rational, :power, :decl, :dot]
+end
 
-const assignment_ops = Set{Symbol}(ops_by_precedent[1])
+precedent_ops(n::Integer) = Set{Symbol}(all_ops[ops_by_precedent[n]])
+precedent_ops(s::Symbol) = Set{Symbol}(all_ops[s])
+
+const assignment_ops = precedent_ops(:assignment)
 
 const unary_ops = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), :(¬),
                                :(>:), :(√), :(∛), :(∜)])
@@ -108,7 +124,7 @@ const syntactic_unary_ops = Set{Symbol}([:($), :(&), :(::)])
 
 const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...), :(¬),
                              :(.'), SYM_CTRANSPOSE]),
-			                 [Set(ops) for ops in ops_by_precedent]...)
+			                 [Set(all_ops[ops]) for ops in ops_by_precedent]...)
 
 const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try, :return,
                                     :break, :continue, :function, :stagedfunction,
@@ -121,7 +137,7 @@ const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try, :return,
 const operator_prescedence = let
     const precedence_map = Dict{Symbol, Int}()
     for (i, ops) in enumerate(ops_by_precedent)
-        for op in ops
+        for op in all_ops[ops]
             precedence_map[op] = i
         end
     end
