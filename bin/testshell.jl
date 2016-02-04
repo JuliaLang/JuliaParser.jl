@@ -6,6 +6,14 @@
 
 using AbstractTrees
 using JuliaParser
+using TerminalUI
+using VT100
+using Colors
+
+dosl = false
+if length(ARGS) == 1 && ARGS[1] == "--sl"
+    dosl = true
+end
 
 eval(Base,:(have_color = true))
 
@@ -27,7 +35,18 @@ function printnode(io::IO, x::QuoteNode)
     print_with_color(:green, io, string(x))
 end
 
+function printnode(io::IO, x::GlobalRef)
+    print_with_color(:yellow, io, string(x))
+end
+
 import Base: LineEdit, REPL
+
+function reload_widget()
+    eval(Main,:(module LocWidget
+        include($(joinpath(dirname(@__FILE__),"..","src","interactiveutil.jl")))
+    end))
+end
+reload_widget()
 
 function RunShell()
     global hp
@@ -49,11 +68,25 @@ function RunShell()
             LineEdit.transition(s, :abort)
         end
         try
-          show(STDOUT,Tree(isBase ? Base.parse(line) :
-            eval(:(Main.JuliaParser.Parser.parse($line)))))
+            if isBase
+                show(STDOUT, Tree(Base.parse(line)))
+            elseif dosl
+                eval(quote
+                    ts = Main.JuliaParser.Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}($line)
+                    res = Main.JuliaParser.Parser.parse(ts)
+                    show(STDOUT,Tree(res.expr))
+                    println($line)
+                    w = Main.LocWidget.create_widget(res.loc,$(line))
+                    TerminalUI.print_snapshot(TerminalUI.InlineDialog(w,
+                        Base.Terminals.TTYTerminal("xterm", STDIN, STDOUT, STDERR)
+                        ))
+                end)
+            else
+                show(STDOUT,Tree(eval(:(Main.JuliaParser.Parser.parse($line)))))
+            end
         catch err
-          REPL.display_error(STDERR, err, Base.catch_backtrace())
-          REPL.println(STDERR); REPL.println(STDERR)
+            REPL.display_error(STDERR, err, Base.catch_backtrace())
+            REPL.println(STDERR); REPL.println(STDERR)
         end
         LineEdit.reset_state(s)
         println()
@@ -66,6 +99,7 @@ function RunShell()
 
     extra_keymap = Dict{Any,Any}(
       "^R" => (s,o...)->(print("Reloading... "); reload("JuliaParser");
+        reload_widget();
         println("Done!"); LineEdit.refresh_line(s)),
       "^S" => (s,o...)->(isBase = !isBase; LineEdit.refresh_line(s))
     );

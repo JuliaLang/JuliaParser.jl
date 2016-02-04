@@ -1,8 +1,10 @@
 module Lexer
 
 using Compat
+include("token.jl")
 
 import Base.UTF8proc
+import Base: position
 
 export Token, TokenStream, next_token, set_token!, last_token,
        put_back!, peek_token, take_token, require_token
@@ -11,7 +13,7 @@ const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false")
 const SYM_CTRANSPOSE = symbol("'")
 
-const EOF = convert(Char,typemax(UInt32))
+const EOFchar = convert(Char,typemax(UInt32))
 
 const all_ops = Dict{Symbol,Any}(
 :assignment  =>
@@ -278,7 +280,7 @@ is_operator(op) = false
 
 function peekchar(io::IOBuffer)
     if !io.readable || io.ptr > io.size
-        return EOF
+        return EOFchar
     end
     ch = convert(UInt8,io.data[io.ptr])
     if ch < 0x80
@@ -301,22 +303,21 @@ end
 const _chtmp = Array(Char, 1)
 peekchar(s::IOStream) = begin
     if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, _chtmp) < 0
-        return EOF
+        return EOFchar
     end
     return _chtmp[1]
 end
 
 eof(io::IO) = Base.eof(io)
-eof(c) = is(c, EOF)
+eof(t::AbstractToken) = eof(¬t)
+eof(c) = is(c, EOFchar)
 
-readchar(io::IO) = eof(io) ? EOF : read(io, Char)
+readchar(io::IO) = eof(io) ? EOFchar : read(io, Char)
 takechar(io::IO) = (readchar(io); io)
 
 #= Token Stream =#
 
-typealias Token @compat(Union{Symbol, Char, Number, Void})
-
-type TokenStream
+type TokenStream{T}
     io::IO
     lineno::Int
     lasttoken
@@ -326,8 +327,11 @@ type TokenStream
     filename::AbstractString
 end
 
-TokenStream(io::IO) = TokenStream(io, 1, nothing, nothing, false, eof(io), "")
-TokenStream(str::AbstractString) = TokenStream(IOBuffer(str))
+call{T}(::Type{TokenStream{T}},io::IO) = TokenStream{T}(io, 1, nothing, nothing, false, eof(io), "")
+call{T}(::Type{TokenStream{T}},str::AbstractString) = TokenStream{T}(IOBuffer(str))
+TokenStream(x) = TokenStream{Token}(x)
+
+
 
 eof(ts::TokenStream) = ts.ateof || eof(ts.io)
 skip(ts::TokenStream, n)  = Base.skip(ts.io, n)
@@ -338,7 +342,8 @@ peekchar(ts::TokenStream) = peekchar(ts.io)
 utf8sizeof(c::Char) = c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : c < 0x110000 ? 4 : 3
 
 readchar(ts::TokenStream) = begin
-    eof(ts) && return EOF
+    @assert !eof(ts)
+    loc = position(ts.io)
     c = read(ts.io, Char)
     c === '\n' && (ts.lineno += 1)
     return c
@@ -348,7 +353,7 @@ takechar(ts::TokenStream) = (readchar(ts); ts)
 
 function skipws(ts::TokenStream, newlines::Bool=false)
     nc = peekchar(ts)
-    nc === EOF && return false
+    nc === EOFchar && return false
     skipped = false
     while !eof(ts) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
         takechar(ts)
@@ -726,16 +731,39 @@ end
 
 #= Token stream methods =#
 
-function next_token(ts::TokenStream, whitespace_newline::Bool)
-    ts.ateof && return EOF
+make_token(::Type{Token},val,start,offset) = Token(val)
+make_token(::Type{SourceLocToken},val,start,length) =
+    SourceLocToken(val,start,length,0)
+  
+EOF(::Type{Token}) = Token(convert(Char,typemax(UInt32)))
+EOF(::Type{SourceLocToken}) = SourceLocToken(convert(Char,typemax(UInt32)),0,0,0)
+  
+macro tok(val)
+    esc(quote
+        loc = position(ts.io)
+        v = $val
+        make_token(T,v,loc,position(ts.io)-loc)
+    end)
+end
+  
+startrange(ts::TokenStream{SourceLocToken}) = position(ts.io)
+makerange(ts::TokenStream{SourceLocToken}, r) = SourceRange(r,position(ts.io)-r,0)
+nullrange(ts::TokenStream{SourceLocToken}) = SourceRange(position(ts.io),0,0)  
+  
+startrange(ts::TokenStream) = nothing
+makerange(ts::TokenStream, r) = nothing
+nullrange(ts::TokenStream) = nothing
+  
+function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
+    ts.ateof && return EOF(T)
     tmp = skipws(ts, whitespace_newline)
-    tmp == EOF && return EOF
+    tmp == EOF(T) && return EOF(T)
     ts.isspace = tmp
     while !eof(ts.io)
         c = peekchar(ts)
         if eof(c)
             ts.ateof = true
-            return EOF
+            return EOF(T)
         elseif c === ' ' || c === '\t'
             skip(ts, 1)
             continue
@@ -746,28 +774,30 @@ function next_token(ts::TokenStream, whitespace_newline::Bool)
             end
             continue
         elseif isnewline(c)
-            return readchar(ts)
+            return @tok readchar(ts)
         elseif is_special_char(c)
-            return readchar(ts)
+            return @tok readchar(ts)
         elseif isdigit(c)
-            return read_number(ts, false, false)
+            return @tok read_number(ts, false, false)
         elseif c === '.'
             skip(ts, 1)
             nc = peekchar(ts)
             if isdigit(nc)
-                return read_number(ts, true, false)
+                return @tok read_number(ts, true, false)
             elseif is_opchar(nc)
-                op = read_operator(ts, c)
-                if op === :(..) && is_opchar(peekchar(ts))
-                    throw(ParseError(string("invalid operator \"", op, peekchar(ts), "\"")))
+                return @tok begin
+                    op = read_operator(ts, c)
+                    if op === :(..) && is_opchar(peekchar(ts))
+                        throw(ParseError(string("invalid operator \"", op, peekchar(ts), "\"")))
+                    end
+                    op
                 end
-                return op
             end
             return :(.)
         elseif is_opchar(c)
-            return read_operator(ts, readchar(ts))
+            return @tok read_operator(ts, readchar(ts))
         elseif is_identifier_start_char(c)
-            return accum_julia_symbol(ts, c)
+            return @tok accum_julia_symbol(ts, c)
         else
             @assert readchar(ts) === c
             if is_ignorable_char(c)
@@ -778,14 +808,14 @@ function next_token(ts::TokenStream, whitespace_newline::Bool)
         end
     end
     ts.ateof = true
-    return EOF
+    return EOF(T)
 end
 
 next_token(ts::TokenStream) = next_token(ts, false)
 last_token(ts::TokenStream) = ts.lasttoken
-set_token!(ts::TokenStream, t) = (ts.lasttoken = t; ts)
+set_token!(ts::TokenStream, t::Union{AbstractToken,Void}) = (ts.lasttoken = t; ts)
 
-function put_back!(ts::TokenStream, t)
+function put_back!(ts::TokenStream, t::Union{AbstractToken,Void})
     if ts.putback !== nothing
         error("too many pushed back tokens (internal error)")
     end
@@ -793,22 +823,22 @@ function put_back!(ts::TokenStream, t)
     return ts
 end
 
-function peek_token(ts::TokenStream, whitespace_newline::Bool)
-    ts.ateof && return EOF
+function peek_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
+    ts.ateof && return EOF(T)
     if ts.putback !== nothing
-        return ts.putback
+        return ts.putback::AbstractToken
     end
     lt = last_token(ts)
     if lt !== nothing
-        return lt
+        return lt::AbstractToken
     end
     set_token!(ts, next_token(ts, whitespace_newline))
-    return last_token(ts)
+    return last_token(ts)::AbstractToken
 end
-peek_token(ts::TokenStream) = peek_token(ts, false)
+peek_token(ts::TokenStream) = peek_token(ts, false)::AbstractToken
 
-function take_token(ts::TokenStream)
-    ts.ateof && return EOF
+function take_token{T}(ts::TokenStream{T})
+    ts.ateof && return EOF(T)
     if ts.putback !== nothing
         t = ts.putback
         ts.putback = nothing
