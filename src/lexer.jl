@@ -327,8 +327,8 @@ type TokenStream{T}
     filename::AbstractString
 end
 
-call{T}(::Type{TokenStream{T}},io::IO) = TokenStream{T}(io, 1, nothing, nothing, false, eof(io), "")
-call{T}(::Type{TokenStream{T}},str::AbstractString) = TokenStream{T}(IOBuffer(str))
+(::Type{TokenStream{T}}){T}(io::IO) = TokenStream{T}(io, 1, nothing, nothing, false, eof(io), "")
+(::Type{TokenStream{T}}){T}(str::AbstractString) = TokenStream{T}(IOBuffer(str))
 TokenStream(x) = TokenStream{Token}(x)
 
 
