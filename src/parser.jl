@@ -577,8 +577,9 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         neg = ¬op === :(-)
         leadingdot = nc === '.'
         leadingdot && Lexer.readchar(ts)
+        r   = Lexer.startrange(ts)
         n   = Lexer.read_number(ts, leadingdot, neg)
-        num = parse_juxtaposed(ps, ts, n)
+        num = parse_juxtaposed(ps, ts, n ⤄ Lexer.makerange(ts, r)) ⤄ op
         nt  = peek_token(ps, ts)
         if ¬nt === :(^) || ¬nt === :(.^)
             # -2^x parsed as (- (^ 2 x))
@@ -712,18 +713,18 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             take_token(ts)
             nt = peek_token(ps, ts)
             if ¬nt === '('
-                ex = Expr(:(.), ex, parse_atom(ps, ts))
+                ex = ⨳(:(.), ex, parse_atom(ps, ts))
             elseif ¬nt === :($)
                 dollar_ex = parse_unary(ps, ts)
                 call_ex   = Expr(:call, TopNode(:Expr), Expr(:quote, :quote), dollar_ex.args[1])
-                ex = Expr(:(.), ex, ⨳(nt, call_ex))
+                ex = ⨳(:(.), ex, ⨳(nt, call_ex))
             else
                 name = parse_atom(ps, ts)
-                if isa(name, Expr) && name.head === :macrocall
-                    ex = Expr(:macrocall, Expr(:(.), ex, Expr(:quote, name.args[1])))
+                if isa(¬name, Expr) && ¬name.head === :macrocall
+                    ex = ⨳(:macrocall, Expr(:(.), ex, Expr(:quote, name.args[1])))
                     append!(ex.args, name.args[2:end])
                 else
-                    ex = Expr(:(.), ex, QuoteNode(name))
+                    ex = ⨳(:(.), ex, QuoteNode(¬name) ⤄ √name)
                 end
             end
             continue
@@ -832,7 +833,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 return ¬word === :quote ? Expr(:quote, ex) : ex
 
             elseif ¬word === :while
-                ex = Expr(:while, parse_cond(ps, ts), parse_block(ps, ts))
+                ex = ⨳(word, parse_cond(ps, ts), parse_block(ps, ts))
                 expect_end(ps, ts, ¬word)
                 return ex
 

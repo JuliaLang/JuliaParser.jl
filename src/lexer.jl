@@ -793,7 +793,7 @@ function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
                     op
                 end
             end
-            return :(.)
+            return @tok :(.)
         elseif is_opchar(c)
             return @tok read_operator(ts, readchar(ts))
         elseif is_identifier_start_char(c)

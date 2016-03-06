@@ -12,7 +12,7 @@ immutable Token <: AbstractToken
   val::TokenValue
 end
 val(t::Token) = t.val
-val(t::Union{Expr,Symbol,ASCIIString,UTF8String,LineNumberNode}) = t
+val(t::Union{Expr,Symbol,ASCIIString,UTF8String,LineNumberNode,Int}) = t
 
 
 immutable SourceRange
@@ -72,9 +72,9 @@ const ⤄ = merge
 function ⤄(ex::SourceExpr, x::SourceRange)
     SourceExpr(ex.expr,SourceNode(ex.loc.loc ⤄ x, ex.loc.children))
 end
-⤄(ex::Union{ASCIIString, UTF8String, Char}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
+⤄(ex::Union{ASCIIString, UTF8String, Char, Int}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
-⤄(ex::Union{Symbol,Expr,Bool}, x::Union{SourceLocToken,SourceRange}) = SourceExpr(ex,√x)
+⤄(ex::Union{Symbol,Expr,Bool,QuoteNode}, x::Union{SourceLocToken,SourceRange}) = SourceExpr(ex,√x)
 ⤄(ex::Expr, x::Token) = ex
 ⤄(x,y::Void) = x
 
