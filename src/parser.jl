@@ -487,7 +487,7 @@ function parse_range(ps::ParseState, ts::TokenStream)
                 end
                 throw(ParseError("missing last argument in \"$(ex):\"range expression"))
             end
-            if Lexer.isnewline(peek_token(ps, ts))
+            if Lexer.isnewline(¬peek_token(ps, ts))
                 throw(ParseError("line break in \":\" expression"))
             end
             arg = parse_expr(ps, ts)
@@ -589,7 +589,7 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         return num
     end
     nt = peek_token(ps, ts)
-    if is_closing_token(ps, nt) || Lexer.isnewline(nt)
+    if is_closing_token(ps, nt) || Lexer.isnewline(¬nt)
         # return operator by itself, as in (+)
         return op
     elseif ¬nt === '{'
@@ -819,7 +819,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 Lexer.skipws_and_comments(ts)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ps, ts)
-                expect_end(ps, ts, word)
+                expect_end(ps, ts, ¬word)
                 local ex
                 if !isempty(blk.args) &&
                     ((isa(blk.args[1], Expr) && blk.args[1].head === :line) || (isa(blk.args[1], LineNumberNode)))
@@ -859,7 +859,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 if ¬nxt === SYM_END
                     return ⨳(word, test, then)
                 elseif ¬nxt === SYM_ELSEIF
-                    if Lexer.isnewline(peek_token(ps, ts))
+                    if Lexer.isnewline(¬peek_token(ps, ts))
                         throw(ParseError("missing condition in elseif at {filename} : {line}"))
                     end
                     blk = ⨳(:block, line_number_node(ts), parse_resword(ps, ts, nxt))
@@ -878,7 +878,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
 
             elseif ¬word === :let
                 nt = peek_token(ps, ts)
-                binds = Lexer.isnewline(nt) || ¬nt === ';' ? Any[] : parse_comma_sep_assigns(ps, ts)
+                binds = Lexer.isnewline(¬nt) || ¬nt === ';' ? Any[] : parse_comma_sep_assigns(ps, ts)
                 nt = peek_token(ps, ts)
                 if !(Lexer.eof(nt) || (isa(¬nt, CharSymbol) && (¬nt === '\n' || ¬nt ===  ';' || ¬nt === SYM_END)))
                     throw(ParseError("let variables should end in \";\" or newline"))
@@ -979,7 +979,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                     if ¬t === SYM_CATCH && catchb == nothing
                         nb = false # do we delineate a new block after a catch token (with ; or \n)?
                         nt = peek_token(ps, ts)
-                        if Lexer.isnewline(nt) || ¬nt === ';'
+                        if Lexer.isnewline(¬nt) || ¬nt === ';'
                             nb = true
                             ¬nt === ';' && take_token(ts)
                         end
@@ -1016,7 +1016,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
 
             elseif ¬word === :return
                 t  = peek_token(ps, ts)
-                return Lexer.isnewline(t) || is_closing_token(ps, t) ? ⨳(word, nothing ⤄ Lexer.nullrange(ts)) :
+                return Lexer.isnewline(¬t) || is_closing_token(ps, t) ? ⨳(word, nothing ⤄ Lexer.nullrange(ts)) :
                                                                        ⨳(word, parse_eq(ps, ts))
             elseif ¬word === :break || ¬word === :continue
                 return ⨳(word)
@@ -1113,7 +1113,7 @@ add_filename_to_block!(body::Lexer.SourceExpr, loc) = body
 function parse_do(ps::ParseState, ts::TokenStream)
     expect_end_current_line = curline(ts)
     @without_whitespace_newline ps begin
-        doargs = Lexer.isnewline(peek_token(ps, ts)) ? Any[] : parse_comma_sep(ps, ts, parse_range)
+        doargs = Lexer.isnewline(¬peek_token(ps, ts)) ? Any[] : parse_comma_sep(ps, ts, parse_range)
         loc = line_number_filename_node(ts)
         blk = parse_block(ps, ts)
         add_filename_to_block!(blk, loc)
@@ -1248,12 +1248,12 @@ function parse_space_separated_exprs(ps::ParseState, ts::TokenStream)
         while true
             nt = peek_token(ps, ts)
             if is_closing_token(ps, nt) ||
-               Lexer.isnewline(nt) ||
+               Lexer.isnewline(¬nt) ||
                (ps.inside_vector && nt === :for)
                 return exprs
             end
             ex = parse_eq(ps, ts)
-            if Lexer.isnewline(peek_token(ps, ts))
+            if Lexer.isnewline(¬peek_token(ps, ts))
                 push!(exprs, ex)
                 return exprs
             end
@@ -1457,7 +1457,7 @@ end
 function peek_non_newline_token(ps::ParseState, ts::TokenStream)
     while true
         t = peek_token(ps, ts)
-        if Lexer.isnewline(t)
+        if Lexer.isnewline(¬t)
             take_token(ts)
             continue
         end
@@ -1880,21 +1880,21 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         @space_sensitive ps begin
             head = parse_unary_prefix(ps, ts)
             if (peek_token(ps, ts); ts.isspace)
-                ex = Expr(:macrocall, macroify_name(head))
-                append!(ex.args, parse_space_separated_exprs(ps, ts))
+                ex = ⨳(:macrocall, macroify_name(head) ⤄ t)
+                ex ⪥ parse_space_separated_exprs(ps, ts)
                 return ex
             else
                 call = parse_call_chain(ps, ts, head, true)
                 if isa(call, Expr) && call.head === :call
                     nargs = length(call.args)
-                    ex = Expr(:macrocall, macroify_name(call.args[1]))
+                    ex = ⨳(:macrocall, macroify_name(call.args[1]) ⤄ t)
                     sizehint!(ex.args, nargs)
                     for i = 2:nargs
                         push!(ex.args, call.args[i])
                     end
                     return ex
                 else
-                    ex = Expr(:macrocall, macroify_name(call))
+                    ex = ⨳(:macrocall, macroify_name(call) ⤄ t)
                     append!(ex.args, parse_space_separated_exprs(ps, ts))
                     return ex
                 end
@@ -1931,10 +1931,10 @@ function is_valid_modref(ex::Expr)
 end
 
 function macroify_name(ex)
-    if isa(ex, Symbol)
-        return symbol(string('@', ex))
-    elseif is_valid_modref(ex)
-        return Expr(:(.), ex.args[1], QuoteNode(macroify_name(ex.args[2].args[1])))
+    if isa(¬ex, Symbol)
+        return symbol(string('@', ¬ex)) ⤄ √ex
+    elseif is_valid_modref(¬ex)
+        return ⨳(:(.), ex.args[1], QuoteNode(macroify_name(ex.args[2].args[1])))
     else
         throw(ParseError("invalid macro use \"@($ex)"))
     end
@@ -1949,7 +1949,7 @@ function parse(ts::TokenStream)
     t = Lexer.peek_token(ts, false)
     while true
         Lexer.eof(t) && return nothing
-        if Lexer.isnewline(t)
+        if Lexer.isnewline(¬t)
             take_token(ts)
             t = Lexer.peek_token(ts, false)
             continue
