@@ -134,7 +134,7 @@ macro space_sensitive(ps, body)
 end
 
 curline(ts::TokenStream)  = ts.lineno
-filename(ts::TokenStream) = ts.filename
+filename(ts::TokenStream) = symbol(ts.filename)
 
 if VERSION < v"0.4"
     line_number_node(ts) = LineNumberNode(curline(ts))
@@ -579,9 +579,8 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         neg = ¬op === :(-)
         leadingdot = nc === '.'
         leadingdot && Lexer.readchar(ts)
-        r   = Lexer.startrange(ts)
         n   = Lexer.read_number(ts, leadingdot, neg)
-        num = parse_juxtaposed(ps, ts, n ⤄ Lexer.makerange(ts, r)) ⤄ op
+        num = parse_juxtaposed(ps, ts, n) ⤄ op
         nt  = peek_token(ps, ts)
         if ¬nt === :(^) || ¬nt === :(.^)
             # -2^x parsed as (- (^ 2 x))
@@ -609,8 +608,9 @@ function parse_unary(ps::ParseState, ts::TokenStream)
 end
 
 function subtype_syntax(ex)
-    if isa(ex, Expr) && ex.head === :comparison && length(ex.args) == 3 && ex.args[2] === :(<:)
-        return ⨳(:(<:), ex.args[1], ex.args[3])
+    if isa(¬ex, Expr) && (¬ex).head === :comparison && length((¬ex).args) == 3 && (¬ex).args[2] === :(<:)
+        args = collect(children(ex))
+        return ⨳(:(<:), args[1], args[3]) ⤄ √ex
     end
     return ex
 end
@@ -682,7 +682,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 parse_cat(ps, ts, ']', is_dict_literal(ex))
             end
             if isempty((¬al).args) && ((¬al).head === :cell1d || (¬al).head === :vcat)
-                ex = is_dict_literal(ex) ? Expr(:typed_dict, ex) : Expr(:ref, ex)
+                ex = is_dict_literal(ex) ? ⨳(:typed_dict, ex) : ⨳(:ref, ex)
                 continue
             end
             if (¬al).head === :dict
@@ -693,7 +693,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 @assert VERSION >= v"0.4"
                 ex = ⨳(:ref, ex) ⪥ al
             elseif (¬al).head === :vcat && VERSION < v"0.4"
-                ex = Expr(:ref, ex)
+                ex = ⨳(:ref, ex)
                 for arg in al.args
                     if isa(arg, Expr) && arg.head === :row
                         ex.head = :typed_vcat
@@ -737,7 +737,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
 
         elseif ¬t === '{'
             take_token(ts)
-            args = map(subtype_syntax, parse_arglist(ps, ts, '}'))
+            args = map(subtype_syntax, parse_arglist(ps, ts, '}', t))
             # ::Type{T}
             if isa(ex, Expr) && ex.head == :(::)
                 ty = ⨳(:curly, ex.args[1]) ⪥ args
@@ -822,12 +822,15 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ps, ts)
                 expect_end(ps, ts, ¬word)
-                local ex
-                if !isempty(blk.args) &&
-                    ((isa(blk.args[1], Expr) && blk.args[1].head === :line) || (isa(blk.args[1], LineNumberNode)))
-                    ex = ⨳(:block, loc)
-                    for i in 2:length(blk.args)
-                        push!(ex.args, blk.args[i])
+                ex = blk
+                if !isempty((¬blk).args)
+                    arg1 = collect(children(blk))[1]
+                    if ((isa(¬arg1, Expr) && (¬arg1).head === :line) || 
+                            (isa(¬arg1, LineNumberNode)))
+                        ex = ⨳(:block, loc)
+                        for i in 2:length(blk.args)
+                            ex ⪥ (blk.args[i],)
+                        end
                     end
                 else
                     ex = blk
@@ -946,7 +949,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 end
                 sig = parse_subtype_spec(ps, ts)
                 blk = parse_block(ps, ts)
-                ex  = ⨳(:type, istype, sig, blk)
+                ex  = ⨳(:type, istype ⤄ √word, sig, blk)
                 expect_end(ps, ts, ¬word)
                 return ex
 
@@ -1018,7 +1021,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
 
             elseif ¬word === :return
                 t  = peek_token(ps, ts)
-                return Lexer.isnewline(¬t) || is_closing_token(ps, t) ? ⨳(word, nothing ⤄ Lexer.nullrange(ts)) :
+                return Lexer.isnewline(¬t) || is_closing_token(ps, t) ? ⨳(word, :(nothing) ⤄ Lexer.nullrange(ts)) :
                                                                        ⨳(word, parse_eq(ps, ts))
             elseif ¬word === :break || ¬word === :continue
                 return ⨳(word)
@@ -1040,10 +1043,10 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 expect_end(ps, ts, ¬word)
                 if !isbare
                     # add definitions for module_local eval
-                    block = Expr(:block)
+                    block = ⨳(:block)
                     x = name === :x ? :y : :x
-                    evalcall1 = ⨳(:call, Expr(:(.), TopNode(:Core),
-                                _QuoteNode(:eval)), name, x)
+                    evalcall1 = ⨳(:call, ⨳(:(.), TopNode(:Core) ⤄ Lexer.nullrange(ts),
+                                _QuoteNode(:eval) ⤄ Lexer.nullrange(ts)), name, x)
                     push!(block.args,
                         Expr(:(=), ⨳(:call, :eval, x), VERSION < v"0.4" ?
                             evalcall1 : Expr(:block, location, evalcall1)))
@@ -1053,21 +1056,21 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                         ⨳(:(=), Expr(:call, :eval, :m, :x),
                             VERSION < v"0.4" ? evalcall2 :
                             Expr(:block, location, evalcall2)))
-                    append!(block.args, body.args)
-                    body = block
+                    block ⪥ body
+                    body = block ⤄ Lexer.nullrange(ts)
                 end
                 return ⨳(:module, !isbare, name, body)
 
             elseif ¬word === :export
                 exports = map(macrocall_to_atsym, parse_comma_sep(ps, ts, parse_atom))
                 !all(x -> isa(¬x, Symbol), exports) && throw(ParseError("invalid \"export\" statement"))
-                ex = ⨳(:export) ⪥ exports
+                ex = ⨳(word) ⪥ exports
                 return ex
 
             elseif ¬word === :import || ¬word === :using || ¬word === :importall
                 imports = parse_imports(ps, ts, word)
                 length(imports) == 1 && return imports[1]
-                ex = ⨳(:toplevel) ⪥ imports
+                ex = (⨳(:toplevel) ⤄ Lexer.nullrange(ts)) ⪥ imports
                 return ex
 
             elseif ¬word === :ccall
@@ -1121,11 +1124,11 @@ function parse_do(ps::ParseState, ts::TokenStream)
         blk = parse_block(ps, ts)
         add_filename_to_block!(blk, loc)
         expect_end(ps, ts, :do)
-        return ⨳(:(->), ⨳(:tuple, doargs...), blk)
+        return ⨳(:(->), ⨳(:tuple, doargs...) ⤄ Lexer.nullrange(ts), blk)
     end
 end
 
-macrocall_to_atsym(ex) = isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : ex
+macrocall_to_atsym(ex) = isa(¬ex, Expr) && (¬ex).head === :macrocall ? collect(children(ex))[1] : ex
 
 function parse_imports(ps::ParseState, ts::TokenStream, word)
     frst = Any[parse_import(ps, ts, word)]
@@ -1142,10 +1145,10 @@ function parse_imports(ps::ParseState, ts::TokenStream, word)
     end
     rest = done? Any[] : parse_comma_sep(ps, ts, (ps, ts) -> parse_import(ps, ts, word))
     if from
-        module_syms = frst[1].args
-        imports = Expr[]
+        module_syms = frst[1]
+        imports = Any[]
         for expr in rest
-            ex = Expr(expr.head, module_syms..., expr.args...)
+            ex = (⨳((¬expr).head) ⪥ module_syms) ⪥ expr
             push!(imports, ex)
         end
         return imports
@@ -1270,8 +1273,8 @@ function to_kws(lst)
     kwargs = Array(Any, n)
     for i = 1:n
         ex = lst[i]
-        if isa(ex, Expr) && ex.head === :(=) && length(ex.args) == 2
-            nex = ⨳(:kw, ex.args...)
+        if isa(¬ex, Expr) && (¬ex).head === :(=) && length((¬ex).args) == 2
+            nex = ⨳(:kw) ⪥ ex
             kwargs[i] = nex
         else
             kwargs[i] = ex
@@ -1327,7 +1330,7 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
     end
 end
 
-function parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
+function parse_arglist(ps::ParseState, ts::TokenStream, closer, opener = nothing)
     @with_normal_ops ps begin
         @with_whitespace_newline ps begin
             return _parse_arglist(ps, ts, closer, opener)
@@ -1431,7 +1434,7 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
                 ex = ⨳(:vcat,update_outer!(vec, outer)...)
             elseif length(vec) <= 1
                 # [x] => (vect x)
-                ex = ⨳(VERSION < v"0.4" ? :vcat : :vect, vec...)
+                ex = ⨳(VERSION < v"0.4" ? :vcat : :vect, vec...) ⤄ t
             else
                 # [x y] => (hcat x y)
                 ex = ⨳(:hcat, vec...)
@@ -1731,8 +1734,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     elseif ¬t === :(:)
         take_token(ts)
         nt = peek_token(ps, ts)
-        if is_closing_token(ps, nt) && (ps.space_sensitive || !isa(nt, Symbol))
-            return :(:)
+        if is_closing_token(ps, nt) && (ps.space_sensitive || !isa(¬nt, Symbol))
+            return :(:) ⤄ t
         end
         return ⨳(:quote, _parse_atom(ps, ts))
 
@@ -1864,8 +1867,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     elseif ¬t === '['
         take_token(ts)
         vex = parse_cat(ps, ts, ']')
-        if isempty(vex.args)
-            vex.head = :vect
+        if isempty((¬vex).args)
+            (¬vex).head = :vect
         end
         return vex
 
@@ -1903,7 +1906,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     return ex
                 else
                     ex = ⨳(:macrocall, macroify_name(call) ⤄ t)
-                    append!(ex.args, parse_space_separated_exprs(ps, ts))
+                    ex ⪥ parse_space_separated_exprs(ps, ts)
                     return ex
                 end
             end
