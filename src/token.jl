@@ -9,7 +9,7 @@ import Base: convert
 abstract AbstractToken
 
 const ASTVerbatim = Union{Symbol,ASCIIString,UTF8String,LineNumberNode,Int,Void,Char,Bool}
-const ASTExprs = Union{Expr, QuoteNode}
+const ASTExprs = Union{Expr, QuoteNode, TopNode}
 
 # Defensive definitions
 Base.isequal(x::AbstractToken, y::ASTVerbatim) = error("Comparing token to raw AST Node")
@@ -81,7 +81,7 @@ function ⤄(ex::SourceExpr, x::SourceRange)
     SourceExpr(ex.expr,SourceNode(ex.loc.loc ⤄ x, ex.loc.children))
 end
 ⤄(ex::SourceExpr, x::SourceNode) = ⤄(ex, x.loc)
-⤄(x::Void, y::SourceRange) = y
+⤄(x::Void, y::SourceRange) = SourceExpr(x,SourceNode(y))
 ⤄(ex::Union{ASCIIString, UTF8String, Char, Int}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
 ⤄(tok::SourceLocToken, x::SourceRange) = SourceLocToken(tok.val, tok.loc ⤄ x)
