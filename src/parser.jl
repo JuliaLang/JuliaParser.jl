@@ -151,11 +151,12 @@ line_number_filename_node(ts::TokenStream) =
     line_number_filename_node(curline(ts), filename(ts))
 
 # insert line/file for short form function defs, otherwise leave alone
-function short_form_function_loc(ex, lno, filename)
-    if isa(ex, Expr) && ex.head === :(=) && isa(ex.args[1], Expr) && ex.args[1].head === :call
-       block = ⨳(:block, line_number_filename_node(lno, filename))
-       append!(block.args, ex.args[2:end])
-       return ⨳(:(=), ex.args[1], block)
+function short_form_function_loc(ts, ex, lno, filename)
+    if isa(¬ex, Expr) && (¬ex).head === :(=) && isa((¬ex).args[1], Expr) && (¬ex).args[1].head === :call
+       block = ⨳(:block, line_number_filename_node(lno, filename)) ⤄ Lexer.nullrange(ts)
+       args = collect(children(ex))
+       block ⪥ args[2:end]
+       return ⨳(:(=), args[1], block)
    end
    return ex
 end
@@ -370,7 +371,7 @@ const EQ_OPS = Lexer.precedent_ops(:assignment)
 function parse_eq(ps::ParseState, ts::TokenStream)
     lno = curline(ts)
     ex  = parse_RtoL(ps, ts, parse_comma, EQ_OPS)
-    return short_form_function_loc(ex, lno, filename(ts))
+    return short_form_function_loc(ts, ex, lno, filename(ts))
 end
 
 # parse-eqs is used where commas are special for example in an argument list
@@ -427,7 +428,13 @@ function parse_comparison(ps::ParseState, ts::TokenStream, ops=INEQ_OPS)
     isfirst = true
     while true
         t = peek_token(ps, ts)
-        !(¬t in ops || ¬t === :in) && return ex
+        if !(¬t in ops || ¬t === :in)
+            if VERSION > v"0.5.0-dev+3167" && !isfirst && length((¬ex).args) == 3
+                args = collect(children(ex))
+                return ⨳(:call, args[2], args[1], args[3])
+            end
+            return ex
+        end
         take_token(ts)
         if isfirst
             isfirst = false
@@ -608,9 +615,11 @@ function parse_unary(ps::ParseState, ts::TokenStream)
 end
 
 function subtype_syntax(ex)
-    if isa(¬ex, Expr) && (¬ex).head === :comparison && length((¬ex).args) == 3 && (¬ex).args[2] === :(<:)
+    if isa(¬ex, Expr) && length((¬ex).args) == 3 && 
+            (((¬ex).head === :comparison && (¬ex).args[2] === :(<:)) ||
+             ((¬ex).head === :call && (¬ex).args[1] === :(<:)))
         args = collect(children(ex))
-        return ⨳(:(<:), args[1], args[3]) ⤄ √ex
+        return ⨳(:(<:), (¬ex).head == :call ? args[2] : args[1], args[3]) ⤄ √ex
     end
     return ex
 end
@@ -898,7 +907,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 isconst = ¬peek_token(ps, ts) === :const ? (take_token(ts); true) : false
                 args = Any[]
                 for aex in parse_comma_sep_assigns(ps, ts)
-                    push!(args, short_form_function_loc(aex, lno, filename(ts)))
+                    push!(args, short_form_function_loc(ts, aex, lno, filename(ts)))
                 end
                 if isconst
                     ex = ⨳(word, args...)
@@ -1021,7 +1030,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
 
             elseif ¬word === :return
                 t  = peek_token(ps, ts)
-                return Lexer.isnewline(¬t) || is_closing_token(ps, t) ? ⨳(word, :(nothing) ⤄ Lexer.nullrange(ts)) :
+                return Lexer.isnewline(¬t) || is_closing_token(ps, t) ? ⨳(word, nothing ⤄ Lexer.nullrange(ts)) :
                                                                        ⨳(word, parse_eq(ps, ts))
             elseif ¬word === :break || ¬word === :continue
                 return ⨳(word)
@@ -1235,6 +1244,10 @@ function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
             (¬r).head == :comparison && length((¬r).args) == 3 && (¬r).args[2] == :in
             tmp = collect(children(r))
             r = ⨳(:(=), tmp[1], tmp[3])
+        elseif VERSION >= v"0.5.0-dev+3167" && isa(¬r,Expr) &&
+            (¬r).head == :call && length((¬r).args) == 3 && (¬r).args[1] == :in
+            tmp = collect(children(r))
+            r = ⨳(:(=), tmp[2], tmp[3])
         else
             throw(ParseError("invalid iteration spec"))
         end
