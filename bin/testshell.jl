@@ -19,10 +19,6 @@ eval(Base,:(have_color = true))
 
 import AbstractTrees: children, printnode
 
-function children(x::Expr)
-    x.args
-end
-
 function printnode(io::IO, x::Expr, color = :default)
     print_with_color(:red, io, string(':', x.head))
 end
@@ -73,13 +69,18 @@ function RunShell()
             elseif dosl
                 eval(quote
                     ts = Main.JuliaParser.Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}($line)
-                    res = Main.JuliaParser.Parser.parse(ts)
-                    show(STDOUT,Tree(res.expr))
-                    println($line)
-                    w = Main.LocWidget.create_widget(res.loc,$(line))
-                    TerminalUI.print_snapshot(TerminalUI.InlineDialog(w,
-                        Base.Terminals.TTYTerminal("xterm", STDIN, STDOUT, STDERR)
-                        ))
+                    try
+                        res = Main.JuliaParser.Parser.parse(ts)
+                        show(STDOUT,Tree(res.expr))
+                        println($line)
+                        w = Main.LocWidget.create_widget(res.loc,$(line))
+                        TerminalUI.print_snapshot(TerminalUI.InlineDialog(w,
+                            Base.Terminals.TTYTerminal("xterm", STDIN, STDOUT, STDERR)
+                            ))
+                    catch e
+                        !isa(e, Main.JuliaParser.Parser.Diagnostic) && rethrow(e)
+                        Main.JuliaParser.Parser.display_diagnostic(STDOUT, $line, e)
+                    end
                 end)
             else
                 show(STDOUT,Tree(eval(:(Main.JuliaParser.Parser.parse($line)))))

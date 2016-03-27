@@ -435,35 +435,35 @@ facts("test readnumber") do
 
     context("signed integer") do
         io = TokenStream("100")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 100
         @fact typeof(n) --> Int64
 
         io = TokenStream("100_000_000")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 100_000_000
         @fact typeof(n) --> Int64
 
         io = TokenStream("-100")
         Lexer.skip(io, 1)
-        n = Lexer.read_number(io, false, true)
+        n = ¬Lexer.read_number(io, false, true)
         @fact n --> -100
         @fact typeof(n) --> Int64
 
         io = TokenStream("00100")
-        n = Lexer.read_number(io, false,  false)
+        n = ¬Lexer.read_number(io, false,  false)
         @fact n --> 100
         @fact typeof(n) --> Int64
     end
 
     context("decimal") do
         io = TokenStream("100.0")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 100.0
         @fact typeof(n) --> Float64
 
         io = TokenStream("100.0f0")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 100.0
         @fact typeof(n) --> Float32
 
@@ -473,18 +473,18 @@ facts("test readnumber") do
 
     context("floating point exponent") do
         io = TokenStream("1e10")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 1e10
         @fact typeof(n) --> Float64
 
         io = TokenStream("-10E10")
         Lexer.skip(io, 1)
-        n = Lexer.read_number(io, false, true)
+        n = ¬Lexer.read_number(io, false, true)
         @fact n --> -10e10
         @fact typeof(n) --> Float64
 
         io = TokenStream("1e-1")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 1e-1
         @fact typeof(n) --> Float64
     end
@@ -492,84 +492,84 @@ facts("test readnumber") do
     context("leading dot") do
         io = TokenStream(".01")
         Lexer.skip(io, 1)
-        n = Lexer.read_number(io, true, false)
+        n = ¬Lexer.read_number(io, true, false)
         @fact n --> 0.01
         @fact typeof(n) --> Float64
 
         io = TokenStream(".000_1")
         Lexer.skip(io, 1)
-        n = Lexer.read_number(io, true, false)
+        n = ¬Lexer.read_number(io, true, false)
         @fact n --> 0.0001
         @fact typeof(n) --> Float64
 
         io = TokenStream("-.01")
         Lexer.skip(io, 2)
-        n = Lexer.read_number(io, true, true)
+        n = ¬Lexer.read_number(io, true, true)
         @fact n --> -0.01
         @fact typeof(n) --> Float64
 
         io = TokenStream("-.000_1")
         Lexer.skip(io, 2)
-        n = Lexer.read_number(io, true, true)
+        n = ¬Lexer.read_number(io, true, true)
         @fact n --> -0.0001
         @fact typeof(n) --> Float64
 
         io = TokenStream(".01f0")
         Lexer.skip(io, 1)
-        n = Lexer.read_number(io, true, false)
+        n = ¬Lexer.read_number(io, true, false)
         @fact n --> 0.01f0
         @fact typeof(n) --> Float32
 
         io = TokenStream(".000_1f0")
         Lexer.skip(io, 1)
-        n = Lexer.read_number(io, true, false)
+        n = ¬Lexer.read_number(io, true, false)
         @fact n --> 0.0001f0
         @fact typeof(n) --> Float32
 
         io = TokenStream("-.01f0")
         Lexer.skip(io, 2)
-        n = Lexer.read_number(io, true, true)
+        n = ¬Lexer.read_number(io, true, true)
         @fact n --> -0.01f0
         @fact typeof(n) --> Float32
 
         io = TokenStream("-.000_1f0")
         Lexer.skip(io, 2)
-        n = Lexer.read_number(io, true, true)
+        n = ¬Lexer.read_number(io, true, true)
         @fact n --> -0.0001f0
         @fact typeof(n) --> Float32
     end
 
     context("floating point hex") do
         io = TokenStream("0x1.8p3")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 12.0
         @fact typeof(n) --> Float64
 
         io = TokenStream("0x0.4p-1")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 0.125
         @fact typeof(n) --> Float64
     end
 
     context("binary") do
         io = TokenStream(string("0b", bin(10)))
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 10
     end
 
     context("hex") do
         io = TokenStream(string("0x", hex(10), " "))
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 10
 
         io = TokenStream("0xffff7f000001")
-        n = Lexer.read_number(io, false, false)
+        n = ¬Lexer.read_number(io, false, false)
         @fact n --> 0xffff7f000001
     end
 
     context("bigint") do
         io = TokenStream("15732444386908125794514089057706229429197107928209")
-        n  = Lexer.read_number(io, false, false)
+        n  = ¬Lexer.read_number(io, false, false)
         @fact n --> @compat parse(BigInt, "15732444386908125794514089057706229429197107928209")
         @fact typeof(n) --> BigInt
     end

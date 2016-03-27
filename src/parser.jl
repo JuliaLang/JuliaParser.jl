@@ -5,12 +5,14 @@ using Compat
 using ..Lexer
 
 # These symbols are described in token.jl
-using ..Lexer: ¬, ⨳, ⪥, ⤄
+using ..Lexer: ¬, ⨳, ⪥, ⤄, AbstractToken, here
 using AbstractTrees: children
 
 export parse
 
 typealias CharSymbol @compat(Union{Char, Symbol})
+
+include("diagnostics.jl")
 
 type ParseState
     # disable range colon for parsing ternary cond op
@@ -132,7 +134,7 @@ macro space_sensitive(ps, body)
 end
 
 curline(ts::TokenStream)  = ts.lineno
-filename(ts::TokenStream) = symbol("none")
+filename(ts::TokenStream) = ts.filename
 
 if VERSION < v"0.4"
     line_number_node(ts) = LineNumberNode(curline(ts))
@@ -170,6 +172,7 @@ const EOF = Lexer.EOF
 
 const is_invalid_initial_token = let invalid = Set([')', ']', '}', SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
     is_invalid_initial_token(t) = isa(t, CharSymbol) && t in invalid
+    is_invalid_initial_token(t::AbstractToken) = is_invalid_initial_token(¬t)
 end
 
 const is_closing_token = let closing = Set([',', ')', ']', '}', ';', SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
@@ -250,14 +253,14 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
             args = parse_chain(ps, ts, down, :(~))
             nt   = peek_token(ps, ts)
             if isa(¬nt, CharSymbol) && ¬nt in ops
-                ex = Expr(:macrocall, symbol("@~"), ex)
+                ex = ⨳(:macrocall, symbol("@~"), ex)
                 for i=1:length(args)-1
-                    push!(ex.args, args[i])
+                    ex = ex ⪥ (args[i],)
                 end
-                push!(ex.args, parse_RtoL(ps, ts, down, ops, args[end]))
+                ex = ex ⪥ (parse_RtoL(ps, ts, down, ops, args[end]),)
                 return ex
             else
-                ex = Expr(:macrocall, symbol("@~"), ex); append!(ex.args, args)
+                ex = ⨳(:macrocall, symbol("@~"), ex) ⪥ args
                 return ex
             end
         else
@@ -268,13 +271,13 @@ end
 
 function parse_cond(ps::ParseState, ts::TokenStream)
     ex = parse_or(ps, ts)
-    if peek_token(ps, ts) === :(?)
+    if ¬peek_token(ps, ts) === :(?)
         take_token(ts)
         then = @without_range_colon ps begin
             parse_eqs(ps, ts)
         end
-        take_token(ts) === :(:) || throw(ParseError("colon expected in \"?\" expression"))
-        return Expr(:if, ex, then, parse_eqs(ps, ts))
+        ¬take_token(ts) === :(:) || throw(ParseError("colon expected in \"?\" expression"))
+        return ⨳(:if, ex, then, parse_eqs(ps, ts))
     end
     return ex
 end
@@ -441,11 +444,11 @@ is_large_number(n::Number) = false
 const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
     is_juxtaposed(ps::ParseState, ex, t) = begin
         return !(Lexer.is_operator(¬t)) &&
-               !(Lexer.is_operator(ex)) &&
+               !(Lexer.is_operator(¬ex)) &&
                !(¬t in Lexer.reserved_words) &&
                !(is_closing_token(ps, t)) &&
                !(Lexer.isnewline(¬t)) &&
-               !(isa(¬ex, Expr) && ¬ex.head === :(...)) &&
+               !(isa(¬ex, Expr) && (¬ex).head === :(...)) &&
                ((isa(¬ex, Number) && !isa(¬ex, Char)) || !in(¬t, invalid_chars))
     end
 end
@@ -480,9 +483,9 @@ function parse_range(ps::ParseState, ts::TokenStream)
             end
             if is_closing_token(ps, peek_token(ps, ts))
                 # handles :(>:) case
-                if isa(ex, Symbol) && Lexer.is_operator(ex)
+                if isa(ex, Symbol) && Lexer.is_operator(¬ex)
                     op = symbol(string(ex, t))
-                    Lexer.is_operator(op) && return op
+                    Lexer.is_operator(¬op) && return op
                 end
                 throw(ParseError("missing last argument in \"$(ex):\"range expression"))
             end
@@ -525,7 +528,7 @@ function parse_decl(ps::ParseState, ts::TokenStream)
             take_token(ts)
             # -> is unusual it binds tightly on the left and loosely on the right
             lno = line_number_filename_node(ts)
-            return Expr(:(->), ex, Expr(:block, lno, parse_eqs(ps, ts)))
+            return ⨳(:(->), ex, ⨳(:block, lno, parse_eqs(ps, ts)))
         end
         return ex
     end
@@ -542,18 +545,18 @@ function parse_factorh(ps::ParseState, ts::TokenStream, down::Function, ops)
 end
 
 function negate(n)
-    if isa(n, Number)
-        if isa(n, Int64) && n == -9223372036854775808
+    if isa(¬n, Number)
+        if isa(¬n, Int64) && ¬n == -9223372036854775808
             # promote to Int128
-            return 9223372036854775808
+            return typeof(n)(9223372036854775808) ⤄ n
         end
         if isa(n, Int128) && n == -170141183460469231731687303715884105728
             # promote to BigInt
-            return BigInt("170141183460469231731687303715884105728")
+            return typeof(n)(BigInt("170141183460469231731687303715884105728"))
         end
-        return -n
-    elseif isa(n, Expr)
-        return n.head === :(-) && length(n.args) == 1 ? n.args[1] : Expr(:-, n)
+        return typeof(n)(-(¬n)) ⤄ n
+    elseif isa(¬n, Expr)
+        return (¬n).head === :(-) && length(n.args) == 1 ? (¬n).args[1] : ⨳(:-, n)
     end
     throw(ArgumentError("negate argument is not a Number or Expr"))
 end
@@ -652,18 +655,18 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
         t = peek_token(ps, ts)
         if (ps.space_sensitive && ts.isspace &&
            (¬t === SYM_SQUOTE || ¬t in BEGIN_CHARS) ||
-           (isa(ex, Number) && ¬t === '('))
+           (isa(¬ex, Number) && ¬t === '('))
             return ex
         end
         if ¬t === '('
             take_token(ts)
-            arglist = parse_arglist(ps, ts, ')')
+            arglist = parse_arglist(ps, ts, ')', t)
             closer = take_token(ts)
             params, args = separate(is_parameter, arglist)
-            if peek_token(ps, ts) === SYM_DO
+            if ¬peek_token(ps, ts) === SYM_DO
                 take_token(ts)
                 ex = ⨳(:call, ex) ⪥ params
-                ex ⪥ parse_do(ps,ts)
+                ex ⪥ (parse_do(ps,ts),)
                 ex ⪥ args
             else
                 ex = ⨳(:call, ex) ⪥ arglist
@@ -700,9 +703,9 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             elseif (¬al).head === :vcat
                 ex = ⨳(:typed_vcat, ex) ⪥ al
             elseif (¬al).head === :comprehension
-                ex = Expr(:typed_comprehension, ex); append!(ex.args, al.args)
+                ex = ⨳(:typed_comprehension, ex) ⪥ al
             elseif (¬al).head === :dict_comprehension
-                ex = Expr(:typed_dict_comprehension, ex); append!(ex.args, al.args)
+                ex = ⨳(:typed_dict_comprehension, ex) ⪥ al
             else
                 throw(ParseError("unknown parse-cat result (internal error)"))
             end
@@ -720,7 +723,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             else
                 name = parse_atom(ps, ts)
                 if isa(¬name, Expr) && ¬name.head === :macrocall
-                    ex = ⨳(:macrocall, Expr(:(.), ex, Expr(:quote, name.args[1])))
+                    ex = ⨳(:macrocall, ⨳(:(.), ex, Expr(:quote, name.args[1])))
                     append!(ex.args, name.args[2:end])
                 else
                     ex = ⨳(:(.), ex, QuoteNode(¬name) ⤄ √name)
@@ -761,7 +764,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                         dedent_triple_quoted_string(str.args[1]) :
                         str.args[1]
                 end
-                if isa(nt, Symbol) && !Lexer.is_operator(nt) && !ts.isspace
+                if isa(nt, Symbol) && !Lexer.is_operator(¬nt) && !ts.isspace
                     # string literal suffix "s"x
                     ex = Expr(:macrocall, macname, macstr, string(take_token(ts)))
                 else
@@ -822,7 +825,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 local ex
                 if !isempty(blk.args) &&
                     ((isa(blk.args[1], Expr) && blk.args[1].head === :line) || (isa(blk.args[1], LineNumberNode)))
-                    ex = Expr(:block, loc)
+                    ex = ⨳(:block, loc)
                     for i in 2:length(blk.args)
                         push!(ex.args, blk.args[i])
                     end
@@ -851,7 +854,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
             elseif ¬word === :if
                 test = parse_cond(ps, ts)
                 t    = require_token(ps, ts)
-                then = (t === SYM_ELSE || t === SYM_ELSEIF) ? Expr(:block) :
+                then = (¬t === SYM_ELSE || ¬t === SYM_ELSEIF) ? Expr(:block) :
                                                               parse_block(ps, ts)
                 nxt = require_token(ps, ts)
                 take_token(ts)
@@ -861,10 +864,10 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                     if Lexer.isnewline(¬peek_token(ps, ts))
                         throw(ParseError("missing condition in elseif at {filename} : {line}"))
                     end
-                    blk = ⨳(:block, line_number_node(ts), parse_resword(ps, ts, nxt))
-                    return Expr(word, test, then, blk)
+                    blk = ⨳(:block, line_number_node(ts), parse_resword(ps, ts, :if))
+                    return ⨳(word, test, then, blk)
                 elseif ¬nxt === SYM_ELSE
-                    if peek_token(ps, ts) === :if
+                    if ¬peek_token(ps, ts) === :if
                         throw(ParseError("use elseif instead of else if"))
                     end
                     blk = parse_block(ps, ts)
@@ -884,12 +887,12 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 end
                 ex = parse_block(ps, ts)
                 expect_end(ps, ts, ¬word)
-                ex = Expr(:let, ex); append!(ex.args, binds)
+                ex = ⨳(:let, ex) ⪥ binds
                 return ex
 
             elseif ¬word === :global || ¬word === :local
                 lno = curline(ts)
-                isconst = peek_token(ps, ts) === :const ? (take_token(ts); true) : false
+                isconst = ¬peek_token(ps, ts) === :const ? (take_token(ts); true) : false
                 args = Any[]
                 for aex in parse_comma_sep_assigns(ps, ts)
                     push!(args, short_form_function_loc(aex, lno, filename(ts)))
@@ -930,20 +933,20 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 return ⨳(word, def, body)
 
             elseif ¬word === :abstract
-                return Expr(:abstract, parse_subtype_spec(ps, ts))
+                return ⨳(:abstract, parse_subtype_spec(ps, ts))
 
             elseif ¬word === :type || ¬word === :immutable
-                istype = word === :type
+                istype = ¬word === :type
                 if VERSION < v"0.4"
                     # allow "immutable type"
-                    (!istype && peek_token(ps, ts) === :type) && take_token(ts)
+                    (!istype && ¬peek_token(ps, ts) === :type) && take_token(ts)
                 elseif ¬peek_token(ps, ts) in Lexer.reserved_words
                     throw(ParseError(string("invalid type name \"",
                         take_token(ts),"\"")))
                 end
                 sig = parse_subtype_spec(ps, ts)
                 blk = parse_block(ps, ts)
-                ex  = Expr(:type, istype, sig, blk)
+                ex  = ⨳(:type, istype, sig, blk)
                 expect_end(ps, ts, ¬word)
                 return ex
 
@@ -951,15 +954,15 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 stmnt = @space_sensitive ps begin
                     parse_cond(ps, ts)
                 end
-                return Expr(:bitstype, stmnt, parse_subtype_spec(ps, ts))
+                return ⨳(:bitstype, stmnt, parse_subtype_spec(ps, ts))
 
             elseif ¬word === :typealias
                 lhs = parse_call(ps, ts)
                 if isa(lhs, Expr) && lhs.head === :call
                     # typealias X (...) is a tuple type alias, not call
-                    return Expr(:typealias, lhs.args[1], Expr(:tuple, lhs.args[2:end]...))
+                    return ⨳(:typealias, lhs.args[1], Expr(:tuple, lhs.args[2:end]...))
                 else
-                    return Expr(:typealias, lhs, parse_arrow(ps, ts))
+                    return ⨳(:typealias, lhs, parse_arrow(ps, ts))
                 end
 
             elseif ¬word === :try
@@ -984,7 +987,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                         end
                         t = require_token(ps, ts)
                         if ¬t === SYM_END || ¬t === SYM_FINALLY
-                            catchb = Expr(:block)
+                            catchb = ⨳(:block)
                             catchv = false
                             continue
                         else
@@ -996,7 +999,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                             if isvar
                                 catchb = catch_block
                             else
-                                exb = Expr(:block, var)
+                                exb = ⨳(:block, var)
                                 append!(exb.args, catch_block.args);
                                 catchb = exb
                             end
@@ -1022,12 +1025,12 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
 
             elseif ¬word === :const
                 assgn = parse_eq(ps, ts)
-                if !(isa(assgn, Expr) && (assgn.head === :(=) ||
-                                          assgn.head === :global ||
-                                          assgn.head === :local))
+                if !(isa(¬assgn, Expr) && ((¬assgn).head === :(=) ||
+                                          (¬assgn).head === :global ||
+                                          (¬assgn).head === :local))
                     throw(ParseError("expected assignment after \"const\""))
                 end
-                return Expr(:const, assgn)
+                return ⨳(:const, assgn)
 
             elseif ¬word === :module || ¬word === :baremodule
                 isbare = ¬word === :baremodule
@@ -1039,32 +1042,32 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                     # add definitions for module_local eval
                     block = Expr(:block)
                     x = name === :x ? :y : :x
-                    evalcall1 = Expr(:call, Expr(:(.), TopNode(:Core),
+                    evalcall1 = ⨳(:call, Expr(:(.), TopNode(:Core),
                                 _QuoteNode(:eval)), name, x)
                     push!(block.args,
-                        Expr(:(=), Expr(:call, :eval, x), VERSION < v"0.4" ?
+                        Expr(:(=), ⨳(:call, :eval, x), VERSION < v"0.4" ?
                             evalcall1 : Expr(:block, location, evalcall1)))
-                    evalcall2 = Expr(:call, Expr(:(.), TopNode(:Core),
+                    evalcall2 = ⨳(:call, Expr(:(.), TopNode(:Core),
                                 _QuoteNode(:eval)), :m, :x)
                     push!(block.args,
-                        Expr(:(=), Expr(:call, :eval, :m, :x),
+                        ⨳(:(=), Expr(:call, :eval, :m, :x),
                             VERSION < v"0.4" ? evalcall2 :
                             Expr(:block, location, evalcall2)))
                     append!(block.args, body.args)
                     body = block
                 end
-                return Expr(:module, !isbare, name, body)
+                return ⨳(:module, !isbare, name, body)
 
             elseif ¬word === :export
                 exports = map(macrocall_to_atsym, parse_comma_sep(ps, ts, parse_atom))
-                !all(x -> isa(x, Symbol), exports) && throw(ParseError("invalid \"export\" statement"))
-                ex = Expr(:export); ex.args = exports
+                !all(x -> isa(¬x, Symbol), exports) && throw(ParseError("invalid \"export\" statement"))
+                ex = ⨳(:export) ⪥ exports
                 return ex
 
             elseif ¬word === :import || ¬word === :using || ¬word === :importall
                 imports = parse_imports(ps, ts, word)
                 length(imports) == 1 && return imports[1]
-                ex = Expr(:toplevel); ex.args = imports
+                ex = ⨳(:toplevel) ⪥ imports
                 return ex
 
             elseif ¬word === :ccall
@@ -1073,13 +1076,14 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 al = parse_arglist(ps, ts, ')')
                 if length(al) > 1
                     al1, al2 = al[1], al[2]
-                    if al2 === :cdecl || al2 === :stdcall || al2 == :fastcall || al2 == :thiscall
+                    if ¬al2 === :cdecl || ¬al2 === :stdcall || ¬al2 == :fastcall || ¬al2 == :thiscall
                         # place calling convention at end of arglist
-                        ex = Expr(:ccall, al1)
+                        ex = ⨳(:ccall, al1)
                         for i = 3:length(al)
-                            push!(ex.args, al[i])
+                            ex = ex ⪥ (al[i],)
                         end
-                        push!(ex.args, Expr(al2))
+                        ex = ex ⪥ (⨳(al2),)
+                        ex = ex ⤄ take_token(ts)
                         return ex
                     end
                 end
@@ -1117,7 +1121,7 @@ function parse_do(ps::ParseState, ts::TokenStream)
         blk = parse_block(ps, ts)
         add_filename_to_block!(blk, loc)
         expect_end(ps, ts, :do)
-        return Expr(:(->), Expr(:tuple, doargs...), blk)
+        return ⨳(:(->), ⨳(:tuple, doargs...), blk)
     end
 end
 
@@ -1126,12 +1130,12 @@ macrocall_to_atsym(ex) = isa(ex, Expr) && ex.head === :macrocall ? ex.args[1] : 
 function parse_imports(ps::ParseState, ts::TokenStream, word)
     frst = Any[parse_import(ps, ts, word)]
     nt   = peek_token(ps, ts)
-    from = nt === :(:) && !ts.isspace
+    from = ¬nt === :(:) && !ts.isspace
     done = false
-    if from || nt === ','
+    if from || ¬nt === ','
         take_token(ts)
         done = false
-    elseif nt === '.'
+    elseif ¬nt === '.'
         done = false
     else
         done = true
@@ -1158,22 +1162,22 @@ function parse_import_dots(ps::ParseState, ts::TokenStream)
     l = Any[]
     t = peek_token(ps, ts)
     while true
-        if t === sym_1dot
+        if ¬t === sym_1dot
             take_token(ts)
             push!(l, :(.))
             t = peek_token(ps, ts)
             continue
-        elseif t === sym_2dots
+        elseif ¬t === sym_2dots
             take_token(ts)
             append!(l, [:(.), :(.)])
             t = peek_token(ps, ts)
             continue
-        elseif t === sym_3dots
+        elseif ¬t === sym_3dots
             take_token(ts)
             append!(l, [:(.), :(.), :(.)])
             t = peek_token(ps, ts)
             continue
-        elseif t === sym_4dots
+        elseif ¬t === sym_4dots
             take_token(ts)
             append!(l, [:(.), :(.), :(.), :(.)])
             t = peek_token(ps, ts)
@@ -1202,7 +1206,7 @@ function parse_comma_sep(ps::ParseState, ts::TokenStream, what::Function)
     exprs = Any[]
     while true
         r = what(ps, ts)
-        if peek_token(ps, ts) === ','
+        if ¬peek_token(ps, ts) === ','
             take_token(ts)
             push!(exprs, r)
             continue
@@ -1283,8 +1287,9 @@ end
 #
 # Note: We do not take the closer. The caller is responsible for taking it
 # (e.g. for range extension)
-function _parse_arglist(ps::ParseState, ts::TokenStream, closer)
+function _parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
     lst = Any[]
+    loc = here(ts)
     while true
         t = require_token(ps, ts)
         if ¬t === closer
@@ -1299,6 +1304,7 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer)
             lst = closer === ')' ? to_kws(lst) : lst
             return unshift!(lst, ⨳(:parameters, params...))
         end
+        loc = here(ts)
         nxt = parse_eqs(ps, ts)
         nt  = require_token(ps, ts)
         if ¬nt === ','
@@ -1314,15 +1320,17 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer)
         elseif ¬nt in (']', '}')
             throw(ParseError("unexpected \"$nt\" in argument list"))
         else
-            throw(ParseError("missing comma or \"$closer\" in argument list"))
+            D = diag(loc,"Expected '$closer' or ','")
+            diag(D, √opener, "to match '$(¬opener)' here", :note)
+            throw(D)
         end
     end
 end
 
-function parse_arglist(ps::ParseState, ts::TokenStream, closer)
+function parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
     @with_normal_ops ps begin
         @with_whitespace_newline ps begin
-            return _parse_arglist(ps, ts, closer)
+            return _parse_arglist(ps, ts, closer, opener)
         end
     end
 end
@@ -1340,11 +1348,11 @@ function parse_vect(ps::ParseState, ts::TokenStream, frst, closer)
         end
         if ¬t === ','
             take_token(ts)
-            if require_token(ps, ts) === closer
+            if ¬require_token(ps, ts) === closer
                 # allow ending with ,
                 take_token(ts)
-                ex = Expr(VERSION < v"0.4" ? :vcat : :vect)
-                ex.args = push!(lst, nxt)
+                push!(lst, nxt)
+                ex = ⨳(VERSION < v"0.4" ? :vcat : :vect) ⪥ lst
                 return ex
             end
             lst = push!(lst, nxt)
@@ -1352,7 +1360,7 @@ function parse_vect(ps::ParseState, ts::TokenStream, frst, closer)
             continue
         elseif ¬t === ';'
             take_token(ts)
-            peek_token(ps, ts) === closer && continue
+            ¬peek_token(ps, ts) === closer && continue
             pex = Expr(:parameters); ex.args = parse_arglist(ps, ts, closer)
             unshift!(pex.args, lst)
             ex = Expr(:vcat); ex.args = reverse(push!(lst, next))
@@ -1385,8 +1393,8 @@ end
 function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer)
     itrs = parse_comma_sep_iters(ps, ts)
     t = require_token(ps, ts)
-    t === closer ? take_token(ts) : throw(ParseError("expected $closer"))
-    ex = Expr(:comprehension, frst); append!(ex.args, itrs)
+    ¬t === closer ? take_token(ts) : throw(ParseError("expected $closer"))
+    ex = ⨳(:comprehension, frst) ⪥ itrs
     return ex
 end
 
@@ -1567,7 +1575,7 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
         c = Lexer.readchar(ts)
         continue
     end
-    return Expr(:macrocall, symbol("@cmd"), bytestring(buf))
+    return ⨳(:macrocall, symbol("@cmd"), bytestring(buf))
 end
 
 function parse_interpolate(ps::ParseState, ts::TokenStream)
@@ -1746,7 +1754,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     # empty tuple
                     take_token(ts)
                     return (⨳(:tuple) ⤄ t) ⤄ rt
-                elseif peek_token(ps, ts) in Lexer.syntactic_ops
+                elseif ¬peek_token(ps, ts) in Lexer.syntactic_ops
                     # allow (=) etc.
                     t = take_token(ts)
                     ¬require_token(ps, ts) !== ')' && throw(ParseError("invalid identifier name \"$t\""))
@@ -1808,19 +1816,19 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         if isempty(vex.args)
             return Expr(:cell1d)
         elseif vex.head === :comprehension
-            ex = Expr(:typed_comprehension, TopNode(:Any))
+            ex = ⨳(:typed_comprehension, TopNode(:Any))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :dict_comprehension
-            ex = Expr(:typed_dict_comprehension, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
+            ex = ⨳(:typed_dict_comprehension, ⨳(:(=>), TopNode(:Any), TopNode(:Any)))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :dict
-            ex = Expr(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
+            ex = ⨳(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
             append!(ex.args, vex.args)
             return ex
         elseif vex.head === :hcat
-            ex = Expr(:cell2d, 1, length(vex.args))
+            ex = ⨳(:cell2d, 1, length(vex.args))
             append!(ex.args, vex.args)
             return ex
         else # Expr(:vcat, ...)
@@ -1866,7 +1874,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         take_token(ts)
         sl = parse_string_literal(ps, ts, false)
         if VERSION < v"0.4" && triplequote_string_literal(sl)
-            return Expr(:macrocall, symbol("@mstr"), sl.args...)
+            return ⨳(:macrocall, symbol("@mstr"), sl.args...)
         end
         if interpolate_string_literal(sl)
             notzerolen = (s) -> !(isa(s, AbstractString) && isempty(s))
@@ -1913,7 +1921,7 @@ end
 
 function parse_atom(ps::ParseState, ts::TokenStream)
     ex = _parse_atom(ps, ts)
-    if (ex !== :(=>) && (ex in Lexer.syntactic_ops)) || ex === :(...)
+    if (¬ex !== :(=>) && (¬ex in Lexer.syntactic_ops)) || ¬ex === :(...)
         throw(ParseError("invalid identifier name \"$ex\""))
     end
     return ex
@@ -1921,7 +1929,7 @@ end
 
 function is_valid_modref(ex::Expr)
     return length(ex.args) == 2 &&
-           ex.head === :(.) &&
+            ex.head === :(.) &&
            ((isa(ex.args[2], Expr) &&
              ex.args[2].head === :quote &&
              isa(ex.args[2].args[1], Symbol)) ||

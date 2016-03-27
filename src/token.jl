@@ -8,14 +8,17 @@ import Base: convert
 
 abstract AbstractToken
 
-const ASTVerbatim = Union{Expr,Symbol,ASCIIString,UTF8String,LineNumberNode,Int,Void,Char}
+const ASTVerbatim = Union{Expr,Symbol,ASCIIString,UTF8String,LineNumberNode,Int,Void,Char,Bool}
 const ASTExprs = Union{Expr, QuoteNode}
+
+# Defensive definitions
+Base.isequal(x::AbstractToken, y::ASTVerbatim) = error("Comparing token to raw AST Node")
 
 immutable Token <: AbstractToken
   val::TokenValue
 end
 val(t::Token) = t.val
-val(t::ASTVerbatim) = t
+val(t::Union{ASTVerbatim,ASTExprs}) = t
 √(t::Union{ASTVerbatim, ASTExprs, Expr, Symbol, Token}) = nothing
 
 immutable SourceRange
@@ -31,6 +34,7 @@ immutable SourceLocToken <: AbstractToken
 end
 SourceLocToken(val, offset, length, file) =
     SourceLocToken(val, SourceRange(offset, length, file))
+SourceLocToken(val) = SourceLocToken(val, SourceRange())
 val(t::SourceLocToken) = t.val
 
 const ¬ = val

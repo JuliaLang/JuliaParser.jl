@@ -272,6 +272,7 @@ const is_dot_opchar = let chars = Set{Char}(".*^/\\+-'<>!=%≥≤≠")
 end
 
 is_operator(op::Symbol) = in(op, operators)
+is_operator(op::AbstractToken) = is_operator(¬op)
 is_operator(op) = false
 
 #= Implement peekchar for IOBuffer and IOStream =#
@@ -328,7 +329,7 @@ type TokenStream{T}
     filename::AbstractString
 end
 
-(::Type{TokenStream{T}}){T}(io::IO) = TokenStream{T}(io, 1, nothing, nothing, false, eof(io), "")
+(::Type{TokenStream{T}}){T}(io::IO) = TokenStream{T}(io, 1, nothing, nothing, false, eof(io), "none")
 (::Type{TokenStream{T}}){T}(str::AbstractString) = TokenStream{T}(IOBuffer(str))
 TokenStream(x) = TokenStream{Token}(x)
 
@@ -561,6 +562,7 @@ end
 
 #TODO: try to remove neg as it is not needed for the lexer
 function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
+    r = startrange(ts)
     charr = Char[]
     pred::Function = isdigit
 
@@ -635,17 +637,17 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     # remove the - and parse instead as a call to unary -
     (neg && base != 10 && !is_hexfloat_literal) && (str = str[2:end])
     if is_hexfloat_literal
-        return @compat parse(Float64,str)
+        return make_token((@compat parse(Float64,str)), makerange(ts, r))
     elseif pred == is_char_hex
-        return fix_uint_neg(neg, sized_uint_literal(str, 4))
+        return make_token(fix_uint_neg(neg, sized_uint_literal(str, 4)), makerange(ts, r))
     elseif pred == is_char_oct
-        return fix_uint_neg(neg, sized_uint_oct_literal(str))
+        return make_token(fix_uint_neg(neg, sized_uint_oct_literal(str)), makerange(ts, r))
     elseif pred == is_char_bin
-        return fix_uint_neg(neg, sized_uint_literal(str, 1))
+        return make_token(fix_uint_neg(neg, sized_uint_literal(str, 1)), makerange(ts, r))
     elseif is_float32_literal
-        return convert(Float32, string_to_number(str))
+        return make_token(convert(Float32, string_to_number(str)), makerange(ts, r))
     else
-        return string_to_number(str)
+        return make_token(string_to_number(str), makerange(ts, r))
     end
 end
 
@@ -735,6 +737,8 @@ end
 make_token(::Type{Token},val,start,offset) = Token(val)
 make_token(::Type{SourceLocToken},val,start,length) =
     SourceLocToken(val,start,length,0)
+make_token(val, r::Void) = Token(val)
+make_token(val, r::SourceRange) = Token(val)
 
 EOF(::Type{Token}) = Token(convert(Char,typemax(UInt32)))
 EOF(::Type{SourceLocToken}) = SourceLocToken(convert(Char,typemax(UInt32)),0,0,0)
@@ -750,10 +754,12 @@ end
 startrange(ts::TokenStream{SourceLocToken}) = position(ts.io)
 makerange(ts::TokenStream{SourceLocToken}, r) = SourceRange(r,position(ts.io)-r,0)
 nullrange(ts::TokenStream{SourceLocToken}) = SourceRange(position(ts.io),0,0)
+here(ts::TokenStream{SourceLocToken}) = SourceRange(position(ts.io),1,0)
 
 startrange(ts::TokenStream) = nothing
 makerange(ts::TokenStream, r) = nothing
 nullrange(ts::TokenStream) = nothing
+here(ts::TokenStream) = nothing
 
 function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
     ts.ateof && return EOF(T)
@@ -779,12 +785,12 @@ function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
         elseif is_special_char(c)
             return @tok readchar(ts)
         elseif isdigit(c)
-            return @tok read_number(ts, false, false)
+            return read_number(ts, false, false)
         elseif c === '.'
             skip(ts, 1)
             nc = peekchar(ts)
             if isdigit(nc)
-                return @tok read_number(ts, true, false)
+                return read_number(ts, true, false)
             elseif is_opchar(nc)
                 return @tok begin
                     op = read_operator(ts, c)
