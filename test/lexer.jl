@@ -6,6 +6,8 @@ const Lexer = JuliaParser.Lexer
 const TokenStream = JuliaParser.Lexer.TokenStream
 const utf8sizeof = Lexer.utf8sizeof
 
+using Lexer: ¬
+
 facts("test skip to end of line") do
     io = IOBuffer("abcd\nabcd\n")
     Lexer.skip_to_eol(io)
@@ -686,7 +688,7 @@ tokens(ts::TokenStream) = begin
     return toks
 end
 tokens(str::AbstractString) = tokens(TokenStream(str))
-
+raw_tokens(s) = map(¬,tokens(s))
 
 facts("test TokenStream constructor") do
     io = TokenStream("testfunc(i) = i * i")
@@ -702,10 +704,10 @@ facts("test set_token! / last_token") do
     code = "1 + 1"
 
     tks = tokens(code)
-    @fact tks --> Any[1, :+, 1]
+    @fact map(¬,tks) --> Any[1, :+, 1]
 
     ts = TokenStream(code)
-    @fact Lexer.last_token(ts) --> nothing
+    @fact ¬Lexer.last_token(ts) --> nothing
 
     Lexer.set_token!(ts, tks[1])
     @fact Lexer.last_token(ts) --> tks[1]
@@ -728,11 +730,11 @@ facts("test peek_token") do
     tks  = tokens(code)
     ts   = TokenStream(code)
     @fact Lexer.peek_token(ts) --> tks[1]
-    Lexer.put_back!(ts, :test)
-    @fact Lexer.peek_token(ts) --> :test
-    @fact_throws Lexer.put_back!(ts, :test2)
-    Lexer.set_token!(ts, :test2)
-    @fact Lexer.peek_token(ts) --> :test
+    Lexer.put_back!(ts, Lexer.Token(:test))
+    @fact ¬Lexer.peek_token(ts) --> :test
+    @fact_throws Lexer.put_back!(ts, Lexer.Token(:test2))
+    Lexer.set_token!(ts, Lexer.Token(:test2))
+    @fact ¬Lexer.peek_token(ts) --> :test
 end
 
 # you must peek before you can take
@@ -752,7 +754,7 @@ facts("test require_token") do
     ts   = TokenStream(code)
     for t in (1, :+, 1)
         tk = Lexer.require_token(ts)
-        @fact tk --> t
+        @fact ¬tk --> t
         Lexer.take_token(ts)
     end
 end
@@ -760,62 +762,62 @@ end
 facts("test next_token") do
     # throw EOF error
     ts  = Lexer.TokenStream("")
-    @fact Lexer.next_token(ts) --> Lexer.EOF
+    @fact Lexer.next_token(ts) --> Lexer.EOF(Lexer.Token)
 
     ts  = Lexer.TokenStream("\n")
     tok = Lexer.next_token(ts)
-    @fact tok --> '\n'
+    @fact ¬tok --> '\n'
 
-    toks = tokens("true false")
+    toks = raw_tokens("true false")
     @fact toks --> Any[true, false]
 
-    toks = tokens("(test,)")
+    toks = raw_tokens("(test,)")
     @fact toks --> Any['(', :test, ',', ')']
 
-    toks = tokens("[10.0,2.0]")
+    toks = raw_tokens("[10.0,2.0]")
     @fact toks --> Any['[', 10.0, ',', 2.0, ']']
 
-    toks = tokens("#test\n{10,};")
+    toks = raw_tokens("#test\n{10,};")
     @fact toks --> Any['\n', '{', 10, ',', '}', ';']
 
-    toks = tokens("#=test1\ntest2\n=#@test\n")
+    toks = raw_tokens("#=test1\ntest2\n=#@test\n")
     @fact toks --> Any['@', :test, '\n']
 
-    toks = tokens("1<=2")
+    toks = raw_tokens("1<=2")
     @fact toks --> Any[1, :(<=), 2]
 
-    toks = tokens("1.0 .+ 2")
+    toks = raw_tokens("1.0 .+ 2")
     @fact toks --> Any[1.0, :(.+), 2]
 
-    toks = tokens("abc .+ .1")
+    toks = raw_tokens("abc .+ .1")
     @fact toks --> Any[:abc, :(.+), 0.1]
 
-    toks = tokens("`ls`")
+    toks = raw_tokens("`ls`")
     @fact toks --> Any['`', :ls, '`']
 
-    toks = tokens("@testmacro")
+    toks = raw_tokens("@testmacro")
     @fact toks --> Any['@', :testmacro]
 
-    toks = tokens("x::Int32 + 1")
+    toks = raw_tokens("x::Int32 + 1")
     @fact toks --> Any[:x, :(::), :Int32, :(+), 1]
 
-    toks = tokens("func(2) |> send!")
+    toks = raw_tokens("func(2) |> send!")
     @fact toks --> Any[:func, '(', 2, ')', :(|>), :(send!)]
 
     sym_end = symbol("end")
 
-    toks = tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend")
+    toks = raw_tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend")
     @fact toks --> Any[:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',
                    :a, :(::), :T, '\n',
                    :b, :(::), :T, '\n',
                    sym_end]
 
-    toks = tokens("function(x::Int)\n\treturn x^2\nend")
+    toks = raw_tokens("function(x::Int)\n\treturn x^2\nend")
     @fact toks --> Any[:function, '(', :x, :(::), :Int, ')', '\n',
                    :return , :x, :(^), 2, '\n',
                    sym_end]
 
-    toks = tokens("+(x::Bool, y::Bool) = int(x) + int(y)")
+    toks = raw_tokens("+(x::Bool, y::Bool) = int(x) + int(y)")
     @fact toks --> Any[:+, '(', :x, :(::), :Bool, ',', :y, :(::), :Bool, ')',
                    :(=), :int, '(', :x, ')', :+, :int, '(', :y, ')']
 end

@@ -157,6 +157,7 @@ const is_special_char = let chars = Set{Char}("()[]{},;\"`@")
 end
 
 isnewline(c::Char) = c === '\n'
+isnewline(t::AbstractToken) = isnewline(¬t)
 isnewline(c) = false
 
 function isuws(c::Char)
@@ -734,10 +735,10 @@ end
 make_token(::Type{Token},val,start,offset) = Token(val)
 make_token(::Type{SourceLocToken},val,start,length) =
     SourceLocToken(val,start,length,0)
-  
+
 EOF(::Type{Token}) = Token(convert(Char,typemax(UInt32)))
 EOF(::Type{SourceLocToken}) = SourceLocToken(convert(Char,typemax(UInt32)),0,0,0)
-  
+
 macro tok(val)
     esc(quote
         loc = position(ts.io)
@@ -745,15 +746,15 @@ macro tok(val)
         make_token(T,v,loc,position(ts.io)-loc)
     end)
 end
-  
+
 startrange(ts::TokenStream{SourceLocToken}) = position(ts.io)
 makerange(ts::TokenStream{SourceLocToken}, r) = SourceRange(r,position(ts.io)-r,0)
-nullrange(ts::TokenStream{SourceLocToken}) = SourceRange(position(ts.io),0,0)  
-  
+nullrange(ts::TokenStream{SourceLocToken}) = SourceRange(position(ts.io),0,0)
+
 startrange(ts::TokenStream) = nothing
 makerange(ts::TokenStream, r) = nothing
 nullrange(ts::TokenStream) = nothing
-  
+
 function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
     ts.ateof && return EOF(T)
     tmp = skipws(ts, whitespace_newline)

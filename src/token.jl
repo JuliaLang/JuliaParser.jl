@@ -8,12 +8,15 @@ import Base: convert
 
 abstract AbstractToken
 
+const ASTVerbatim = Union{Expr,Symbol,ASCIIString,UTF8String,LineNumberNode,Int,Void,Char}
+const ASTExprs = Union{Expr, QuoteNode}
+
 immutable Token <: AbstractToken
   val::TokenValue
 end
 val(t::Token) = t.val
-val(t::Union{Expr,Symbol,ASCIIString,UTF8String,LineNumberNode,Int}) = t
-
+val(t::ASTVerbatim) = t
+√(t::Union{ASTVerbatim, ASTExprs, Expr, Symbol, Token}) = nothing
 
 immutable SourceRange
     offset::UInt32
@@ -75,7 +78,7 @@ end
 ⤄(ex::Union{ASCIIString, UTF8String, Char, Int}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
 ⤄(ex::Union{Symbol,Expr,Bool,QuoteNode}, x::Union{SourceLocToken,SourceRange}) = SourceExpr(ex,√x)
-⤄(ex::Expr, x::Token) = ex
+⤄(ex::Any, x::Token) = ex
 ⤄(x,y::Void) = x
 
 function sortedcomplement(of::SourceRange, set)
@@ -105,7 +108,7 @@ function ⨳(sym::Symbol, args::Union{SourceLocToken,LineNumberNode,SourceExpr}.
     SourceExpr(Expr(sym,map(¬,args)...),SourceNode(loc,
         [map(x->SourceNode(√x),args)...]))
 end
-⨳(sym::Symbol,args::Union{Token,ASCIIString,UTF8String,Symbol,LineNumberNode,Expr}...) = Expr(sym,map(¬,args)...)
+⨳(sym::Symbol,args::Union{Token,ASTVerbatim,ASTExprs}...) = Expr(sym,map(¬,args)...)
 ⨳(sym::SourceLocToken,args...) = (SourceExpr(Expr(¬sym), SourceRange()) ⪥ args) ⤄ √sym
 ⨳(sym::Token,args...) = ⨳(¬sym,args...)
 
@@ -120,7 +123,8 @@ end
 function expr_append!(ex::SourceExpr, new::SourceExpr)
     expr_append!(ex, collect(map(x->SourceExpr(x[1],SourceNode(x[2])),zip(new.expr.args,children(new.loc)))))
 end
-expr_append!(ex::Expr, args::Array) = (append!(ex.args, args); ex)
+expr_append!(ex::Expr, args::Array) = (append!(ex.args, map(¬,args)); ex)
+expr_append!(ex::Expr, args::Tuple) = (for t in args; push!(ex.args, ¬t); end; ex)
 expr_append!(ex::Expr, new::Expr) = expr_append!(ex, new.args)
 
 const ⪥ = expr_append!
