@@ -738,7 +738,7 @@ make_token(::Type{Token},val,start,offset) = Token(val)
 make_token(::Type{SourceLocToken},val,start,length) =
     SourceLocToken(val,start,length,0)
 make_token(val, r::Void) = Token(val)
-make_token(val, r::SourceRange) = Token(val)
+make_token(val, r::SourceRange) = SourceLocToken(val,r)
 
 EOF(::Type{Token}) = Token(convert(Char,typemax(UInt32)))
 EOF(::Type{SourceLocToken}) = SourceLocToken(convert(Char,typemax(UInt32)),0,0,0)

@@ -1,4 +1,5 @@
 using JuliaParser
+using JuliaParser.Lexer: ¬
 
 immutable REPLDiagnostic
     fname::AbstractString
@@ -18,13 +19,13 @@ function Core.include(fname::ByteString)
     ts.filename = fname
     local result = nothing
     while !Lexer.eof(ts)
-        try
-            ast = Parser.parse(ts)
+        ast = try
+            Parser.parse(ts)
         catch e
             !isa(e, Main.JuliaParser.Parser.Diagnostic) && rethrow(e)
             rethrow(REPLDiagnostic(fname, file, e))
         end
-        result = ccall(:jl_toplevel_eval_flex, Any, (Any, Cint), ast, 1)
+        result = ccall(:jl_toplevel_eval_flex, Any, (Any, Cint), ¬ast, 1)
     end
     result
 end
