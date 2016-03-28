@@ -14,12 +14,15 @@ const ASTExprs = Union{Expr, QuoteNode, TopNode}
 # Defensive definitions
 Base.isequal(x::AbstractToken, y::ASTVerbatim) = error("Comparing token to raw AST Node")
 
+global √
+
 immutable Token <: AbstractToken
   val::TokenValue
 end
 val(t::Token) = t.val
 val(t::Union{ASTVerbatim,ASTExprs}) = t
-√(t::Union{ASTVerbatim, ASTExprs, Expr, Symbol, Token}) = nothing
+√(t::Union{ASTVerbatim, ASTExprs, Expr, Symbol}) = SourceRange()
+√(t::Token) = SourceRange()
 
 immutable SourceRange
     offset::UInt32
@@ -80,13 +83,14 @@ const ⤄ = merge
 function ⤄(ex::SourceExpr, x::SourceRange)
     SourceExpr(ex.expr,SourceNode(ex.loc.loc ⤄ x, ex.loc.children))
 end
+⤄(ex::SourceExpr, x::SourceExpr) = ⤄(ex, √x)
 ⤄(ex::SourceExpr, x::SourceNode) = ⤄(ex, x.loc)
 ⤄(x::Void, y::SourceRange) = SourceExpr(x,SourceNode(y))
 ⤄(ex::Union{ASCIIString, UTF8String, Char, Int}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
 ⤄(tok::SourceLocToken, x::SourceRange) = SourceLocToken(tok.val, tok.loc ⤄ x)
 ⤄(tok::SourceLocToken, x::SourceLocToken) = SourceLocToken(tok.val, tok.loc ⤄ x.loc)
-⤄(ex::Union{Symbol,Expr,Bool,QuoteNode,TopNode}, x::Union{SourceLocToken,SourceRange}) = SourceExpr(ex,√x)
+⤄(ex::Union{Symbol,Expr,Bool,QuoteNode,TopNode,LineNumberNode}, x::Union{SourceLocToken,SourceRange}) = SourceExpr(ex,√x)
 ⤄(ex::Any, x::Token) = ex
 ⤄(x,y::Void) = x
 
@@ -114,7 +118,6 @@ end
 ⨳(sym::Symbol,args::Union{ASTVerbatim}...) = Expr(sym,map(¬,args)...)
 ⨳(sym::Symbol,args::Union{Token,ASTVerbatim,ASTExprs}...) = Expr(sym,map(¬,args)...)
 function ⨳(sym::Symbol, args::Union{ASTVerbatim,SourceLocToken,LineNumberNode,SourceExpr}...)
-    args = filter(x->!isa(x,LineNumberNode),args) # Don't need line number nodes
     loc = normalize(reduce(⤄,map(√,args)))
     SourceExpr(Expr(sym,map(¬,args)...),SourceNode(loc,
         [map(x->SourceNode(√x),args)...]))

@@ -5,7 +5,7 @@ using Compat
 using ..Lexer
 
 # These symbols are described in token.jl
-using ..Lexer: ¬, ⨳, ⪥, ⤄, AbstractToken, here
+using ..Lexer: ¬, ⨳, ⪥, ⤄, √, AbstractToken, here
 using AbstractTrees: children
 
 export parse
@@ -308,7 +308,7 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
     while true
         if !(¬t in ops)
             if !(Lexer.eof(t) || ¬t === '\n' || ',' in ops || ¬t in closers)
-                throw(ParseError("extra token \"$(¬t)\" after end of expression"))
+                throw(diag(√t,"extra token \"$(¬t)\" after end of expression"))
             end
             if isempty(args) || length(args) >= 2
                 # [] => Expr(:head)
@@ -534,8 +534,9 @@ function parse_decl(ps::ParseState, ts::TokenStream)
         if ¬nt === :(->)
             take_token(ts)
             # -> is unusual it binds tightly on the left and loosely on the right
-            lno = line_number_filename_node(ts)
-            return ⨳(:(->), ex, ⨳(:block, lno, parse_eqs(ps, ts)))
+            lno = line_number_filename_node(ts) ⤄ Lexer.nullrange(ts)
+            eqs = parse_eqs(ps, ts)
+            return ⨳(:(->), ex, ⨳(:block, lno, eqs))
         end
         return ex
     end
@@ -619,7 +620,7 @@ function subtype_syntax(ex)
             (((¬ex).head === :comparison && (¬ex).args[2] === :(<:)) ||
              ((¬ex).head === :call && (¬ex).args[1] === :(<:)))
         args = collect(children(ex))
-        return ⨳(:(<:), (¬ex).head == :call ? args[2] : args[1], args[3]) ⤄ √ex
+        return ⨳(:(<:), (¬ex).head == :call ? args[2] : args[1], args[3]) ⤄ ex
     end
     return ex
 end
@@ -735,7 +736,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                     ex = ⨳(:macrocall, ⨳(:(.), ex, Expr(:quote, name.args[1])))
                     append!(ex.args, name.args[2:end])
                 else
-                    ex = ⨳(:(.), ex, QuoteNode(¬name) ⤄ √name)
+                    ex = ⨳(:(.), ex, QuoteNode(¬name) ⤄ name)
                 end
             end
             continue
@@ -836,10 +837,8 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                     arg1 = collect(children(blk))[1]
                     if ((isa(¬arg1, Expr) && (¬arg1).head === :line) || 
                             (isa(¬arg1, LineNumberNode)))
-                        ex = ⨳(:block, loc)
-                        for i in 2:length(blk.args)
-                            ex ⪥ (blk.args[i],)
-                        end
+                        ex = ⨳(:block, loc ⤄ Lexer.nullrange(ts))
+                        ex = ex ⪥ collect(children(blk))[2:end]
                     end
                 else
                     ex = blk
@@ -958,7 +957,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 end
                 sig = parse_subtype_spec(ps, ts)
                 blk = parse_block(ps, ts)
-                ex  = ⨳(:type, istype ⤄ √word, sig, blk)
+                ex  = ⨳(:type, istype ⤄ word, sig, blk)
                 expect_end(ps, ts, ¬word)
                 return ex
 
@@ -1056,15 +1055,15 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                     x = name === :x ? :y : :x
                     evalcall1 = ⨳(:call, ⨳(:(.), TopNode(:Core) ⤄ Lexer.nullrange(ts),
                                 _QuoteNode(:eval) ⤄ Lexer.nullrange(ts)), name, x)
-                    push!(block.args,
-                        Expr(:(=), ⨳(:call, :eval, x), VERSION < v"0.4" ?
-                            evalcall1 : Expr(:block, location, evalcall1)))
+                    block = block ⪥ (
+                        ⨳(:(=), ⨳(:call, :eval, x) ⤄ Lexer.nullrange(ts), VERSION < v"0.4" ?
+                            evalcall1 : ⨳(:block, location, evalcall1)),)
                     evalcall2 = ⨳(:call, Expr(:(.), TopNode(:Core),
                                 _QuoteNode(:eval)), :m, :x)
-                    push!(block.args,
+                    block = block ⪥ (
                         ⨳(:(=), Expr(:call, :eval, :m, :x),
                             VERSION < v"0.4" ? evalcall2 :
-                            Expr(:block, location, evalcall2)))
+                            ⨳(:block, location, evalcall2)),)
                     block ⪥ body
                     body = block ⤄ Lexer.nullrange(ts)
                 end
@@ -1113,17 +1112,16 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
     end
 end
 
-function add_filename_to_block!(body::Expr, loc)
-    if !isempty(body.args)
-        if isa(body.args[1], Expr) && body.args[1].head === :line
-            body.args[1] = loc
-        elseif isa(body.args[1], LineNumberNode)
-            body.args[1] = loc
+function add_filename_to_block!(body, loc)
+    if !isempty((¬body).args)
+        if isa((¬body).args[1], Expr) && (¬body).args[1].head === :line
+            (¬body).args[1] = loc
+        elseif isa((¬body).args[1], LineNumberNode)
+            (¬body).args[1] = loc
         end
     end
     return body
 end
-add_filename_to_block!(body::Lexer.SourceExpr, loc) = body
 
 function parse_do(ps::ParseState, ts::TokenStream)
     expect_end_current_line = curline(ts)
@@ -1938,7 +1936,7 @@ end
 function parse_atom(ps::ParseState, ts::TokenStream)
     ex = _parse_atom(ps, ts)
     if (¬ex !== :(=>) && (¬ex in Lexer.syntactic_ops)) || ¬ex === :(...)
-        throw(ParseError("invalid identifier name \"$ex\""))
+        throw(diag(√ex, "invalid identifier name \"$(¬ex)\""))
     end
     return ex
 end
@@ -1956,7 +1954,7 @@ end
 
 function macroify_name(ex)
     if isa(¬ex, Symbol)
-        return symbol(string('@', ¬ex)) ⤄ √ex
+        return symbol(string('@', ¬ex)) ⤄ ex
     elseif is_valid_modref(¬ex)
         return ⨳(:(.), ex.args[1], QuoteNode(macroify_name(ex.args[2].args[1])))
     else
