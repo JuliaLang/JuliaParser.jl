@@ -91,7 +91,7 @@ end
 ⤄(tok::SourceLocToken, x::SourceRange) = SourceLocToken(tok.val, tok.loc ⤄ x)
 ⤄(tok::SourceLocToken, x::SourceLocToken) = SourceLocToken(tok.val, tok.loc ⤄ x.loc)
 ⤄(ex::Union{Symbol,Expr,Bool,QuoteNode,TopNode,LineNumberNode}, x::Union{SourceLocToken,SourceRange}) = SourceExpr(ex,√x)
-⤄(ex::Any, x::Token) = ex
+⤄(ex::Any, x::Union{Token, Expr, Symbol}) = ex
 ⤄(x,y::Void) = x
 
 function sortedcomplement(of::SourceRange, set)
