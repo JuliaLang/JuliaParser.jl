@@ -273,11 +273,16 @@ end
 function parse_cond(ps::ParseState, ts::TokenStream)
     ex = parse_or(ps, ts)
     if ¬peek_token(ps, ts) === :(?)
-        take_token(ts)
+        t = take_token(ts)
         then = @without_range_colon ps begin
             parse_eqs(ps, ts)
         end
-        ¬take_token(ts) === :(:) || throw(ParseError("colon expected in \"?\" expression"))
+        nt = take_token(ts)
+        if ¬nt !== :(:)
+            D = diag(√nt, "colon expected in \"?\" expression")
+            diag(D, √t, "\"?\" was here")
+            throw(D)
+        end
         return ⨳(:if, ex, then, parse_eqs(ps, ts))
     end
     return ex
@@ -285,9 +290,14 @@ end
 
 
 function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T1},
-                            head::Symbol, closers::Set{T2}, allow_empty::Bool)
+                            head::Symbol, closers::Set{T2}, allow_empty::Bool, opener = nothing)
     t = require_token(ps, ts)
-    is_invalid_initial_token(¬t) && throw(ParseError("unexpected \"$t\""))
+    if is_invalid_initial_token(¬t)
+        D = diag(√t, "unexpected \"$(¬t)\"")
+        diag(D, √opener, "expression started here")
+        throw(D)
+    end
+
     # empty block
     if isa(¬t, CharSymbol) && ¬t in closers
         return ⨳(head) ⤄ t
@@ -362,7 +372,7 @@ function parse_stmts(ps::ParseState, ts::TokenStream)
     # check for unparsed junk after an expression
     t = peek_token(ps, ts)
     if !(Lexer.eof(t) || ¬t === '\n')
-        throw(ParseError("extra token \"$t\" after end of expression"))
+        throw(diag(√t,"extra token \"$(¬t)\" after end of expression"))
     end
     return ex
 end
@@ -488,20 +498,27 @@ function parse_range(ps::ParseState, ts::TokenStream)
                     return ex
                 end
             end
-            if is_closing_token(ps, peek_token(ps, ts))
+            nt = peek_token(ps, ts)
+            range_error(D) = (diag(D, √ex ⤄ √t, "start of range was here"); throw(D))
+            if is_closing_token(ps, nt)
                 # handles :(>:) case
                 if isa(ex, Symbol) && Lexer.is_operator(¬ex)
                     op = symbol(string(ex, t))
                     Lexer.is_operator(¬op) && return op
                 end
-                throw(ParseError("missing last argument in \"$(ex):\"range expression"))
+                range_error(diag(√nt, "missing last argument in range expression"))
             end
-            if Lexer.isnewline(¬peek_token(ps, ts))
-                throw(ParseError("line break in \":\" expression"))
+            if Lexer.isnewline(¬nt)
+                range_error(diag(√nt, "line break in \":\" expression"))
             end
             arg = parse_expr(ps, ts)
-            if !ts.isspace && (arg === :(<) || arg === :(>))
-                throw(ParseError("\":$argument\" found instead of \"$argument:\""))
+            if !ts.isspace && (¬arg === :(<) || ¬arg === :(>))
+                loc = √arg ⤄ √t
+                D = diag(loc,"Invalid \"$(¬arg)\" in range expression. Did you mean \"$(¬arg):\"?")
+                diag(D, loc,"$(¬arg):",:fixit)
+                # The user probably didn't intend a range, so don't add the
+                # range note
+                throw(D)
             end
             if isfirst
                 ex = ⨳(t, ex, arg)
@@ -576,7 +593,10 @@ parse_factor(ps::ParseState, ts::TokenStream) = parse_factorh(ps, ts, parse_decl
 
 function parse_unary(ps::ParseState, ts::TokenStream)
     t = require_token(ps, ts)
-    is_closing_token(ps, t) && throw(ParseError("unexpected $(¬t)"))
+    if is_closing_token(ps, t)
+        D = diag(√t, "unexpected \"$(¬t)\"")
+        throw(D)
+    end
     if !(isa(¬t, Symbol) && ¬t in Lexer.unary_ops)
         pf = parse_factor(ps, ts)
         return parse_juxtaposed(ps, ts, pf)
@@ -616,7 +636,7 @@ function parse_unary(ps::ParseState, ts::TokenStream)
 end
 
 function subtype_syntax(ex)
-    if isa(¬ex, Expr) && length((¬ex).args) == 3 && 
+    if isa(¬ex, Expr) && length((¬ex).args) == 3 &&
             (((¬ex).head === :comparison && (¬ex).args[2] === :(<:)) ||
              ((¬ex).head === :call && (¬ex).args[1] === :(<:)))
         args = collect(children(ex))
@@ -673,10 +693,11 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             arglist = parse_arglist(ps, ts, ')', t)
             closer = take_token(ts)
             params, args = separate(is_parameter, arglist)
-            if ¬peek_token(ps, ts) === SYM_DO
+            nt = peek_token(ps, ts)
+            if ¬nt === SYM_DO
                 take_token(ts)
                 ex = ⨳(:call, ex) ⪥ params
-                ex ⪥ (parse_do(ps,ts),)
+                ex ⪥ (parse_do(ps,ts,nt),)
                 ex ⪥ args
             else
                 ex = ⨳(:call, ex) ⪥ arglist
@@ -689,7 +710,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             take_token(ts)
             # ref is syntax so can distinguish a[i] = x from ref(a, i) = x
             al = @with_end_symbol ps begin
-                parse_cat(ps, ts, ']', is_dict_literal(ex))
+                parse_cat(ps, ts, ']', t, is_dict_literal(ex))
             end
             if isempty((¬al).args) && ((¬al).head === :cell1d || (¬al).head === :vcat)
                 ex = is_dict_literal(ex) ? ⨳(:typed_dict, ex) : ⨳(:ref, ex)
@@ -717,7 +738,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             elseif (¬al).head === :dict_comprehension
                 ex = ⨳(:typed_dict_comprehension, ex) ⪥ al
             else
-                throw(ParseError("unknown parse-cat result (internal error)"))
+                error("unknown parse-cat result (internal error)")
             end
             continue
 
@@ -790,14 +811,18 @@ end
 
 const expect_end_current_line = 0
 
-function expect_end(ps::ParseState, ts::TokenStream, word::Symbol)
+function expect_end(ps::ParseState, ts::TokenStream, word)
     t = peek_token(ps, ts)
     if ¬t === SYM_END
         take_token(ts)
     elseif Lexer.eof(t)
-        throw(ParseError("incomplete: \"$word\" at \"$(filename(ts))\" : {expected} requires end"))
+        D = diag(here(ts),"incomplete: \"$(¬word)\" requires end")
+        diag(D,√word,"\"$(¬word)\" began here")
+        throw(D)
     else
-        throw(ParseError("incomplete: \"$word\" at \"$(filename(ts))\" : {expected} \"end\", got \"$t\""))
+        D = diag(√t,"\"$(¬word)\" requires \"end\", got \"$(¬t)\"")
+        diag(D,√word,"\"$(¬word)\" began here")
+        throw(D)
     end
 end
 
@@ -823,7 +848,7 @@ end
 const _QuoteNode = QuoteNode
 
 # parse expressions or blocks introduced by syntatic reserved words
-function parse_resword(ps::ParseState, ts::TokenStream, word)
+function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
     expect_end_current_line = curline(ts)
     @with_normal_ops ps begin
         @without_whitespace_newline ps begin
@@ -831,11 +856,11 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 Lexer.skipws_and_comments(ts)
                 loc = line_number_filename_node(ts)
                 blk = parse_block(ps, ts)
-                expect_end(ps, ts, ¬word)
+                expect_end(ps, ts, word)
                 ex = blk
                 if !isempty((¬blk).args)
                     arg1 = collect(children(blk))[1]
-                    if ((isa(¬arg1, Expr) && (¬arg1).head === :line) || 
+                    if ((isa(¬arg1, Expr) && (¬arg1).head === :line) ||
                             (isa(¬arg1, LineNumberNode)))
                         ex = ⨳(:block, loc ⤄ Lexer.nullrange(ts))
                         ex = ex ⪥ collect(children(blk))[2:end]
@@ -847,14 +872,14 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
 
             elseif ¬word === :while
                 ex = ⨳(word, parse_cond(ps, ts), parse_block(ps, ts))
-                expect_end(ps, ts, ¬word)
+                expect_end(ps, ts, word)
                 return ex
 
             elseif ¬word === :for
-                ranges  = parse_comma_sep_iters(ps, ts)
+                ranges  = parse_comma_sep_iters(ps, ts, word)
                 nranges = length(ranges)
                 body = parse_block(ps, ts)
-                expect_end(ps, ts, ¬word)
+                expect_end(ps, ts, word)
                 if nranges == 1
                     return ⨳(word, ranges[1], body)
                 else
@@ -862,7 +887,15 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                     return ⨳(word, blk, body)
                 end
 
-            elseif ¬word === :if
+            elseif ¬word === :if || ¬word == :elseif
+                if chain == nothing && ¬word == :elseif
+                    throw(diag(√word,"\"elseif\" without preceeding if"))
+                end
+                if Lexer.isnewline(¬peek_token(ps, ts))
+                    D = diag(√word, "missing condition in \"$(¬word)\"")
+                    diag(D, √chain, "previous \"$(¬chain)\" was here")
+                    throw(D)
+                end
                 test = parse_cond(ps, ts)
                 t    = require_token(ps, ts)
                 then = (¬t === SYM_ELSE || ¬t === SYM_ELSEIF) ? Expr(:block) :
@@ -872,21 +905,24 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 if ¬nxt === SYM_END
                     return ⨳(word, test, then)
                 elseif ¬nxt === SYM_ELSEIF
-                    if Lexer.isnewline(¬peek_token(ps, ts))
-                        throw(ParseError("missing condition in elseif at {filename} : {line}"))
-                    end
-                    blk = ⨳(:block, line_number_node(ts), parse_resword(ps, ts, :if))
+                    blk = ⨳(:block, line_number_node(ts), parse_resword(ps, ts, nxt, word))
                     return ⨳(word, test, then, blk)
                 elseif ¬nxt === SYM_ELSE
-                    if ¬peek_token(ps, ts) === :if
-                        throw(ParseError("use elseif instead of else if"))
+                    nnxt = peek_token(ps, ts)
+                    if ¬nnxt === :if
+                        loc = √nxt ⤄ √nnxt
+                        D = diag(loc, "use \"elseif\" instead of \"else if\"")
+                        diag(D, loc, "elseif", :fixit)
+                        throw(D)
                     end
                     blk = parse_block(ps, ts)
                     ex = ⨳(word, test, then, blk)
-                    expect_end(ps, ts, ¬word)
+                    expect_end(ps, ts, word)
                     return ex
                 else
-                    throw(ParseError("unexpected next token $nxt in if"))
+                    D = diag(√nxt,"Unexpected \"$(¬nxt)\" in if expression")
+                    diag(D, √word, "previous \"$(¬word)\" was here")
+                    throw(D)
                 end
 
             elseif ¬word === :let
@@ -894,10 +930,12 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 binds = Lexer.isnewline(¬nt) || ¬nt === ';' ? Any[] : parse_comma_sep_assigns(ps, ts)
                 nt = peek_token(ps, ts)
                 if !(Lexer.eof(nt) || (isa(¬nt, CharSymbol) && (¬nt === '\n' || ¬nt ===  ';' || ¬nt === SYM_END)))
-                    throw(ParseError("let variables should end in \";\" or newline"))
+                    D = diag(√nt, "let variables should end in \";\" or newline")
+                    diag(D, √word, "\"let\" was here")
+                    throw(D)
                 end
                 ex = parse_block(ps, ts)
-                expect_end(ps, ts, ¬word)
+                expect_end(ps, ts, word)
                 ex = ⨳(:let, ex) ⪥ binds
                 return ex
 
@@ -926,20 +964,24 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                         # in function(x) the (x) is a tuple
                         def = Expr(:tuple, sig)
                     else
-                        # function foo => syntax error
-                        throw(ParseError("expected \"(\" in $word definition"))
+                        ¬peek_token(ps, ts) !== SYM_END && Lexer.skipws_and_comments(ts)
+                        require_token(ps, ts)
+                        expect_end(ps, ts, word)
+                        return ⨳(word, sig)
                     end
                 else
                     if (isa(¬sig, Expr) && ((¬sig).head === :call || (¬sig).head === :tuple))
                         def = sig
                     else
-                        throw(ParseError("expected \"(\" in $word definition"))
+                        D = diag(after(√sig), "expected \"(\" in $(¬word) definition")
+                        diag(D, √word, "\"$(¬word)\" was here")
+                        throw(D)
                     end
                 end
                 peek_token(ps, ts) !== SYM_END && Lexer.skipws_and_comments(ts)
                 loc  = line_number_filename_node(ts)
                 body = parse_block(ps, ts)
-                expect_end(ps, ts, ¬word)
+                expect_end(ps, ts, word)
                 add_filename_to_block!(body, loc)
                 return ⨳(word, def, body)
 
@@ -951,14 +993,17 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 if VERSION < v"0.4"
                     # allow "immutable type"
                     (!istype && ¬peek_token(ps, ts) === :type) && take_token(ts)
-                elseif ¬peek_token(ps, ts) in Lexer.reserved_words
-                    throw(ParseError(string("invalid type name \"",
-                        take_token(ts),"\"")))
+                end
+                nxt = peek_token(ps, ts)
+                if ¬nxt in Lexer.reserved_words
+                    D = diag(√nxt, "invalid type name \"$(¬nxt)\"")
+                    diag(D, √word, "$(¬word) was here")
+                    throw(D)
                 end
                 sig = parse_subtype_spec(ps, ts)
                 blk = parse_block(ps, ts)
                 ex  = ⨳(:type, istype ⤄ word, sig, blk)
-                expect_end(ps, ts, ¬word)
+                expect_end(ps, ts, word)
                 return ex
 
             elseif ¬word === :bitstype
@@ -996,23 +1041,24 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                             nb = true
                             ¬nt === ';' && take_token(ts)
                         end
-                        t = require_token(ps, ts)
-                        if ¬t === SYM_END || ¬t === SYM_FINALLY
-                            catchb = ⨳(:block)
+                        nt = require_token(ps, ts)
+                        if ¬nt === SYM_END || ¬nt === SYM_FINALLY
+                            catchb = ⨳(:block) ⤄ t
                             catchv = false
+                            t = nt
                             continue
                         else
                             var = parse_eqs(ps, ts)
                             isvar = nb == false && (isa(¬var, Symbol) || (isa(¬var, Expr) && (¬var).head == :($)))
-                            catch_block = ¬require_token(ps, ts) === SYM_FINALLY ? Expr(:block) :
+                            catch_block = ¬require_token(ps, ts) === SYM_FINALLY ? ⨳(:block) :
                                                                                   parse_block(ps, ts)
+                            catch_block = catch_block ⤄ nt
                             t = require_token(ps, ts)
                             if isvar
                                 catchb = catch_block
                             else
                                 exb = ⨳(:block, var)
-                                append!(exb.args, catch_block.args);
-                                catchb = exb
+                                catchb = exb ⪥ catch_block
                             end
                             catchv = isvar ? var : false
                             continue
@@ -1023,7 +1069,9 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                         t = require_token(ps, ts)
                         continue
                     else
-                        throw(ParseError("unexpected \"$t\""))
+                        D = diag(√t,"Unexpected \"$(¬t)\" in try expression")
+                        diag(D, √word, "\"$(¬word)\" was here")
+                        throw(D)
                     end
                 end
 
@@ -1039,7 +1087,9 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 if !(isa(¬assgn, Expr) && ((¬assgn).head === :(=) ||
                                           (¬assgn).head === :global ||
                                           (¬assgn).head === :local))
-                    throw(ParseError("expected assignment after \"const\""))
+                    D = diag(√assgn, "expected assignment after \"$(¬word)\"")
+                    diag(D, √word, "\"$(¬word)\" was here")
+                    throw(D)
                 end
                 return ⨳(:const, assgn)
 
@@ -1048,7 +1098,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 location = line_number_filename_node(ts)
                 name = parse_unary_prefix(ps, ts)
                 body = parse_block(ps, ts)
-                expect_end(ps, ts, ¬word)
+                expect_end(ps, ts, word)
                 if !isbare
                     # add definitions for module_local eval
                     block = ⨳(:block)
@@ -1071,7 +1121,13 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
 
             elseif ¬word === :export
                 exports = map(macrocall_to_atsym, parse_comma_sep(ps, ts, parse_atom))
-                !all(x -> isa(¬x, Symbol), exports) && throw(ParseError("invalid \"export\" statement"))
+                for x in exports
+                    if !isa(¬x, Symbol)
+                        D = diag(√x, "invalid literal \"$(¬x)\" in \"$(¬word)\" statement")
+                        diag(D, √word, "\"$(¬word)\" was here")
+                        throw(D)
+                    end
+                end
                 ex = ⨳(word) ⪥ exports
                 return ex
 
@@ -1082,7 +1138,10 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 return ex
 
             elseif ¬word === :ccall
-                (¬peek_token(ps, ts)) != '(' && throw(ParseError("invalid \"ccall\" syntax"))
+                nt = peek_token(ps, ts)
+                if ¬nt != '('
+                    throw(diag(√nt,"Expected '('"))
+                end
                 take_token(ts)
                 al = parse_arglist(ps, ts, ')')
                 if length(al) > 1
@@ -1102,11 +1161,9 @@ function parse_resword(ps::ParseState, ts::TokenStream, word)
                 ex = ex ⤄ take_token(ts)
                 return ex
 
-            elseif ¬word === :do
-                throw(ParseError("invalid \"do\" syntax"))
-
             else
-                throw(ParseError("unhandled reserved word $word"))
+                @assert ¬word === :do
+                throw(diag(√word,"invalid \"$(¬word)\" syntax"))
             end
         end
     end
@@ -1123,14 +1180,14 @@ function add_filename_to_block!(body, loc)
     return body
 end
 
-function parse_do(ps::ParseState, ts::TokenStream)
+function parse_do(ps::ParseState, ts::TokenStream, word)
     expect_end_current_line = curline(ts)
     @without_whitespace_newline ps begin
         doargs = Lexer.isnewline(¬peek_token(ps, ts)) ? Any[] : parse_comma_sep(ps, ts, parse_range)
         loc = line_number_filename_node(ts)
         blk = parse_block(ps, ts)
         add_filename_to_block!(blk, loc)
-        expect_end(ps, ts, :do)
+        expect_end(ps, ts, word)
         return ⨳(:(->), ⨳(:tuple, doargs...) ⤄ Lexer.nullrange(ts), blk)
     end
 end
@@ -1230,7 +1287,7 @@ parse_comma_sep_assigns(ps::ParseState, ts::TokenStream) = parse_comma_sep(ps, t
 
 # as above, but allows both "i=r" and "i in r"
 # return a list of range expressions
-function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
+function parse_comma_sep_iters(ps::ParseState, ts::TokenStream, word)
     ranges = Any[]
     while true
         r = parse_eqs(ps, ts)
@@ -1247,7 +1304,9 @@ function parse_comma_sep_iters(ps::ParseState, ts::TokenStream)
             tmp = collect(children(r))
             r = ⨳(:(=), tmp[2], tmp[3])
         else
-            throw(ParseError("invalid iteration spec"))
+            D = diag(√r, "invalid iteration spec")
+            diag(D, √word, "for this `for`")
+            throw(D)
         end
         if ¬peek_token(ps, ts) === ','
             take_token(ts)
@@ -1331,8 +1390,6 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
         elseif ¬nt === closer
             push!(lst, nxt)
             continue
-        elseif ¬nt in (']', '}')
-            throw(ParseError("unexpected \"$nt\" in argument list"))
         else
             D = diag(loc,"Expected '$closer' or ','")
             diag(D, √opener, "to match '$(¬opener)' here", :note)
@@ -1350,7 +1407,7 @@ function parse_arglist(ps::ParseState, ts::TokenStream, closer, opener = nothing
 end
 
 # parse [] concatenation exprs and {} cell exprs
-function parse_vect(ps::ParseState, ts::TokenStream, frst, closer)
+function parse_vect(ps::ParseState, ts::TokenStream, frst, closer, opener)
     lst = Any[]
     nxt = frst
     while true
@@ -1381,9 +1438,13 @@ function parse_vect(ps::ParseState, ts::TokenStream, frst, closer)
             ex = ex ⤄ take_token(ts)
             return ex
         elseif ¬t === ']' || ¬t === '}'
-            throw(ParseError("unexpected \"$t\" in array expression"))
+            D = diag(√t, "Expected \"$closer\", got \"$(¬t)\"")
+            diag(D, √opener, "Expression began here")
+            throw(D)
         else
-            throw(ParseError("missing separator in array expression"))
+            D = diag(√t,"missing separator in array expression")
+            diag(D, √opener, "Expression began here")
+            throw(D)
         end
     end
 end
@@ -1391,39 +1452,37 @@ end
 
 function parse_dict(ps::ParseState, ts::TokenStream, frst, closer)
     v = parse_vcat(ps, ts, frst, closer)
-    local alldl::Bool
-    for arg in v.args
-        alldl = is_dict_literal(arg)
-        alldl || break
+    for arg in collect(children(v))
+        alldl = is_dict_literal(¬arg)
+        alldl || throw(diag(√arg,"invalid dict literal"))
     end
-    if alldl
-        ex = Expr(:dict); ex.args = v.args
-        return ex
-    else
-        throw(ParseError("invalid dict literal"))
-    end
+    return ⨳(:dict) ⪥ v
 end
 
-function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer)
-    itrs = parse_comma_sep_iters(ps, ts)
+function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, opener, word)
+    itrs = parse_comma_sep_iters(ps, ts, word)
     t = require_token(ps, ts)
-    ¬t === closer ? take_token(ts) : throw(ParseError("expected $closer"))
+    if ¬t !== closer
+        D = diag(√t,"expected '$closer' not \"$(¬t)\"")
+        diag(D, √opener, "in comprehension that began here")
+        throw(D)
+    end
     ex = ⨳(:comprehension, frst) ⪥ itrs
     return ex
 end
 
-function parse_dict_comprehension(ps::ParseState, ts::TokenStream, frst, closer)
-    c = parse_comprehension(ps, ts, frst, closer)
-    if is_dict_literal(c.args[1])
-        ex = Expr(:dict_comprehension); ex.args = c.args
+function parse_dict_comprehension(ps::ParseState, ts::TokenStream, frst, closer, opener, word)
+    c = parse_comprehension(ps, ts, frst, closer, opener, word)
+    if is_dict_literal((¬c).args[1])
+        ex = ⨳(:dict_comprehension) ⪥ c
         return ex
     else
-        throw(ParseError("invalid dict comprehension"))
+        throw(diag(√(first(children(args))),"non-dict-literal in dict comprehension"))
     end
 end
 
 
-function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
+function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer, opener)
 
     update_outer!(v, outer) = begin
         len = length(v)
@@ -1431,6 +1490,11 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
         len == 1 && return push!(outer, v[1])
         row = ⨳(:row,v...)
         return push!(outer, row)
+    end
+
+    function report_error(D)
+        diag(D, √opener, "In matrix expression that began here")
+        throw(D)
     end
 
     semicolon = ¬peek_token(ps, ts) === ';'
@@ -1457,16 +1521,14 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer)
             outer = update_outer!(vec, outer)
             vec   = Any[]
             continue
-        elseif ¬t === ','
-            throw(ParseError("unexpected comma in matrix expression"))
-        elseif ¬t === ']' || ¬t === '}'
-            throw(ParseError("unexpected \"$t\""))
+        elseif ¬t === ',' || ¬t === ']' || ¬t === '}'
+            report_error(diag(√t,"unexpected \"$(¬t)\""))
         elseif ¬t === :for
             if !semicolon && length(outer) == 1 && isempty(vec)
                 take_token(ts)
-                return parse_comprehension(ps, ts, outer[1], closer)
+                return parse_comprehension(ps, ts, outer[1], closer, opener, t)
             else
-                throw(ParseError("invalid comprehension syntax"))
+                report_error(diag(√t,"invalid comprehension syntax"))
             end
         else
             push!(vec, parse_eqs(ps, ts))
@@ -1486,7 +1548,7 @@ function peek_non_newline_token(ps::ParseState, ts::TokenStream)
     end
 end
 
-function parse_cat(ps::ParseState, ts::TokenStream, closer, isdict::Bool=false)
+function parse_cat(ps::ParseState, ts::TokenStream, closer, opener, isdict::Bool=false)
     @with_normal_ops ps begin
         @with_inside_vec ps begin
             t = require_token(ps, ts)
@@ -1497,7 +1559,7 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer, isdict::Bool=false)
                 elseif closer === ']'
                     return ⨳(:vcat) ⤄ t
                 else
-                    throw(ParseError("unknown closer $closer"))
+                    error("unknown closer $closer")
                 end
             end
             frst = parse_eqs(ps, ts)
@@ -1512,18 +1574,18 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer, isdict::Bool=false)
             end
             nt = peek_token(ps, ts)
             if ¬nt === ','
-                return parse_vect(ps, ts, frst, closer)
+                return parse_vect(ps, ts, frst, closer, opener)
             elseif ¬nt === :for
                 take_token(ts)
-                return parse_comprehension(ps, ts, frst, closer)
+                return parse_comprehension(ps, ts, frst, closer, opener, nt)
             else
-                return parse_matrix(ps, ts, frst, closer)
+                return parse_matrix(ps, ts, frst, closer, opener)
             end
         end
     end
 end
 
-function parse_tuple(ps::ParseState, ts::TokenStream, frst)
+function parse_tuple(ps::ParseState, ts::TokenStream, frst, opener)
     args = Any[]
     nxt = frst
     while true
@@ -1543,67 +1605,83 @@ function parse_tuple(ps::ParseState, ts::TokenStream, frst)
             args = push!(args, nxt)
             nxt  = parse_eqs(ps, ts)
             continue
-        elseif ¬t === ';'
-            throw(ParseError("unexpected semicolon in tuple"))
-        elseif ¬t === ']' || ¬t === '}'
-            throw(ParseError("unexpected \"$(peek_token(ps, ts))\" in tuple"))
+        elseif ¬t === ';' ||  ¬t === ']' || ¬t === '}'
+            D = diag(√t,"unexpected \"$(¬t)\" in tuple")
+            diag(D,√opener,"tuple began here")
+            throw(D)
         else
-            throw(ParseError("missing separator in tuple"))
+            D = diag(before(√t),"missing separator in tuple")
+            diag(D,√opener,"tuple began here")
+            throw(D)
         end
     end
 end
 
 # TODO: these are unnecessary if base/client.jl didn't need to parse error string
-function not_eof_1(c)
-    Lexer.eof(c) && throw(ParseError("incomplete: invalid character literal"))
-    return c
+function not_eof_1(ts)
+    Lexer.eof(ts) && throw(diag(here(ts),"incomplete: invalid character literal"))
+    return Lexer.readchar(ts)
 end
 
-function not_eof_2(c)
-    Lexer.eof(c) && throw(ParseError("incomplete: invalid \"`\" syntax"))
-    return c
+function not_eof_2(ts)
+    Lexer.eof(ts) && throw(diag(here(ts),"incomplete: invalid \"`\" literal"))
+    return Lexer.readchar(ts)
 end
 
-function not_eof_3(c)
-    Lexer.eof(c) && throw(ParseError("incomplete: invalid string syntax"))
-    return c
+function not_eof_3(ts)
+    Lexer.eof(ts) && throw(diag(here(ts),"incomplete: invalid string syntax"))
+    return Lexer.readchar(ts)
 end
 
-#TODO; clean up eof handling
 function parse_backquote(ps::ParseState, ts::TokenStream)
     buf = IOBuffer()
-    c   = Lexer.readchar(ts)
+    c   = not_eof_2(ts)
     while true
         c === '`' && break
         if c === '\\'
-            nc = Lexer.readchar(ts)
+            nc = not_eof_2(ts)
             if nc === '`'
                 write(buf, nc)
             else
                 write(buf, '\\')
-                write(buf, not_eof_2(nc))
+                write(buf, nc)
             end
         else
-            write(buf, not_eof_2(c))
+            write(buf, nc)
         end
-        c = Lexer.readchar(ts)
+        c = not_eof_2(ts)
         continue
     end
     return ⨳(:macrocall, symbol("@cmd"), bytestring(buf))
 end
 
-function parse_interpolate(ps::ParseState, ts::TokenStream)
+function parse_interpolate(ps::ParseState, ts::TokenStream, start, srange)
     c = Lexer.peekchar(ts)
+    function report_error(D)
+        !isa(D, Diagnostic) && rethrow(D)
+        diag(D, √start, "In interpolation syntax starting here")
+        diag(D, srange, "In string expression beginning here")
+        throw(D)
+    end
     if Lexer.is_identifier_char(c)
-        return parse_atom(ps, ts)
+        try
+            return parse_atom(ps, ts)
+        catch err
+            report_error(err)
+        end
     elseif c === '('
         Lexer.readchar(ts)
-        ex = parse_eqs(ps, ts)
-        ¬require_token(ps, ts) === ')' || throw(ParseError("invalid interpolation syntax"))
+        try
+            ex = parse_eqs(ps, ts)
+        catch err
+            report_error(err)
+        end
+        nt = require_token(ps, ts)
+        ¬nt !== ')' && report_error(diag(√nt, "Expected ')'"))
         take_token(ts)
         return ex
     else
-        throw(ParseError("invalid interpolation syntax: \"$c\""))
+        report_error(diag(here(ts),"invalid interpolation syntax: \"$c\""))
     end
 end
 
@@ -1612,22 +1690,24 @@ function tostr(buf::IOBuffer, custom::Bool)
     custom && return str
     str = unescape_string(str)
     if !(@compat isvalid(UTF8String,str))
-        throw(ParseError("invalid UTF-8 sequence"))
+        throw(diag(√str,"string contains invalid UTF8 sequence"))
     end
    return str
 end
 
 function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n::Integer, custom::Bool)
+    # We're now past the first quote
     r       = Lexer.startrange(ts)
-    c       = Lexer.readchar(ts)
+    c       = not_eof_3(ts)
     b       = IOBuffer()
     args    = Any[]
     quotes  = 0
+    orange  = Lexer.makerange(ts, r)
     srange  = Lexer.makerange(ts, r)
     while true
         if c == '"'
             if quotes < n
-                c = Lexer.readchar(ts)
+                c = not_eof_3(ts)
                 quotes += 1
                 continue
             end
@@ -1646,7 +1726,7 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
             quotes = 0
             continue
         elseif c === '\\'
-            nxch = not_eof_3(Lexer.readchar(ts))
+            nxch = not_eof_3(ts)
             if !custom || nxch !== '"'
                 write(b, '\\')
             end
@@ -1657,7 +1737,7 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
             continue
         elseif c === '$' && !custom
             str = tostr(b, custom) ⤄ srange
-            iex = parse_interpolate(ps, ts)
+            iex = parse_interpolate(ps, ts, before(here(ts)), before(orange))
             push!(args, str)
             push!(args, iex)
             r = Lexer.startrange(ts)
@@ -1667,9 +1747,9 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
             quotes = 0
             continue
         else
-            write(b, not_eof_3(c))
+            write(b, c)
             srange = Lexer.makerange(ts, r)
-            c = Lexer.readchar(ts)
+            c = not_eof_3(Lexer.readchar(ts))
             quotes = 0
             continue
         end
@@ -1713,8 +1793,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     elseif ¬t === symbol("'")
         take_token(ts)
         r = Lexer.startrange(ts)
-        fch = Lexer.readchar(ts)
-        fch === '\'' && throw(ParseError("invalid character literal"))
+        fch = not_eof_1(ts)
+        fch === '\'' && throw(diag(Lexer.makerange(ts,r)⤄√t,"empty char literal not allowed"))
         if fch !== '\\' && !Lexer.eof(fch) && Lexer.peekchar(ts) === '\''
             # easy case 1 char no \
             Lexer.takechar(ts)
@@ -1723,9 +1803,9 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             c, b = fch, IOBuffer()
             while true
                 c === '\'' && break
-                write(b, not_eof_1(c))
-                c === '\\' && write(b, not_eof_1(Lexer.readchar(ts)))
-                c = Lexer.readchar(ts)
+                write(b, c)
+                c === '\\' && write(b, not_eof_1(ts))
+                c = not_eof_1(ts)
                 continue
             end
             str = unescape_string(bytestring(b))
@@ -1735,7 +1815,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 return str[1] ⤄ Lexer.makerange(ts, r)
             else
                 if length(str) != 1  || !is_valid_utf8(str)
-                    throw(ParseError("invalid character literal, got \'$str\'"))
+                    throw(diag(Lexer.makerange(ts,r)⤄√t,
+                        "invalid character literal, got \'$str\'"))
                 end
                 return str[1] ⤄ Lexer.makerange(ts, r)
             end
@@ -1752,7 +1833,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
 
     # misplaced =
     elseif ¬t === :(=)
-        throw(ParseError("unexpected \"=\""))
+        throw(diag(√t,"unexpected \"$(¬t)\""))
 
     # identifier
     elseif isa(¬t, Symbol)
@@ -1769,9 +1850,12 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     take_token(ts)
                     return (⨳(:tuple) ⤄ t) ⤄ rt
                 elseif ¬peek_token(ps, ts) in Lexer.syntactic_ops
-                    # allow (=) etc.
+                    # allow (=) etc. since this function is also used to parse
+                    # quoted expression. However, anything else will invariably
+                    # cause an invalid identifier name
                     t = take_token(ts)
-                    ¬require_token(ps, ts) !== ')' && throw(ParseError("invalid identifier name \"$t\""))
+                    nt = require_token(ps, ts)
+                    ¬nt !== ')' && throw(diag(after(√t),"Expected ')'"))
                     take_token(ts)
                     return t
                 else
@@ -1779,8 +1863,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     # so we can look for a comma to see if it is a tuple
                     # this lets us distinguish (x) from (x,)
                     ex = parse_eqs(ps, ts)
-                    t  = require_token(ps, ts)
-                    if ¬t === ')'
+                    nt  = require_token(ps, ts)
+                    if ¬nt === ')'
                         take_token(ts)
                         if isa(ex, Expr) && ex.head === :(...)
                             # (ex...)
@@ -1789,10 +1873,10 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                             # value in parens (x)
                             return ex
                         end
-                    elseif ¬t === ','
+                    elseif ¬nt === ','
                         # tuple (x,) (x,y) (x...) etc
-                        return parse_tuple(ps, ts, ex)
-                    elseif ¬t === ';'
+                        return parse_tuple(ps, ts, ex, t)
+                    elseif ¬nt === ';'
                         #parenthesized block (a;b;c)
                         take_token(ts)
                         if ¬require_token(ps, ts) === ')'
@@ -1803,17 +1887,22 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                             blk = parse_stmts_within_expr(ps, ts)
                             tok = require_token(ps, ts)
                             if ¬tok === ','
-                                throw(ParseError("unexpected comma in statment block"))
-                            elseif ¬tok != ')'
-                                throw(ParseError("missing separator in statement block"))
+                                D = diag(√tok, "unexpected '$(¬tok)' in statment block")
+                                diag(D, √t, "block began here")
+                                throw(D)
                             end
+                            @assert ¬tok === ')'
                             take_token(ts)
                             return ⨳(:block, ex, blk)
                         end
-                    elseif ¬t === ']' || ¬t === '}'
-                        throw(ParseError("unexpected \"$t\" in tuple"))
+                    elseif ¬nt=== ']' || ¬nt === '}'
+                        D = diag(√nt, "expected ')' not '$(¬nt)'")
+                        diag(D,√t,"to match '$(¬t)' here")
+                        throw(D)
                     else
-                        throw(ParseError("missing separator in tuple"))
+                        D = diag(before(√nt), "missing spearator (did you mean ',' or ';'?)")
+                        diag(D,√t,"in expression that began here")
+                        throw(D)
                     end
                 end
             end
@@ -1826,34 +1915,29 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             take_token(ts)
             return Expr(:cell1d)
         end
-        vex = parse_cat(ps, ts, '}') ⤄ t
-        if isempty(vex.args)
+        vex = parse_cat(ps, ts, '}', t) ⤄ t
+        if isempty((¬vex).args)
             return Expr(:cell1d)
-        elseif vex.head === :comprehension
-            ex = ⨳(:typed_comprehension, TopNode(:Any))
-            append!(ex.args, vex.args)
+        elseif (¬vex).head === :comprehension
+            ex = ⨳(:typed_comprehension, TopNode(:Any)) ⪥ vex
             return ex
-        elseif vex.head === :dict_comprehension
-            ex = ⨳(:typed_dict_comprehension, ⨳(:(=>), TopNode(:Any), TopNode(:Any)))
-            append!(ex.args, vex.args)
+        elseif (¬vex).head === :dict_comprehension
+            ex = ⨳(:typed_dict_comprehension, ⨳(:(=>), TopNode(:Any), TopNode(:Any))) ⪥ vex
             return ex
-        elseif vex.head === :dict
-            ex = ⨳(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any)))
-            append!(ex.args, vex.args)
+        elseif (¬vex).head === :dict
+            ex = ⨳(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any))) ⪥ vex
             return ex
-        elseif vex.head === :hcat
-            ex = ⨳(:cell2d, 1, length(vex.args))
-            append!(ex.args, vex.args)
+        elseif (¬vex).head === :hcat
+            ex = ⨳(:cell2d, 1, length(vex.args)) ⪥ vex
             return ex
         else # Expr(:vcat, ...)
-            nr = length(vex.args)
-            if isa(vex.args[1], Expr) && vex.args[1].head === :row
-                nc = length(vex.args[1].args)
-                ex = Expr(:cell2d, nr, nc)
-                for i = 2:nr
-                    row = vex.args[i]
-                    if !(isa(row, Expr) && row.head === :row && length(row.args) == nc)
-                        throw(ParseError("inconsistent shape in cell expression"))
+            nr = length((¬vex).args)
+            if isa((¬vex).args[1], Expr) && (¬vex).args[1].head === :row
+                nc = length((¬vex).args[1].args)
+                ex = ⨳(:cell2d, nr, nc)
+                for row in children(vex)[2:end]
+                    if !(isa(¬row, Expr) && (¬row).head === :row && length((¬row).args) == nc)
+                        throw(diag(√row, "inconsistent shape in cell expression"))
                     end
                 end
                 # Transpose to storage order
@@ -1863,13 +1947,12 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 end
                 return ex
             else
-                for i = 2:nr
-                    row = vex.args[i]
-                    if isa(row, Expr) && row.head === :row
-                        throw(ParseError("inconsistent shape in cell expression"))
+                for row in children(vex)[2:end]
+                    if isa(¬row, Expr) && (¬row).head === :row
+                        throw(diag(√row,"inconsistent shape in cell expression"))
                     end
                 end
-                ex = Expr(:cell1d); ex.args = vex.args
+                ex = ⨳(:cell1d) ⪥ vex
                 return ex
             end
         end
@@ -1877,7 +1960,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     # cat expression
     elseif ¬t === '['
         take_token(ts)
-        vex = parse_cat(ps, ts, ']')
+        vex = parse_cat(ps, ts, ']', t)
         if isempty((¬vex).args)
             (¬vex).head = :vect
         end
@@ -1929,7 +2012,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         return parse_backquote(ps, ts)
 
     else
-        throw(ParseError("invalid syntax: \"$(take_token(ts))\""))
+        throw(diag(√t,"invalid syntax: \"$(¬take_token(ts))\""))
     end
 end
 
@@ -1958,7 +2041,7 @@ function macroify_name(ex)
     elseif is_valid_modref(¬ex)
         return ⨳(:(.), ex.args[1], QuoteNode(macroify_name(ex.args[2].args[1])))
     else
-        throw(ParseError("invalid macro use \"@($ex)"))
+        throw(diag(√ex,"invalid macro use \"@($(¬ex))\""))
     end
 end
 

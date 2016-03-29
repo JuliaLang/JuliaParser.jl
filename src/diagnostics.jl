@@ -10,11 +10,27 @@ immutable Diagnostic
     elements::Vector{Message}
 end
 
+function after(loc)
+    loc == nothing && return SourceRange()
+    isa(loc, Lexer.SourceNode) && (loc = loc.loc)
+    loc == SourceRange() && return SourceRange()
+    SourceRange(loc.offset+loc.length,1,loc.file)
+end
+
+function before(loc)
+    loc == nothing && return SourceRange()
+    isa(loc, Lexer.SourceNode) && (loc = loc.loc)
+    loc == SourceRange() && return SourceRange()
+    SourceRange(loc.offset-1,1,loc.file)
+end
+
 function diag(loc, message, severity = :error)
+    isa(loc, Lexer.SourceNode) && (loc = loc.loc)
     Diagnostic([Message(severity, loc, message)])
 end
 
 function diag(D::Diagnostic, loc, message, severity = :note)
+    isa(loc, Lexer.SourceNode) && (loc = loc.loc)
     loc !== nothing && push!(D.elements,Message(severity, loc, message))
 end
 
@@ -23,7 +39,7 @@ function display_diagnostic(io::IO, code, diag; filename = "none")
     for message in diag.elements
         if message.location == SourceRange()
             # Don't show notes if they don't have a location
-            if message.severity == :note
+            if message.severity == :note || message.severity == :fixit
                 continue
             end
             print_with_color(message.severity == :error ? :red : :magenta, io, string(message.severity))
@@ -33,12 +49,18 @@ function display_diagnostic(io::IO, code, diag; filename = "none")
         offset = message.location.offset
         line = compute_line(file, offset)
         col = offset - file.offsets[line] + 1
-        print(io, "$filename:$line:$col " )
-        print_with_color(message.severity == :error ? :red : :magenta, io, string(message.severity))
-        println(io, ": ", message.text)
-        println(io, rstrip(bytestring(file[line])))
-        print(io, " "^(col-1))
-        print_with_color(:green, io, string('^',"~"^(message.location.length-1)))
-        println(io)
+        if message.severity == :fixit
+            print(io, " "^(col-1))
+            print_with_color(:green, io, message.text)
+            println(io)
+        else
+            print(io, "$filename:$line:$col " )
+            print_with_color(message.severity == :error ? :red : :magenta, io, string(message.severity))
+            println(io, ": ", message.text)
+            println(io, rstrip(bytestring(file[line])))
+            print(io, " "^(col-1))
+            print_with_color(:green, io, string('^',"~"^(message.location.length-1)))
+            println(io)
+        end
     end
 end
