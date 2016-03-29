@@ -410,7 +410,10 @@ facts("test function expressions") do
               """function x()
                   return x + 1
               end""",
-              """foo(a::bar) = foo(a.a)"""]
+              """foo(a::bar) = foo(a.a)""",
+              """function foo end""",
+              """function foo
+                 end"""]
     for ex in exprs
         @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
