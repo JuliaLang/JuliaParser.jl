@@ -916,7 +916,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                         throw(D)
                     end
                     blk = parse_block(ps, ts)
-                    ex = ⨳(word, test, then, blk)
+                    ex = ⨳(:if, test, then, blk) ⤄ word
                     expect_end(ps, ts, word)
                     return ex
                 else
@@ -1467,6 +1467,7 @@ function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, open
         diag(D, √opener, "in comprehension that began here")
         throw(D)
     end
+    take_token(ts)
     ex = ⨳(:comprehension, frst) ⪥ itrs
     return ex
 end
@@ -1647,7 +1648,7 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
                 write(buf, nc)
             end
         else
-            write(buf, nc)
+            write(buf, c)
         end
         c = not_eof_2(ts)
         continue
@@ -1671,8 +1672,8 @@ function parse_interpolate(ps::ParseState, ts::TokenStream, start, srange)
         end
     elseif c === '('
         Lexer.readchar(ts)
-        try
-            ex = parse_eqs(ps, ts)
+        ex = try
+            parse_eqs(ps, ts)
         catch err
             report_error(err)
         end
@@ -1749,7 +1750,7 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
         else
             write(b, c)
             srange = Lexer.makerange(ts, r)
-            c = not_eof_3(Lexer.readchar(ts))
+            c = not_eof_3(ts)
             quotes = 0
             continue
         end
@@ -1977,7 +1978,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             notzerolen = (s) -> !(isa(s, AbstractString) && isempty(s))
             return ⨳(:string, filter(notzerolen, children(sl))...)
         end
-        return (¬sl).args[1] ⤄ Lexer.normalize(√sl)
+        return (¬sl).args[1] ⤄ sl
 
     # macro call
     elseif ¬t === '@'
