@@ -11,6 +11,16 @@ function Base.showerror(io::IO, d::REPLDiagnostic, bt)
     print_with_color(:white,io,"")
     JuliaParser.Parser.display_diagnostic(io, d.text, d.d; filename = d.fname)
 end
+function Base.showerror(io::IO, d::REPLDiagnostic)
+    println(io,"Syntax")
+    print_with_color(:white,io,"")
+    JuliaParser.Parser.display_diagnostic(io, d.text, d.d; filename = d.fname)
+end
+function Base.REPL.display_error(io::IO, d::REPLDiagnostic, bt)
+    println(io,"Syntax")
+    print_with_color(:white,io,"")
+    JuliaParser.Parser.display_diagnostic(io, d.text, d.d; filename = d.fname)
+end
 
 function Core.include(fname::ByteString)
     io = open(fname)

@@ -14,7 +14,7 @@ const src = IOBuffer()
 
 # wrap source in toplevel block
 write(src, "begin\n")
-write(src, open(readall, ARGS[1]))
+write(src, open(readstring, ARGS[1]))
 write(src, "\nend")
 
 const jlsrc = bytestring(src)

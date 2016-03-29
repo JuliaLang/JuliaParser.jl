@@ -8,7 +8,7 @@ import Base: convert
 
 abstract AbstractToken
 
-const ASTVerbatim = Union{Symbol,ASCIIString,UTF8String,LineNumberNode,Int,Void,Char,Bool}
+const ASTVerbatim = Union{Symbol,ASCIIString,UTF8String,LineNumberNode,Integer,Void,Char,Bool,AbstractFloat}
 const ASTExprs = Union{Expr, QuoteNode, TopNode}
 
 # Defensive definitions
@@ -86,13 +86,15 @@ end
 ⤄(ex::SourceExpr, x::SourceExpr) = ⤄(ex, √x)
 ⤄(ex::SourceExpr, x::SourceNode) = ⤄(ex, x.loc)
 ⤄(x::Void, y::SourceRange) = SourceExpr(x,SourceNode(y))
-⤄(ex::Union{ASCIIString, UTF8String, Char, Int}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
+⤄(ex::ASTVerbatim, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
+⤄(ex::ASTVerbatim, x::SourceExpr) = SourceExpr(ex,SourceNode(√x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
 ⤄(tok::SourceLocToken, x::SourceRange) = SourceLocToken(tok.val, tok.loc ⤄ x)
 ⤄(tok::SourceLocToken, x::SourceLocToken) = SourceLocToken(tok.val, tok.loc ⤄ x.loc)
-⤄(ex::Union{Symbol,Expr,Bool,QuoteNode,TopNode,LineNumberNode}, x::Union{SourceLocToken,SourceRange}) = SourceExpr(ex,√x)
+⤄(ex::Union{Symbol,Expr,Bool,QuoteNode,TopNode,LineNumberNode}, x::Union{SourceLocToken,SourceRange,SourceExpr}) = SourceExpr(ex,√x)
 ⤄(ex::Any, x::Union{Token, Expr, Symbol}) = ex
 ⤄(x,y::Void) = x
+⤄(x::ASTExprs,y::Union{ASTVerbatim,ASTExprs}) = x
 
 function sortedcomplement(of::SourceRange, set)
     complement = SourceRange[]
@@ -115,12 +117,25 @@ end
 
 ⨳(sym::Symbol) = Expr(sym)
 ⨳(sym::Symbol, args::LineNumberNode...) = Expr(sym::Symbol, args...)
-⨳(sym::Symbol,args::Union{ASTVerbatim}...) = Expr(sym,map(¬,args)...)
-⨳(sym::Symbol,args::Union{Token,ASTVerbatim,ASTExprs}...) = Expr(sym,map(¬,args)...)
+⨳(sym::Symbol, args::Union{ASTVerbatim}...) = Expr(sym,args...)
+function ⨳(sym::Symbol, args::Union{Token,ASTVerbatim,ASTExprs}...)
+    ex = Expr(sym)
+    for arg in args
+        push!(ex.args, ¬arg)
+    end
+    ex
+end
 function ⨳(sym::Symbol, args::Union{ASTVerbatim,SourceLocToken,LineNumberNode,SourceExpr}...)
-    loc = normalize(reduce(⤄,map(√,args)))
-    SourceExpr(Expr(sym,map(¬,args)...),SourceNode(loc,
-        [map(x->SourceNode(√x),args)...]))
+    accum = SourceRange()
+    children = SourceNode[]
+    ex = Expr(sym)
+    for arg in args
+        loc = √arg
+        accum = accum ⤄ loc
+        push!(children, SourceNode(loc))
+        push!(ex.args, ¬arg)
+    end
+    SourceExpr(ex,SourceNode(normalize(accum),children))
 end
 ⨳(sym::SourceLocToken,args...) = (SourceExpr(Expr(¬sym), SourceRange()) ⪥ args) ⤄ √sym
 ⨳(sym::Token,args...) = ⨳(¬sym,args...)
@@ -139,8 +154,8 @@ end
 function expr_append!(ex::Expr, new::SourceExpr)
     expr_append!(SourceExpr(ex, SourceRange()), new)
 end
-expr_append!(ex::Expr, args::Array) = (append!(ex.args, map(¬,args)); ex)
-expr_append!(ex::Expr, args::Tuple) = (for t in args; push!(ex.args, ¬t); end; ex)
+expr_append!(ex::Expr, args::Array) = (for t in args; push!((¬ex).args, ¬t); ex = ex ⤄ t; end; ex)
+expr_append!(ex::Expr, args::Tuple) = (for t in args; push!((¬ex).args, ¬t); ex = ex ⤄ t; end; ex)
 expr_append!(ex::Expr, new::Expr) = expr_append!(ex, new.args)
 
 const ⪥ = expr_append!
