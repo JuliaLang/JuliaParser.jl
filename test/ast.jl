@@ -25,12 +25,12 @@ norm_ast(ex::Expr) = begin
                         push!(args,get(n))
                         continue
                     end
-                    n = typarse(BigFloat,s)
+                    n = tryparse(BigFloat,s)
                     if !isnull(n)
                         push!(args,get(n))
                         continue
                     end
-                    assert(false)
+                    push!(args, s)
                     continue
                 end
             end

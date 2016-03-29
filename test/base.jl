@@ -52,7 +52,7 @@ function testall(srcdir::AbstractString)
 
             buf = IOBuffer()
             write(buf, "begin\n")
-            write(buf, open(readall, jlpath))
+            write(buf, open(readstring, jlpath))
             write(buf, "\nend")
 
             src = bytestring(buf)

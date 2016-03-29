@@ -24,13 +24,19 @@ function before(loc)
     SourceRange(loc.offset-1,1,loc.file)
 end
 
-function diag(loc, message, severity = :error)
+function normalize_loc(loc)    
     isa(loc, Lexer.SourceNode) && (loc = loc.loc)
+    loc == nothing && (loc = SourceRange())
+    loc
+end
+
+function diag(loc, message, severity = :error)
+    loc = normalize_loc(loc)
     Diagnostic([Message(severity, loc, message)])
 end
 
 function diag(D::Diagnostic, loc, message, severity = :note)
-    isa(loc, Lexer.SourceNode) && (loc = loc.loc)
+    loc = normalize_loc(loc)
     loc !== nothing && push!(D.elements,Message(severity, loc, message))
 end
 

@@ -58,7 +58,7 @@ facts("test special case all whitespace") do
     @fact res --> nothing
 end
 
-facts("test simple numeric expressions") do
+facts("test simple expressions/operators") do
     exprs = ["1 + 1",
              "1 + 1 + 1",
              "1 * 1 * 1",
@@ -78,6 +78,9 @@ facts("test simple numeric expressions") do
              "1 >>> 2",
              "1 % 2",
              "1 & 2",
+             "x → y",
+             "a'"
+             "a.'"
              ]
     for ex in exprs
         @fact Parser.parse(ex) --> Base.parse(ex)
@@ -255,7 +258,7 @@ facts("test cell expressions") do
         "Any[Any[1,2,3] Any[1,2,3,]]",
         """Any[Any[1,2,3]
             Any[1,2,3]]""",
-        #"Any[:a => 1,'b' => 2]", TODO: this is parsed incorrectly as a :typed_dict, not a :ref
+        "Any[:a => 1,'b' => 2]",
         "Any[i for i=1:10]",
     ]
     for ex in exprs
@@ -275,6 +278,16 @@ facts("test cat expressions") do
             [1,2,3]]""",
         VERSION < v"0.4.0-dev+980" ? "[:a => 1, :b => 2]" : "Dict(:a => 1, :b => 2)",
         "[i for i=1:10]"
+    ]
+    for ex in exprs
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
+    end
+end
+
+facts("test generator expressions") do
+    exprs = [
+        "(i/2 for i=1:2)",
+        "collect(2i for i=2:5)"
     ]
     for ex in exprs
         @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
@@ -342,6 +355,7 @@ end
 facts("test for loop expression") do
     exprs = [
         """for i in coll; x + i; end""",
+        """for i ∈ coll; x + i; end""",
         """for i = 1:10
             x + 1
          end""",
@@ -1010,4 +1024,11 @@ facts("parse two statements") do
     ts = Lexer.TokenStream(s)
     @fact Parser.parse(ts) --> 0
     @fact Parser.parse(ts) --> :(a(b))
+end
+
+facts("misc syntax changes") do
+    exprs = ["t <: Tuple","a >: b","@__LINE__"]
+    for ex in exprs
+        @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
+    end
 end
