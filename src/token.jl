@@ -59,7 +59,7 @@ immutable SourceExpr <: AbstractShadowTree
     expr::Any
     loc::SourceNode
 end
-make_zip(x::SourceExpr) = zip(children(x.expr),children(x.loc))
+make_zip(x::SourceExpr) = AbstractTrees.zip_min(children(x.expr),children(x.loc))
 first_tree(x::SourceExpr) = x.expr
 second_tree(x::SourceExpr) = x.loc
 val(expr::SourceExpr) = expr.expr
