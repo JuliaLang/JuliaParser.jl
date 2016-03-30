@@ -185,8 +185,7 @@ end
 is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
 is_dict_literal(ex) = false
 
-is_parameter(ex::Expr) = ex.head === :parameters && length(ex.args) == 1
-is_parameter(ex) = false
+is_parameter(ex) = isexpr(¬ex, :parameters)
 
 function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op)
     chain = Any[down(ps, ts)]
@@ -643,7 +642,7 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         return num
     end
     nt = peek_token(ps, ts)
-    if is_closing_token(ps, nt) || Lexer.isnewline(¬nt)
+    if is_closing_token(ps, nt) || Lexer.isnewline(¬nt) || (¬nt == :(=))
         # return operator by itself, as in (+)
         return op
     elseif ¬nt === '{'
@@ -1325,26 +1324,27 @@ function parse_comma_sep_iters(ps::ParseState, ts::TokenStream, word)
 end
 
 function parse_iteration_spec(ps, ts, word)
-    r = parse_eqs(ps, ts)
-    is_in_symbol(sym) = sym in (:in, :∈)
-    if ¬r === :(:)
-    elseif isa(¬r, Expr) && (¬r).head === :(=)
-    elseif VERSION <  v"0.4.0-dev+573" && (isa(¬r, Expr) && is_in_symbol((¬r).head))
-        r = ⨳(:(=),r.args...)
-    elseif VERSION >= v"0.4.0-dev+573" && isa(¬r,Expr) &&
-        (¬r).head == :comparison && length((¬r).args) == 3 && is_in_symbol((¬r).args[2])
-        tmp = collect(children(r))
-        r = ⨳(:(=), tmp[1], tmp[3])
-    elseif VERSION >= v"0.5.0-dev+3167" && isa(¬r,Expr) &&
-        (¬r).head == :call && length((¬r).args) == 3 && is_in_symbol((¬r).args[1])
-        tmp = collect(children(r))
-        r = ⨳(:(=), tmp[2], tmp[3])
+    lhs = parse_pipes(ps, ts)
+    t = peek_token(ps, ts)
+    is_in_symbol(sym) = ¬sym in (:in, :∈, :(=))
+    if is_in_symbol(t)
+        take_token(ts)
+        rhs = parse_pipes(ps, ts)
+        t = peek_token(ps, ts)
+        if !(is_closing_token(ps, t) || Lexer.isnewline(t))
+            # TODO: Syntax deprecation here
+            #=D = diag(√t, "invalid iteration spec")
+            diag(D, √word, "for this `for`")
+            throw(D)=#
+        end
+        return ⨳(:(=), lhs, rhs)
+    elseif lhs == :(:) && is_closing_token(ps, t)
+        return lhs
     else
-        D = diag(√r, "invalid iteration spec")
+        D = diag(√lhs, "invalid iteration spec")
         diag(D, √word, "for this `for`")
         throw(D)
     end
-    return r
 end
 
 function parse_space_separated_exprs(ps::ParseState, ts::TokenStream)
@@ -1670,25 +1670,24 @@ end
 # comma? means there was a comma after the first expression
 function arglist_to_tuple(ts, leading_semi, comma, args, first)
      if isempty(args) && !leading_semi && !comma
-         return ⨳(:block, first)
+         return ⨳(:block) ⪥ first
      elseif !comma && length(args) == 1 && isexpr(¬(args[1]), :parameters)
          blk = parameters_to_block(ts, args[1])
          if blk != nothing
              if !leading_semi
-                 return ⨳(:block, first) ⪥ blk
+                 return (⨳(:block) ⪥ first) ⪥ blk
              elseif isempty((¬first).args) && isempty(blk)
                  return ⨳(:block) ⤄ Lexer.nullrange(ts)
              end
          end
      end
-     if !comma && (isa(¬first, Expr) && length((¬first).args) == 0) &&
-            length(args) == 0
+     if !comma && (first == ()) && length(args) == 0
          return ⨳(:block)
      else
          if length(args) >= 1 && isexpr(¬(args[1]), :parameters)
-             return ⨳(:tuple, args[1], first) ⪥ map(kw_to_eq,args[2:end])
+             return (⨳(:tuple, args[1]) ⪥ first) ⪥ map(kw_to_eq,args[2:end])
          else
-             return ⨳(:tuple, first) ⪥ map(kw_to_eq,args)
+             return ((⨳(:tuple) ⤄ Lexer.nullrange(ts)) ⪥ first) ⪥ map(kw_to_eq,args)
          end
      end
 end
@@ -1986,7 +1985,8 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     take_token(ts)
                     return t
                 elseif ¬rt == ';'
-                    res = arglist_to_tuple(ts, true, false, parse_arglist(ps, ts, ')', t))
+                    res = arglist_to_tuple(ts, true, false, parse_arglist(ps, ts, ')', t),
+                        ())
                     take_token(ts)
                     return res
                 else
@@ -2024,7 +2024,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                             throw(D)    
                         end
                         res = arglist_to_tuple(ts, false, ¬nt == ',',
-                            parse_arglist(ps, ts, ')', t), ex)
+                            parse_arglist(ps, ts, ')', t), (ex,))
                         take_token(ts)
                         return res
                     end
@@ -2181,8 +2181,15 @@ end
 function parse_docstring(ps::ParseState, ts::TokenStream, down)
     ex = down(ps, ts)
     if is_doc_string_literal(ex)
-        while Lexer.isnewline(peek_token(ps, ts))
-            take_token(ts)
+        while true 
+            t = peek_token(ps, ts)
+            if is_closing_token(ps, t)
+                return ex
+            elseif Lexer.isnewline(t)
+                take_token(ts)
+            else
+                break
+            end
         end
         Lexer.eof(Lexer.peek_token(ts, false)) && return ex
         return ⨳(:macrocall, symbol("@doc") ⤄ Lexer.nullrange(ts), ex, down(ps, ts))

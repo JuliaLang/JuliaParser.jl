@@ -52,8 +52,8 @@ function testall(srcdir::AbstractString)
             fname = splitdir(jlpath)[end]
 
             buf = IOBuffer()
-            write(buf, "begin\n")
-            write(buf, open(readall, jlpath))
+            write(buf, "module X\n")
+            write(buf, open(readstring, jlpath))
             write(buf, "\nend")
 
             src = bytestring(buf)
@@ -112,7 +112,7 @@ else
 Could not find julia base sources in $BASEPATH,
 perhaps you are using a Julia not built from source?""")
 end
-#=
+
 for pkg in Pkg.available()
     pkgpath = joinpath(PKGDIR, pkg)
     if !isdir(pkgpath)
@@ -120,7 +120,7 @@ for pkg in Pkg.available()
     end
     testall(pkgpath)
 end
-=#
+
 npassed, nfailed, nerrors = length(passed), length(failed), length(errors)
 
 println("\n"^2)
