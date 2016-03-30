@@ -1,5 +1,6 @@
 import JuliaParser.Parser
 
+using AbstractTrees
 using Base.Test
 
 if length(ARGS) != 1
@@ -13,7 +14,7 @@ include("ast.jl")
 const src = IOBuffer()
 
 # wrap source in toplevel block
-write(src, "begin\n")
+write(src, "module X\n")
 write(src, open(readstring, ARGS[1]))
 write(src, "\nend")
 
@@ -26,13 +27,13 @@ ast = let
     local ast1::Expr
     open("$tmp1", "w+") do io
         ast1 = Parser.parse(jlsrc) |> norm_ast
-        Meta.show_sexpr(io, ast1)
+        AbstractTrees.print_tree(io, ast1)
     end
 
     local ast2::Expr
     open("$tmp2", "w+") do io
         ast2 = parse(jlsrc) |> norm_ast
-        Meta.show_sexpr(io, ast2)
+        AbstractTrees.print_tree(io, ast2)
     end
 
     if ast1 == ast2
