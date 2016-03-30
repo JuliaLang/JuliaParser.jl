@@ -1392,7 +1392,13 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
             return unshift!(lst, ⨳(:parameters, params...))
         end
         loc = here(ts)
-        nxt = parse_eqs(ps, ts)
+        nxt = try
+            parse_eqs(ps, ts)
+        catch D
+            isa(D, Diagnostic) || rethrow(D)
+            diag(D, √opener, "in argument list beginning here")
+            throw(D)
+        end
         nt  = require_token(ps, ts)
         if ¬nt === ','
             take_token(ts)
@@ -1409,7 +1415,7 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
             push!(lst, parse_generator(ps, ts, nxt, nt))
             continue
         else
-            D = diag(loc,"Expected '$closer' or ','")
+            D = diag(loc,"Expected '$(¬closer)' or ','")
             diag(D, √opener, "to match '$(¬opener)' here", :note)
             throw(D)
         end
@@ -1607,37 +1613,60 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer, opener, isdict::Bool
     end
 end
 
-function parse_tuple(ps::ParseState, ts::TokenStream, frst, opener)
-    args = Any[]
-    nxt = frst
-    while true
-        t = require_token(ps, ts)
-        if ¬t === ')'
-            take_token(ts)
-            ex = ⨳(:tuple, push!(args, nxt)...)
-            return ex
-        end
-        if ¬t === ','
-            take_token(ts)
-            if ¬require_token(ps, ts) === ')'
-                # allow ending with ,
-                ex = ⨳(:tuple, push!(args, nxt)...) ⤄ take_token(ts)
-                return ex
+kw_to_eq(e) = isexpr(e, :kw) ? (⨳(:(=)) ⪥ e) : e
+
+function parameters_to_block(ts, e)
+    if isexpr(¬e, :parameters)
+        if length((¬e).args) == 0
+            return Expr(:tuple) ⤄ Lexer.nullrange(ts)
+        elseif length((¬e).args) == 1
+            return parameters_to_block(ts, collect(children(e))[1])
+        elseif length((¬e).args) == 2
+            fst, snd = collect(children(e))
+            if isexpr(¬fst, :parameters) && snd !== nothing
+                rec = parameters_to_block(ts, fst)
+                snd = parameters_to_block(ts, snd)
+                unshift!(snd,rec[1])
+                return snd
+            else
+                return nothing
             end
-            args = push!(args, nxt)
-            nxt  = parse_eqs(ps, ts)
-            continue
-        elseif ¬t === ';' ||  ¬t === ']' || ¬t === '}'
-            D = diag(√t,"unexpected \"$(¬t)\" in tuple")
-            diag(D,√opener,"tuple began here")
-            throw(D)
         else
-            D = diag(before(√t),"missing separator in tuple")
-            diag(D,√opener,"tuple began here")
-            throw(D)
+            return nothing
         end
+    else
+        return [kw_to_eq(e)]
     end
 end
+
+# convert an arglist to a tuple or block expr
+# leading-semi? means we saw (; ...)
+# comma? means there was a comma after the first expression
+function arglist_to_tuple(ts, leading_semi, comma, args, first)
+     if isempty(args) && !leading_semi && !comma
+         return ⨳(:block, first)
+     elseif !comma && length(args) == 1 && isexpr(¬(args[1]), :parameters)
+         blk = parameters_to_block(ts, args[1])
+         if blk != nothing
+             if !leading_semi
+                 return ⨳(:block, first) ⪥ blk
+             elseif isempty((¬first).args) && isempty(blk)
+                 return ⨳(:block) ⤄ Lexer.nullrange(ts)
+             end
+         end
+     end
+     if !comma && (isa(¬first, Expr) && length((¬first).args) == 0) &&
+            length(args) == 0
+         return ⨳(:block)
+     else
+         if length(args) >= 1 && isexpr(¬(args[1]), :parameters)
+             return ⨳(:tuple, args[1], first) ⪥ args[2:end]
+         else
+             return ⨳(:tuple, first) ⪥ args
+         end
+     end
+end
+
 
 # TODO: these are unnecessary if base/client.jl didn't need to parse error string
 function not_eof_1(ts)
@@ -1893,7 +1922,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     # empty tuple
                     take_token(ts)
                     return (⨳(:tuple) ⤄ t) ⤄ rt
-                elseif ¬peek_token(ps, ts) in Lexer.syntactic_ops
+                elseif ¬rt in Lexer.syntactic_ops
                     # allow (=) etc. since this function is also used to parse
                     # quoted expression. However, anything else will invariably
                     # cause an invalid identifier name
@@ -1902,12 +1931,16 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     ¬nt !== ')' && throw(diag(after(√t),"Expected ')'"))
                     take_token(ts)
                     return t
+                elseif ¬rt == ';'
+                    res = arglist_to_tuple(ts, true, false, parse_arglist(ps, ts, ')', t))
+                    take_token(ts)
+                    return res
                 else
                     # here we parse the first subexpression separately,
                     # so we can look for a comma to see if it is a tuple
                     # this lets us distinguish (x) from (x,)
                     ex = parse_eqs(ps, ts)
-                    nt  = require_token(ps, ts)
+                    nt  = peek_token(ps, ts)
                     if ¬nt === ')'
                         take_token(ts)
                         if isa(ex, Expr) && ex.head === :(...)
@@ -1927,39 +1960,19 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                             throw(D)
                         end
                         take_token(ts)
-                        gen
-                    elseif ¬nt === ','
-                        # tuple (x,) (x,y) (x...) etc
-                        return parse_tuple(ps, ts, ex, t)
-                    elseif ¬nt === ';'
-                        #parenthesized block (a;b;c)
-                        take_token(ts)
-                        if ¬require_token(ps, ts) === ')'
-                            # (ex;)
-                            take_token(ts)
-                            return ⨳(:block, ex)
-                        else
-                            blk = parse_stmts_within_expr(ps, ts)
-                            tok = require_token(ps, ts)
-                            if ¬tok === ','
-                                @show curline(ts)
-                                D = diag(√tok, "unexpected '$(¬tok)' in statment block")
-                                diag(D, √t, "block began here")
-                                throw(D)
-                            end
-                            @assert ¬tok === ')'
-                            take_token(ts)
-                            return ⨳(:block, ex) ⪥ (isexpr(¬blk, :block) ? blk :
-                                (blk,))
-                        end
-                    elseif ¬nt=== ']' || ¬nt === '}'
-                        D = diag(√nt, "expected ')' not '$(¬nt)'")
-                        diag(D,√t,"to match '$(¬t)' here")
-                        throw(D)
+                        return gen
                     else
-                        D = diag(before(√nt), "missing spearator (did you mean ',' or ';'?)")
-                        diag(D,√t,"in expression that began here")
-                        throw(D)
+                        if (¬nt === ',')
+                            take_token(ts)
+                        elseif ¬nt !== ';'
+                            D = diag(before(nt), "Expected ',' or ')'")
+                            diag(D,√t,"to match '$(¬t)' here")
+                            throw(D)    
+                        end
+                        res = arglist_to_tuple(ts, false, ¬nt == ',',
+                            parse_arglist(ps, ts, ')', t), ex)
+                        take_token(ts)
+                        return res
                     end
                 end
             end
