@@ -20,7 +20,7 @@ const all_ops = Dict{Symbol,Any}(
        [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=),
         :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=),
         :(|=),  :(&=),  :($=), :(=>),  :(<<=), :(>>=),  :(>>>=), :(~),
-        :(.+=), :(.-=)],
+        :(.+=), :(.-=), :(÷=), :(.÷=)],
 :conditional => [:(?)],
 :lazy_or     => [:(||)],
 :lazy_and    => [:(&&)],
@@ -70,8 +70,8 @@ const all_ops = Dict{Symbol,Any}(
 :pipe       => [:(|>),  :(<|)],
 :colon      => [:(:), :(..)],
 :plus       =>
-       [:(+), :(-), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪), :(∨),
-        :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽),
+       [:(+), :(-), :(++), :(⊕), :(⊖), :(⊞), :(⊟), :(.+), :(.-), :(|), :(∪),
+        :(∨), :($), :(⊔), :(±), :(∓), :(∔), :(∸), :(≂), :(≏), :(⊎), :(⊻), :(⊽),
         :(⋎), :(⋓), :(⧺), :(⧻), :(⨈), :(⨢), :(⨣), :(⨤), :(⨥), :(⨦), :(⨧),
         :(⨨), :(⨩), :(⨪), :(⨫), :(⨬), :(⨭), :(⨮), :(⨹), :(⨺), :(⩁), :(⩂),
         :(⩅), :(⩊), :(⩌), :(⩏), :(⩐), :(⩒), :(⩔), :(⩖), :(⩗), :(⩛), :(⩝),
@@ -120,7 +120,7 @@ const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
                                    :(.%=), :(|=),  :(&=),   :($=),  :(=>),
                                    :(<<=), :(>>=), :(>>>=), :(->),  :(-->),
                                    :(||),  :(&&),  :(.),    :(...), :(.+=),
-                                   :(.-=)])
+                                   :(.-=), :(÷=), :(.÷=)])
 
 const syntactic_unary_ops = Set{Symbol}([:($), :(&), :(::)])
 
@@ -538,8 +538,7 @@ function accum_digits(ts::TokenStream, pred::Function, c::Char, leading_zero::Bo
     return (charr, true)
 end
 
-#TODO: can we get rid of this?
-fix_uint_neg(neg::Bool, n::Number) = neg? Expr(:call, :- , n) : n
+fix_uint_neg(neg::Bool, n::Number) = neg? -n : n
 
 function disallow_dot!(ts::TokenStream, charr::Vector{Char})
     if peekchar(ts) === '.'
@@ -737,7 +736,7 @@ end
 make_token(::Type{Token},val,start,offset) = Token(val)
 make_token(::Type{SourceLocToken},val,start,length) =
     SourceLocToken(val,start,length,0)
-make_token(val, r::Void) = Token(val)
+@noinline make_token(val, r::Void) = Token(val)
 make_token(val, r::SourceRange) = SourceLocToken(val,r)
 
 EOF(::Type{Token}) = Token(convert(Char,typemax(UInt32)))

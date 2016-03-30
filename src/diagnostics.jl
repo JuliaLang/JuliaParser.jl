@@ -25,6 +25,7 @@ end
 function normalize_loc(loc)    
     isa(loc, Lexer.SourceNode) && (loc = loc.loc)
     isa(loc, Union{Lexer.SourceExpr, Lexer.SourceLocToken}) && (loc = √loc)
+    isa(loc, Lexer.Token) && (loc = SourceRange())
     loc == nothing && (loc = SourceRange())
     loc
 end

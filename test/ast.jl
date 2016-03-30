@@ -1,8 +1,10 @@
 using Compat
+using Base.Meta
 norm_ast(ex::Expr) = begin
     args = Any[]
     for a in ex.args
         if isa(a, Expr)
+            a = norm_ast(a)
             if a.head === :line
                 push!(args, Expr(:line, a.args[1], :none))
                 continue
@@ -33,8 +35,11 @@ norm_ast(ex::Expr) = begin
                     push!(args, s)
                     continue
                 end
+            elseif isexpr(a, :call) && a.args[1] == :- && isa(a.args[2], Number)
+                push!(args, -a.args[2])
+                continue
             end
-            push!(args, norm_ast(a))
+            push!(args, a)
         elseif isa(a, QuoteNode)
             push!(args, Expr(:quote, norm_ast(a.value)))
         else

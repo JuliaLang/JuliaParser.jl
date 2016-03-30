@@ -1,8 +1,6 @@
 using Compat
 using AbstractTrees
 
-typealias TokenValue @compat(Union{Symbol, Char, Number, Void})
-
 import AbstractTrees: children, AbstractShadowTree, make_zip, first_tree, second_tree
 import Base: convert
 
@@ -17,7 +15,7 @@ Base.isequal(x::AbstractToken, y::ASTVerbatim) = error("Comparing token to raw A
 global √
 
 immutable Token <: AbstractToken
-  val::TokenValue
+  val::ASTVerbatim
 end
 val(t::Token) = t.val
 val(t::Union{ASTVerbatim,ASTExprs}) = t
@@ -26,13 +24,13 @@ val(t::Union{ASTVerbatim,ASTExprs}) = t
 
 immutable SourceRange
     offset::UInt32
-    length::UInt16
+    length::UInt32
     file::UInt8
 end
 SourceRange() = SourceRange(-1 % UInt32,-1 % UInt16,-1 % UInt8)
 
 immutable SourceLocToken <: AbstractToken
-  val::TokenValue
+  val::ASTVerbatim
   loc::SourceRange
 end
 SourceLocToken(val, offset, length, file) =
@@ -86,12 +84,12 @@ end
 ⤄(ex::SourceExpr, x::SourceExpr) = ⤄(ex, √x)
 ⤄(ex::SourceExpr, x::SourceNode) = ⤄(ex, x.loc)
 ⤄(x::Void, y::SourceRange) = SourceExpr(x,SourceNode(y))
-⤄(ex::ASTVerbatim, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
-⤄(ex::ASTVerbatim, x::SourceExpr) = SourceExpr(ex,SourceNode(√x))
+⤄(ex::Union{ASTVerbatim, ASTExprs}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
+⤄(ex::Union{ASTVerbatim, ASTExprs}, x::SourceLocToken) = SourceExpr(ex,SourceNode(√x))
+⤄(ex::ASTVerbatim, x::Union{SourceExpr,SourceLocToken}) = SourceLocToken(ex,normalize(√x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
 ⤄(tok::SourceLocToken, x::SourceRange) = SourceLocToken(tok.val, tok.loc ⤄ x)
 ⤄(tok::SourceLocToken, x::SourceLocToken) = SourceLocToken(tok.val, tok.loc ⤄ x.loc)
-⤄(ex::Union{Symbol,Expr,Bool,QuoteNode,TopNode,LineNumberNode}, x::Union{SourceLocToken,SourceRange,SourceExpr}) = SourceExpr(ex,√x)
 ⤄(ex::Any, x::Union{Token, Expr, Symbol}) = ex
 ⤄(x,y::Void) = x
 ⤄(x::ASTExprs,y::Union{ASTVerbatim,ASTExprs}) = x
