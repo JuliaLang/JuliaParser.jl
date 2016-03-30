@@ -494,7 +494,7 @@ facts("test abstract type expression") do
     end
 end
 
-facts("test unary negate") do
+facts("test unary operator expressions") do
     exprs = [
         "-10",
         "x -y",
@@ -505,7 +505,8 @@ facts("test unary negate") do
         "2^(-x)",
         "-x.^-y",
         "2^-x",
-        "-2^-x"
+        "-2^-x",
+        "¬ = 1"
     ]
     for ex in exprs
         @fact Parser.parse(ex) --> Base.parse(ex)
@@ -783,6 +784,10 @@ facts("test parse do") do
         """
         test(x) do
             x + 1
+        end
+        """,
+        """
+        map(inputs...; init=nothing, typ=Any) do args...
         end
         """,
         """
