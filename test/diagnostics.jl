@@ -304,17 +304,6 @@ let diags = do_diag_test("[a b;\nc d for a = 1:10]")
     @test diags.elements[2].severity == :note
 end
 
-let diags = do_diag_test("(a,b;c)")
-# none:1:5 error: unexpected ";" in tuple
-# (a,b;c)
-#     ^
-# none:1:3 note: tuple began here
-# (a,b;c)
-#   ^
-    @test diags.elements[1].severity == :error
-    @test diags.elements[2].severity == :note
-end
-
 let diags = do_diag_test("(a,b c)")
 # none:1:5 error: missing separator in tuple
 # (a,b c)
@@ -344,17 +333,6 @@ let diags = do_diag_test(":(= a)")
 # :(= a)
 #    ^
     @test diags.elements[1].severity == :error
-end
-
-let diags = do_diag_test("(a,b;c)")
-# none:1:5 error: unexpected ',' in statment block
-# (a;b,c)
-#     ^
-# none:1:1 note: block began here
-# (a;b,c)
-# ^
-    @test diags.elements[1].severity == :error
-    @test diags.elements[2].severity == :note
 end
 
 let diags = do_diag_test("(x]")

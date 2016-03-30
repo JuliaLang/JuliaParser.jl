@@ -11,21 +11,20 @@ immutable Diagnostic
 end
 
 function after(loc)
-    loc == nothing && return SourceRange()
-    isa(loc, Lexer.SourceNode) && (loc = loc.loc)
+    loc = normalize_loc(loc)
     loc == SourceRange() && return SourceRange()
     SourceRange(loc.offset+loc.length,1,loc.file)
 end
 
 function before(loc)
-    loc == nothing && return SourceRange()
-    isa(loc, Lexer.SourceNode) && (loc = loc.loc)
+    loc = normalize_loc(loc)
     loc == SourceRange() && return SourceRange()
     SourceRange(loc.offset-1,1,loc.file)
 end
 
 function normalize_loc(loc)    
     isa(loc, Lexer.SourceNode) && (loc = loc.loc)
+    isa(loc, Union{Lexer.SourceExpr, Lexer.SourceLocToken}) && (loc = √loc)
     loc == nothing && (loc = SourceRange())
     loc
 end

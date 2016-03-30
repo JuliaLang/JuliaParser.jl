@@ -79,7 +79,7 @@ facts("test simple expressions/operators") do
              "1 % 2",
              "1 & 2",
              "x → y",
-             "a'"
+             "a'",
              "a.'"
              ]
     for ex in exprs
@@ -135,8 +135,13 @@ facts("test tuple expressions") do
         "(a...)",
         "((a,b)...)",
         "((a,b);)",
-        "((a,b);(c,d);)"
-    ]
+        "((a,b);(c,d);)"]
+
+    # Disallowed in lowering, but allowed in parser
+    (VERSION >= v"0.5.0-dev+2375") && append!(exprs,[
+        "(1,2;3)",
+        "((a,b);(c,d),(e,f))"
+    ])
     for ex in exprs
         @fact Parser.parse(ex) --> Base.parse(ex)
     end
@@ -145,15 +150,7 @@ facts("test tuple expressions") do
     @fact_throws Parser.parse(code)
     code = "(1,}"
     @fact_throws Parer.parse(code)
-
-    # unexpected ; in tuple constructor
-    code = "(1,2;3)"
-    @fact_throws Parser.parse(code)
-
-    # unexpected , in statement block
-    code = "((a,b);(c,d),(e,f))"
-    @fact_throws Parser.parse(code)
-
+    
     # missing separator in tuple constructor
     code = "(1,2 3)"
     @fact_throws Parser.parse(code)
