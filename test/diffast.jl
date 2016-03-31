@@ -23,15 +23,19 @@ const jlsrc = bytestring(src)
 tmp1 = tempname()
 tmp2 = tempname()
 
-ast = let
-    local ast1::Expr
+global ast1, ast2
+
+#ast = let
+    #local ast1::Expr
     open("$tmp1", "w+") do io
+        global ast1
         ast1 = Parser.parse(jlsrc) |> norm_ast
         AbstractTrees.print_tree(io, ast1)
     end
 
-    local ast2::Expr
+    #local ast2::Expr
     open("$tmp2", "w+") do io
+        global ast2
         ast2 = parse(jlsrc) |> norm_ast
         AbstractTrees.print_tree(io, ast2)
     end
@@ -43,11 +47,11 @@ ast = let
     end
 
     ast1
-end
+#end
 
-topast = Expr(:toplevel)
-append!(topast.args, ast.args)
+#topast = Expr(:toplevel)
+#append!(topast.args, ast.args)
 
 #eval(Main, topast)
 
-run(`vimdiff $tmp1 $tmp2`)
+#run(`vimdiff $tmp1 $tmp2`)
