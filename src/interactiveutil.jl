@@ -3,11 +3,11 @@ using VT100
 using TerminalUI
 using Colors
 using LineNumbers
-import JuliaParser: Lexer
-import JuliaParser.Lexer: ⤄
+import JuliaParser: Lexer, Tokens
+import JuliaParser.Tokens: ⤄
 
 function do_transform(node,code,create_template,create_portal,from_line)
-    max = Lexer.normalize(reduce(⤄,PostOrderDFS(node)))
+    max = Tokens.normalize(reduce(⤄,PostOrderDFS(node)))
     file = SourceFile(code)
     startline = compute_line(file, max.offset)
     stopline = compute_line(file, max.offset+max.length)

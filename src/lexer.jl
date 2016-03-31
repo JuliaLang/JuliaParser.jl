@@ -1,10 +1,11 @@
 module Lexer
 
 using Compat
-include("token.jl")
 
 import Base.UTF8proc
 import Base: position
+import ..Diagnostics: diag, Incomplete, before
+using ..Tokens
 
 export Token, TokenStream, next_token, set_token!, last_token,
        put_back!, peek_token, take_token, require_token
@@ -375,10 +376,13 @@ function skip_to_eol(io::IO)
 end
 skip_to_eol(ts::TokenStream) = skip_to_eol(ts.io)
 
-function read_operator(ts::TokenStream, c::Char)
+function read_operator(ts::TokenStream, c::Char, r)
     nc = peekchar(ts)
     if (c === '*') && (nc === '*')
-        throw(ParseError("use \"^\" instead of \"**\""))
+        readchar(ts); loc = Lexer.makerange(ts, r)
+        D = diag(loc, "use '^' instead of '**'")
+        diag(D, loc, "^", :fixit)
+        throw(D)
     end
     # 1 char operator
     if eof(nc) || !is_opchar(nc) || (c === ':' && nc === '-')
@@ -458,7 +462,7 @@ end
 # expressions starting with a numeric literal followed by e or E
 # are always floating point literals
 
-function string_to_number(str::AbstractString)
+function string_to_number(str::AbstractString, loc)
     len = length(str)
     len > 0 || throw(ArgumentError("empty string"))
     neg = str[1] === '-'
@@ -471,17 +475,11 @@ function string_to_number(str::AbstractString)
     for i=1:len
         c = str[i]
         if c === '.'
-            if isfloat64 == false
-                didx, isfloat64 = i, true
-            else
-                throw(ParseError("invalid float string \"$str\""))
-            end
+            @assert isfloat64 == false
+            didx, isfloat64 = i, true
         elseif c === 'f'
-            if i > didx && i != len
-                fidx, isfloat32 = i, true
-            else
-                throw(ParseError("invalid float32 string \"$str\""))
-            end
+            @assert i > didx && i != len
+            fidx, isfloat32 = i, true
         elseif c === 'e' || c === 'E' || c === 'p' || c === 'P'
             isfloat64 = true
         end
@@ -540,20 +538,20 @@ end
 
 fix_uint_neg(neg::Bool, n::Number) = neg? -n : n
 
-function disallow_dot!(ts::TokenStream, charr::Vector{Char})
+function disallow_dot!(ts::TokenStream, charr::Vector{Char}, loc)
     if peekchar(ts) === '.'
         skip(ts, 1)
         if is_dot_opchar(peekchar(ts))
             skip(ts, -1)
         else
-            throw(ParseError("invalid numeric constant \"$(utf32(charr)).\""))
+            throw(diag(loc, "invalid numeric constant \"$(utf32(charr)).\""))
         end
     end
 end
 
-function read_digits!(ts::TokenStream, pred::Function, charr::Vector{Char}, leading_zero::Bool)
+function read_digits!(ts::TokenStream, pred::Function, charr::Vector{Char}, leading_zero::Bool, loc)
     digits, ok = accum_digits(ts, pred, peekchar(ts), leading_zero)
-    ok || throw(ParseError("invalid numeric constant \"$digits\""))
+    ok || throw(diag(loc, "invalid use of '_' in numeric constant"))
     isempty(digits) && return false
     append!(charr, digits)
     return true
@@ -595,21 +593,20 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
             nc === '.' && (skip(ts, 1); push!(charr, nc))
         end
     end
-    read_digits!(ts, pred, charr, leading_zero)
+    read_digits!(ts, pred, charr, leading_zero, makerange(ts, r))
     if peekchar(ts) == '.'
         skip(ts, 1)
         if is_dot_opchar(peekchar(ts))
             skip(ts, -1)
         else
             push!(charr, '.')
-            read_digits!(ts, pred, charr, false)
-            disallow_dot!(ts, charr)
+            read_digits!(ts, pred, charr, false, makerange(ts, r))
+            disallow_dot!(ts, charr, Lexer.makerange(ts, r))
         end
     end
     c = peekchar(ts)
     ispP = c === 'p' || c === 'P'
-    if (is_hexfloat_literal && (ispP || throw(ParseError("hex float literal must contain 'p' or 'P'")))) ||
-       (pred === is_char_hex && ispP) || (c === 'e' || c === 'E' || c === 'f')
+    if (pred === is_char_hex && ispP) || (c === 'e' || c === 'E' || c === 'f')
         skip(ts, 1)
         nc = peekchar(ts)
         if !eof(nc) && (isdigit(nc) || nc === '+' || nc === '-')
@@ -618,15 +615,15 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
             is_hexfloat_literal = ispP
             push!(charr, c)
             push!(charr, nc)
-            read_digits!(ts, pred, charr, false)
-            disallow_dot!(ts, charr)
+            read_digits!(ts, pred, charr, false, makerange(ts, r))
+            disallow_dot!(ts, charr, makerange(ts, r))
         else
             skip(ts, -1)
         end
     # disallow digits after binary or octal literals, e.g. 0b12
     elseif (pred == is_char_bin || pred == is_char_oct) && !eof(c) && isdigit(c)
         push!(charr, c)
-        throw(ParseError("invalid numeric constant \"$(utf32(charr))\""))
+        throw(diag(makerange(ts, r), "invalid numeric constant \"$(utf32(charr))\""))
     end
     str = utf32(charr)
     base = pred == is_char_hex ? 16 :
@@ -635,18 +632,24 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     # for an unsigned literal starting with -,
     # remove the - and parse instead as a call to unary -
     (neg && base != 10 && !is_hexfloat_literal) && (str = str[2:end])
-    if is_hexfloat_literal
-        return make_token((@compat parse(Float64,str)), makerange(ts, r))
-    elseif pred == is_char_hex
-        return make_token(fix_uint_neg(neg, sized_uint_literal(str, 4)), makerange(ts, r))
-    elseif pred == is_char_oct
-        return make_token(fix_uint_neg(neg, sized_uint_oct_literal(str)), makerange(ts, r))
-    elseif pred == is_char_bin
-        return make_token(fix_uint_neg(neg, sized_uint_literal(str, 1)), makerange(ts, r))
-    elseif is_float32_literal
-        return make_token(convert(Float32, string_to_number(str)), makerange(ts, r))
-    else
-        return make_token(string_to_number(str), makerange(ts, r))
+    loc = makerange(ts, r)
+    try
+        if is_hexfloat_literal
+            return make_token((@compat parse(Float64,str)), loc)
+        elseif pred == is_char_hex
+            return make_token(fix_uint_neg(neg, sized_uint_literal(str, 4)), loc)
+        elseif pred == is_char_oct
+            return make_token(fix_uint_neg(neg, sized_uint_oct_literal(str)), loc)
+        elseif pred == is_char_bin
+            return make_token(fix_uint_neg(neg, sized_uint_literal(str, 1)), loc)
+        elseif is_float32_literal
+            return make_token(convert(Float32, string_to_number(str, loc)), loc)
+        else
+            return make_token(string_to_number(str, loc), loc)
+        end
+    catch e
+        isa(e, ArgumentError) && throw(diag(loc, e.msg))
+        rethrow(e)
     end
 end
 
@@ -665,6 +668,7 @@ end
 # cnt 0           cnt 1         cnt 2    cnt 1
 function skip_multiline_comment(ts::TokenStream, count::Int)
     start, unterminated = -1, true
+    startloc = before(here(ts))
     while !eof(ts)
         c = readchar(ts)
         # if "=#" token, decrement the count.
@@ -684,7 +688,9 @@ function skip_multiline_comment(ts::TokenStream, count::Int)
         end
     end
     if unterminated
-        throw(ParseError("incomplete: unterminated multi-line comment #= ... =#"))
+        D = diag(here(ts),"incomplete: unterminated multi-line comment #= ... =#")
+        diag(D, startloc, "starting here", :note)
+        throw(Incomplete(:comment, D))
    end
     return ts
 end
@@ -786,30 +792,33 @@ function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
         elseif isdigit(c)
             return read_number(ts, false, false)
         elseif c === '.'
+            r = startrange(ts)
             skip(ts, 1)
             nc = peekchar(ts)
             if isdigit(nc)
                 return read_number(ts, true, false)
             elseif is_opchar(nc)
                 return @tok begin
-                    op = read_operator(ts, c)
+                    op = read_operator(ts, c, r)
                     if op === :(..) && is_opchar(peekchar(ts))
-                        throw(ParseError(string("invalid operator \"", op, peekchar(ts), "\"")))
+                        throw(diag(makerange(ts, r),
+                            string("invalid operator \"", op, peekchar(ts), "\"")))
                     end
                     op
                 end
             end
             return @tok :(.)
         elseif is_opchar(c)
-            return @tok read_operator(ts, readchar(ts))
+            r = startrange(ts)
+            return @tok read_operator(ts, readchar(ts), r)
         elseif is_identifier_start_char(c)
             return @tok accum_julia_symbol(ts, c)
         else
             @assert readchar(ts) === c
             if is_ignorable_char(c)
-                throw(ParseError("invisible character \\u$(hex(c))"))
+                throw(diag(here(ts),"invisible character \\u$(hex(c))"))
             else
-                throw(ParseError("invalid character \"$c\""))
+                throw(diag(here(ts),"invalid character \"$c\""))
            end
         end
     end
@@ -863,11 +872,12 @@ function require_token(ts::TokenStream, whitespace_newline::Bool)
     else
         t = next_token(ts, whitespace_newline)
     end
-    eof(t) && throw(ParseError("incomplete: premature end of input"))
+    eof(t) && throw(Incomplete(:other, diag(here(ts), "incomplete: premature end of input")))
     while isnewline(t)
         take_token(ts)
         t = next_token(ts, whitespace_newline)
     end
+    eof(t) && throw(Incomplete(:other, diag(here(ts), "incomplete: premature end of input")))
     ts.putback === nothing && set_token!(ts, t)
     return t
 end

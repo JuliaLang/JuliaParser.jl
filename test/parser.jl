@@ -749,8 +749,8 @@ end
 facts("test typealias expression") do
     exprs = [
         "typealias Test Test",
-        "typealias Test Union(Test, Test)",
-        "typealias Test (Int, Int)",
+        "typealias Test Union{Test, Test}",
+        "typealias Test Tuple{Int, Int}",
     ]
     for ex in exprs
         @fact Parser.parse(ex) --> Base.parse(ex)

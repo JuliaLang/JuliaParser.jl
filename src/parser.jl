@@ -3,17 +3,17 @@ module Parser
 
 using Compat
 using ..Lexer
+using ..Lexer: here
+using ..Tokens
+using ..Tokens: √
+using ..Diagnostics: diag
 using Base.Meta
 
-# These symbols are described in token.jl
-using ..Lexer: ¬, ⨳, ⪥, ⤄, √, AbstractToken, here
 using AbstractTrees: children
 
 export parse
 
 typealias CharSymbol @compat(Union{Char, Symbol})
-
-include("diagnostics.jl")
 
 type ParseState
     # disable range colon for parsing ternary cond op
@@ -837,7 +837,7 @@ function expect_end(ps::ParseState, ts::TokenStream, word)
     if ¬t === SYM_END
         take_token(ts)
     elseif Lexer.eof(t)
-        D = diag(here(ts),"incomplete: \"$(¬word)\" requires end")
+        D = Incomplete(:block, diag(here(ts),"incomplete: \"$(¬word)\" requires end"))
         diag(D,√word,"\"$(¬word)\" began here")
         throw(D)
     else
@@ -1696,17 +1696,17 @@ end
 
 # TODO: these are unnecessary if base/client.jl didn't need to parse error string
 function not_eof_1(ts)
-    Lexer.eof(ts) && throw(diag(here(ts),"incomplete: invalid character literal"))
+    Lexer.eof(ts) && throw(Incomplete(:char, diag(here(ts),"incomplete: invalid character literal")))
     return Lexer.readchar(ts)
 end
 
 function not_eof_2(ts)
-    Lexer.eof(ts) && throw(diag(here(ts),"incomplete: invalid \"`\" literal"))
+    Lexer.eof(ts) && throw(Incomplete(:cmd, diag(here(ts),"incomplete: invalid \"`\" literal")))
     return Lexer.readchar(ts)
 end
 
 function not_eof_3(ts)
-    Lexer.eof(ts) && throw(diag(here(ts),"incomplete: invalid string syntax"))
+    Lexer.eof(ts) && throw(Incomplete(:string, diag(here(ts),"incomplete: invalid string syntax")))
     return Lexer.readchar(ts)
 end
 
@@ -1905,8 +1905,8 @@ function dedent_triple_quoted_string(mstr)
     end
     prefix = isempty(prefixes) ? " "^maxlength : reduce(longest_common_prefix, prefixes)
     for (i,str) in enumerate(children(mstr))
-        !isa(str, AbstractString) && continue
-        (¬mstr).args[i] = replace(str,string('\n',prefix),"\n")
+        !isa(¬str, AbstractString) && continue
+        (¬mstr).args[i] = replace(¬str,string('\n',prefix),"\n")
     end
     drop_leading_newline(mstr)
 end

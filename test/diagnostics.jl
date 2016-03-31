@@ -390,3 +390,35 @@ end
 let diags = do_diag_test("\\xff")
     @test diags.elements[1].severity == :error
 end
+
+let diags = do_diag_test("0f1.2")
+# none:1:1 error: invalid numeric constant "0f1."
+# 0f1.2
+# ^~~
+    @test diags.elements[1].severity == :error
+end
+
+let diags = do_diag_test("1._a")
+# none:1:1 error: invalid use of '_' in numeric constant ""
+# 1._a
+# ^~
+    @test diags.elements[1].severity == :error
+end
+
+let diags = do_diag_test("1b12")
+# none:1:1 error: invalid numeric constant "0b12"
+# 0b12
+# ^~~
+    @test diags.elements[1].severity == :error
+end
+
+let diags = do_diag_test("#=")
+# none:1:3 error: incomplete: unterminated multi-line comment #= ... =#
+# #=
+#   ^
+# none:1:1 note: starting here
+# #=
+# ^
+    @test diags.elements[1].severity == :error
+    @test diags.elements[2].severity == :note
+end
