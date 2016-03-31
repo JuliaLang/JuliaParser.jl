@@ -1674,10 +1674,11 @@ function arglist_to_tuple(ts, leading_semi, comma, args, first)
      elseif !comma && length(args) == 1 && isexpr(¬(args[1]), :parameters)
          blk = parameters_to_block(ts, args[1])
          if blk != nothing
+             b = ⨳(:block) ⤄ Lexer.nullrange(ts)
              if !leading_semi
-                 return (⨳(:block) ⪥ first) ⪥ blk
+                 return (b ⪥ first) ⪥ blk
              elseif isempty((¬first).args) && isempty(blk)
-                 return ⨳(:block) ⤄ Lexer.nullrange(ts)
+                 return b
              end
          end
      end
