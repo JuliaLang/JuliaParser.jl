@@ -1,8 +1,12 @@
+module Tokens
+
 using Compat
 using AbstractTrees
 
 import AbstractTrees: children, AbstractShadowTree, make_zip, first_tree, second_tree
 import Base: convert
+
+export ¬, ⨳, ⪥, ⤄, √, AbstractToken, Token, SourceLocToken, SourceRange
 
 abstract AbstractToken
 
@@ -85,14 +89,12 @@ end
 ⤄(ex::SourceExpr, x::SourceNode) = ⤄(ex, x.loc)
 ⤄(x::Void, y::SourceRange) = SourceExpr(x,SourceNode(y))
 ⤄(ex::Union{ASTVerbatim, ASTExprs}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
-⤄(ex::Union{ASTVerbatim, ASTExprs}, x::SourceLocToken) = SourceExpr(ex,SourceNode(√x))
+⤄(ex::Union{ASTVerbatim, ASTExprs}, x::Union{SourceExpr,SourceLocToken}) = SourceExpr(ex,SourceNode(√x))
 ⤄(ex::ASTVerbatim, x::Union{SourceExpr,SourceLocToken}) = SourceLocToken(ex,normalize(√x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
 ⤄(tok::SourceLocToken, x::SourceRange) = SourceLocToken(tok.val, tok.loc ⤄ x)
 ⤄(tok::SourceLocToken, x::SourceLocToken) = SourceLocToken(tok.val, tok.loc ⤄ x.loc)
-⤄(ex::Any, x::Union{Token, Expr, Symbol}) = ex
-⤄(x,y::Void) = x
-⤄(x::ASTExprs,y::Union{ASTVerbatim,ASTExprs}) = x
+⤄(x::Union{ASTExprs, ASTVerbatim, Token},y::Union{ASTVerbatim,ASTExprs,Void,Token}) = x
 
 function sortedcomplement(of::SourceRange, set)
     complement = SourceRange[]
@@ -157,3 +159,5 @@ expr_append!(ex::Expr, args::Tuple) = (for t in args; push!((¬ex).args, ¬t); e
 expr_append!(ex::Expr, new::Expr) = expr_append!(ex, new.args)
 
 const ⪥ = expr_append!
+
+end

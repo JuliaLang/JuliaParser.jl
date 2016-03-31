@@ -78,8 +78,8 @@ function RunShell()
                             Base.Terminals.TTYTerminal("xterm", STDIN, STDOUT, STDERR)
                             ))
                     catch e
-                        !isa(e, Main.JuliaParser.Parser.Diagnostic) && rethrow(e)
-                        Main.JuliaParser.Parser.display_diagnostic(STDOUT, $line, e)
+                        !isa(e, Main.JuliaParser.Diagnostics.Diagnostic) && rethrow(e)
+                        Main.JuliaParser.Diagnostics.display_diagnostic(STDOUT, $line, e)
                     end
                 end)
             else
