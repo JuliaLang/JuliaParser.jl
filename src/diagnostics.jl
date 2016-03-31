@@ -50,6 +50,7 @@ module Diagnostics
         loc = normalize_loc(loc)
         loc !== nothing && push!(D.elements,Message(severity, loc, message))
     end
+    diag(D::Incomplete, loc, message, severity = :note) = diag(D.d, loc, message, severity)
 
     function display_diagnostic(io::IO, code, diag; filename = "none")
         file = SourceFile(code)

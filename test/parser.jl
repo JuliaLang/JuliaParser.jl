@@ -993,8 +993,8 @@ facts("misc errors") do
         catch ex
             ex = ex
         end
-        @fact isa(ex, ParseError) --> true
-        @fact ex.msg --> "invalid numeric constant \"2.2.\""
+        @fact isa(ex, JuliaParser.Diagnostics.Diagnostic) --> true
+        @fact ex.elements[1].text --> "invalid numeric constant \"2.2.\""
     end
 end
 

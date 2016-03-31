@@ -1,4 +1,5 @@
 using JuliaParser
+using JuliaParser.Diagnostics: AbstractDiagnostic, Incomplete
 using Base.Test
 
 function do_diag_test(text)
@@ -8,7 +9,7 @@ function do_diag_test(text)
         Parser.parse(ts)
         error("Should have failed")
     catch err
-        !isa(err, Parser.Diagnostic) && rethrow(err)
+        !isa(err, AbstractDiagnostic) && rethrow(err)
         return err
     end
 end
@@ -85,6 +86,8 @@ let diags = do_diag_test("function f() 1")
 #    none:1:1 note: "function" began here
 #    function f() 1
 #    ^~~~~~~~
+    @test isa(diags, Incomplete)
+    diags = diags.d
     @test diags.elements[1].severity == :error
     @test diags.elements[2].severity == :note
 end
@@ -317,6 +320,7 @@ end
 
 for expr in ["'","''","'\\","'abc'","`\\","\"","\"\"\"","\"\"\"\"","\"\"\"\"\""]
     let diags = do_diag_test(expr)
+        isa(diags, Incomplete) && (diags = diags.d)
         @test diags.elements[1].severity == :error
     end
 end
@@ -405,7 +409,7 @@ let diags = do_diag_test("1._a")
     @test diags.elements[1].severity == :error
 end
 
-let diags = do_diag_test("1b12")
+let diags = do_diag_test("0b12")
 # none:1:1 error: invalid numeric constant "0b12"
 # 0b12
 # ^~~
@@ -419,6 +423,8 @@ let diags = do_diag_test("#=")
 # none:1:1 note: starting here
 # #=
 # ^
+    @test isa(diags, Incomplete)
+    diags = diags.d
     @test diags.elements[1].severity == :error
     @test diags.elements[2].severity == :note
 end

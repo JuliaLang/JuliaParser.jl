@@ -6,7 +6,7 @@ using ..Lexer
 using ..Lexer: here
 using ..Tokens
 using ..Tokens: √
-using ..Diagnostics: diag
+using ..Diagnostics: diag, before, after, Incomplete, Diagnostic
 using Base.Meta
 
 using AbstractTrees: children

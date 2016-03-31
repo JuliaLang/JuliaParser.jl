@@ -38,7 +38,7 @@ facts("test read operator") do
         str = "$(string(op))"
         io = TokenStream(str)
         c = Lexer.readchar(io)
-        res = Lexer.read_operator(io, c)
+        res = Lexer.read_operator(io, c, nothing)
         @fact res --> op
         @fact Lexer.eof(io) --> true
     end
@@ -46,17 +46,17 @@ end
 
 facts("test string_to_number") do
 
-    @fact_throws Lexer.string_to_number("")
-    @fact_throws Lexer.string_to_number("1x10")
-    @fact_throws Lexer.string_to_number("x10")
-    @fact_throws Lexer.string_to_number("1.f.10")
-    @fact_throws Lexer.string_to_number("b10")
-    @fact_throws Lexer.string_to_number("0xzz")
-    @fact_throws Lexer.string_to_number("0b22")
+    @fact_throws Lexer.string_to_number("",nothing)
+    @fact_throws Lexer.string_to_number("1x10",nothing)
+    @fact_throws Lexer.string_to_number("x10",nothing)
+    @fact_throws Lexer.string_to_number("1.f.10",nothing)
+    @fact_throws Lexer.string_to_number("b10",nothing)
+    @fact_throws Lexer.string_to_number("0xzz",nothing)
+    @fact_throws Lexer.string_to_number("0b22",nothing)
 
     context("NaN") do
         for s in ("NaN", "+NaN", "-NaN")
-            n = Lexer.string_to_number(s)
+            n = Lexer.string_to_number(s,nothing)
             @fact isnan(n) --> true
             @fact isnan(n) --> isnan(eval(parse(s)))
         end
@@ -64,7 +64,7 @@ facts("test string_to_number") do
 
     context("Inf") do
         for s in ("Inf", "+Inf", "-Inf")
-            n = Lexer.string_to_number(s)
+            n = Lexer.string_to_number(s,nothing)
             @fact isinf(n) --> true
             @fact isinf(n) --> isinf(eval(parse(s)))
         end
@@ -72,56 +72,56 @@ facts("test string_to_number") do
 
     context("float64") do
         s = "1.0"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s,nothing)
         @fact n --> 1.0
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
         @fact typeof(n) --> typeof(parse(s))
 
         s = "-1.0"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> -1.0
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
         @fact typeof(n) --> typeof(parse(s))
 
         s = "1."
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 1.0
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
         @fact typeof(n) --> typeof(parse(s))
 
         s = "1e10"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 1.0e10
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
         @fact typeof(n) --> typeof(parse(s))
 
         s = "-1E10"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> -1.0e10
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
         @fact typeof(n) --> typeof(parse(s))
 
         s = "0x1p0"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 1.0
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
         @fact typeof(n) --> typeof(parse(s))
 
         s = "0x1.8p3"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 12.0
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
         @fact typeof(n) --> typeof(parse(s))
 
         s = "0x0.4p-1"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 0.125
         @fact n --> parse(s)
         @fact typeof(n) --> Float64
@@ -130,7 +130,7 @@ facts("test string_to_number") do
         for _ = 1:10
             tn = rand()
             s  = string(tn)
-            n  = Lexer.string_to_number(s)
+            n  = Lexer.string_to_number(s, nothing)
             @fact n --> tn
             @fact typeof(n) --> Float64
             @fact n --> parse(s)
@@ -140,33 +140,33 @@ facts("test string_to_number") do
 
     context("float32") do
         s = "1.0f0"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 1.0
         @fact typeof(n) --> Float32
         @fact n --> parse(s)
         @fact typeof(n) --> typeof(parse(s))
 
         s = "-1.f0"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> -1.0
         @fact typeof(n) --> Float32
         @fact n --> parse(s)
         @fact typeof(n) --> typeof(parse(s))
 
         s = "1f0"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 1.0
         @fact typeof(n) --> Float32
         @fact n --> parse(s)
         @fact typeof(n) --> typeof(parse(s))
 
         s = "1f"
-        @fact_throws Lexer.string_to_number(n)
+        @fact_throws Lexer.string_to_number(n, nothing)
 
         for _ = 1:10
             tn = rand(Float32)
             s  = repr(tn)
-            n  = Lexer.string_to_number(s)
+            n  = Lexer.string_to_number(s, nothing)
             @fact n --> tn
             @fact typeof(n) --> Float32
             @fact n --> parse(s)
@@ -176,22 +176,22 @@ facts("test string_to_number") do
 
     context("integers") do
         s = "1"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 1
         @fact typeof(n) --> Int64
 
         s = "-1"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> -1
         @fact typeof(n) --> Int64
 
         s = repr(typemin(Int64))
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> typemin(Int64)
         @fact typeof(n) --> Int64
 
         s = repr(typemax(Int64))
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> typemax(Int64)
         @fact typeof(n) --> Int64
 
@@ -203,22 +203,22 @@ facts("test string_to_number") do
         =#
 
         s = "0b010101"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 21
         @fact typeof(n) --> Int64
 
         s = "-0b010101"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> -21
         @fact typeof(n) --> Int64
 
         s = "0x15"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> 21
         @fact typeof(n) --> Int64
 
         s = "-0x15"
-        n = Lexer.string_to_number(s)
+        n = Lexer.string_to_number(s, nothing)
         @fact n --> -21
         @fact typeof(n) --> Int64
     end
