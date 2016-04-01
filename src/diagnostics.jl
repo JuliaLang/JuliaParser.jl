@@ -2,7 +2,7 @@ module Diagnostics
 
     using ..Tokens
     using ..Tokens: SourceRange, SourceNode, SourceLocToken, SourceExpr, √
-    using LineNumbers: SourceFile, compute_line
+    using ..LineNumbers: SourceFile, compute_line
 
     abstract AbstractDiagnostic
 
