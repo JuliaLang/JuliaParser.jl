@@ -601,7 +601,7 @@ function negate(n)
         end
         if isa(¬n, Int128) && ¬n == -170141183460469231731687303715884105728
             # promote to BigInt
-            return typeof(n)(big"170141183460469231731687303715884105728" ⤄ n)
+            return typeof(n)(Base.parse(BigInt, "170141183460469231731687303715884105728") ⤄ n)
         end
         return typeof(n)(-(¬n)) ⤄ n
     elseif isa(¬n, Expr)

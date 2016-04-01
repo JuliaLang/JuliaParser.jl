@@ -1,6 +1,9 @@
 using JuliaParser
 using JuliaParser.Lexer: ¬
 
+# mute override warnings
+ORIG_STDERR = STDERR
+redirect_stderr()
 immutable REPLDiagnostic
     fname::AbstractString
     text::AbstractString
@@ -74,3 +77,4 @@ function Base.incomplete_tag(e::Expr)
     isa(e.args[1].d, Main.JuliaParser.Diagnostics.Incomplete) || return :none
     e.args[1].d.tag
 end
+redirect_stderr(ORIG_STDERR)

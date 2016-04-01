@@ -37,6 +37,7 @@ immutable SourceLocToken <: AbstractToken
   val::ASTVerbatim
   loc::SourceRange
 end
+SourceLocToken(tok::SourceLocToken) = tok
 SourceLocToken(val, offset, length, file) =
     SourceLocToken(val, SourceRange(offset, length, file))
 SourceLocToken(val) = SourceLocToken(val, SourceRange())
