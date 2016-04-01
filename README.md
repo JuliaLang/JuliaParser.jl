@@ -8,12 +8,22 @@ A pure Julia port of Julia's parser.  It should be fully compatible with Julia's
 Differences with Julia's Flisp Parser
 -------------------------------------
 * BigInt and Int128 numbers are treated as literal values instead of expressions.
+* Literal Negation is done as negated literals rather than using Expr(:-)
 * QuoteNode's are replaced with Expr(:quote).
+
+Using JuliaParser as your primary parser
+-------------------------------------
+JuliaParser provides a script that will replace the builtin flips parser by itself.
+You may load it as follows:
+
+```
+julia -L ~/.julia/v0.5/JuliaParser/bin/repl.jl
+```
+
 
 TODO Items
 ----------
 * performance improvements
-* better error messages with detailed position information
 * refactor number tokenization
 * refactor to make it more useful to use as a library (right now it is pretty monolithic)
 
