@@ -2,7 +2,7 @@ using AbstractTrees
 using VT100
 using TerminalUI
 using Colors
-using LineNumbers
+using JuliaParser: LineNumbers
 import JuliaParser: Lexer, Tokens
 import JuliaParser.Tokens: ⤄
 
