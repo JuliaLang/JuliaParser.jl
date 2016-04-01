@@ -6,6 +6,7 @@ import Base.UTF8proc
 import Base: position
 import ..Diagnostics: diag, Incomplete, before
 using ..Tokens
+using ..Tokens: √
 
 export Token, TokenStream, next_token, set_token!, last_token,
        put_back!, peek_token, take_token, require_token

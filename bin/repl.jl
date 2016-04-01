@@ -38,7 +38,7 @@ function Core.include(fname::ByteString)
             !isa(e, Main.JuliaParser.Diagnostics.Diagnostic) && rethrow(e)
             rethrow(REPLDiagnostic(fname, file, e))
         end
-        result = ccall(:jl_toplevel_eval_flex, Any, (Any, Cint), ¬ast, 1)
+        result = ccall(:jl_toplevel_eval, Any, (Any), ¬ast)
     end
     result
 end
