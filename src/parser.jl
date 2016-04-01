@@ -776,7 +776,8 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 ex = ⨳(:(.), ex, parse_atom(ps, ts))
             elseif ¬nt === :($)
                 dollar_ex = parse_unary(ps, ts)
-                call_ex   = Expr(:call, TopNode(:Expr), Expr(:quote, :quote), dollar_ex.args[1])
+                call_ex   = ⨳(:call, TopNode(:Expr) ⤄ Lexer.nullrange(ts),
+                    Expr(:quote, :quote) ⤄ Lexer.nullrange(ts)) ⪥ dollar_ex
                 ex = ⨳(:(.), ex, ⨳(nt, call_ex))
             else
                 name = parse_atom(ps, ts)
@@ -878,7 +879,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
             if ¬word === :quote || ¬word === :begin
                 Lexer.skipws_and_comments(ts)
                 loc = line_number_filename_node(ts)
-                blk = parse_block(ps, ts, (ps, ts)->parse_docstring(ps, ts, parse_eq))
+                blk = parse_block(ps, ts)
                 expect_end(ps, ts, word)
                 ex = blk
                 if !isempty((¬blk).args)
