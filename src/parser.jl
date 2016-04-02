@@ -182,9 +182,7 @@ const is_closing_token = let closing = Set([',', ')', ']', '}', ';', SYM_ELSE, S
         ((¬t === SYM_END && !ps.end_symbol) || Lexer.eof(t) || (isa(¬t, CharSymbol) && ¬t in closing))
 end
 
-is_dict_literal(ex::Expr) = ex.head === :(=>) && length(ex.args) == 2
-is_dict_literal(ex) = false
-
+is_dict_literal(ex) = isexpr(¬ex, :(=>)) && length((¬ex).args) == 2
 is_parameter(ex) = isexpr(¬ex, :parameters)
 
 function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op)
@@ -753,7 +751,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             elseif (¬al).head === :vcat && VERSION < v"0.4"
                 ex = ⨳(:ref, ex)
                 for arg in (¬al).args
-                    if isa(arg, Expr) && arg.head === :row
+                    if isa(¬arg, Expr) && arg.head === :row
                         ex.head = :typed_vcat
                     end
                     push!((¬ex).args, arg)
@@ -777,7 +775,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             elseif ¬nt === :($)
                 dollar_ex = parse_unary(ps, ts)
                 call_ex   = ⨳(:call, TopNode(:Expr) ⤄ Lexer.nullrange(ts),
-                    Expr(:quote, :quote) ⤄ Lexer.nullrange(ts)) ⪥ dollar_ex
+                    ⨳(:quote, :quote) ⤄ Lexer.nullrange(ts)) ⪥ dollar_ex
                 ex = ⨳(:(.), ex, ⨳(nt, call_ex))
             else
                 name = parse_atom(ps, ts)
@@ -1037,13 +1035,8 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
 
             elseif ¬word === :typealias
                 lhs = parse_call(ps, ts)
-                if isa(lhs, Expr) && lhs.head === :call
-                    # typealias X (...) is a tuple type alias, not call
-                    return ⨳(:typealias, lhs.args[1], Expr(:tuple, lhs.args[2:end]...))
-                else
-                    return ⨳(:typealias, lhs, parse_arrow(ps, ts))
-                end
-
+                return ⨳(:typealias, lhs, parse_arrow(ps, ts))
+                
             elseif ¬word === :try
                 t = require_token(ps, ts)
                 tryb = ¬t === SYM_CATCH || ¬t === SYM_FINALLY ? ⨳(:block) : parse_block(ps, ts)
@@ -1339,7 +1332,7 @@ function parse_iteration_spec(ps, ts, word)
             throw(D)=#
         end
         return ⨳(:(=), lhs, rhs)
-    elseif lhs == :(:) && is_closing_token(ps, t)
+    elseif ¬lhs == :(:) && is_closing_token(ps, t)
         return lhs
     else
         D = diag(√lhs, "invalid iteration spec")
@@ -1458,8 +1451,8 @@ function parse_vect(ps::ParseState, ts::TokenStream, frst, closer, opener)
             ex = ⨳(head,push!(lst,nxt)...)
             return ex
         end
+        take_token(ts)
         if ¬t === ','
-            take_token(ts)
             if ¬require_token(ps, ts) === closer
                 # allow ending with ,
                 take_token(ts)
@@ -1471,14 +1464,10 @@ function parse_vect(ps::ParseState, ts::TokenStream, frst, closer, opener)
             nxt = parse_eqs(ps, ts)
             continue
         elseif ¬t === ';'
-            take_token(ts)
             head = :vcat
-            ¬peek_token(ps, ts) === closer && continue
-            pex = Expr(:parameters); ex.args = parse_arglist(ps, ts, closer)
-            unshift!(pex.args, lst)
-            ex = Expr(:vcat); ex.args = reverse(push!(lst, next))
-            ex = ex ⤄ take_token(ts)
-            return ex
+            ¬require_token(ps, ts) === closer && continue
+            return ((⨳(:vcat) ⪥ parse_arglist(ps, ts, closer)) ⪥ reverse!(list)) ⪥
+                (next,)
         elseif ¬t === ']' || ¬t === '}'
             D = diag(√t, "Expected \"$closer\", got \"$(¬t)\"")
             diag(D, √opener, "Expression began here")
@@ -1714,6 +1703,7 @@ end
 function parse_backquote(ps::ParseState, ts::TokenStream)
     buf = IOBuffer()
     c   = not_eof_2(ts)
+    r = Lexer.startrange(ts)
     while true
         c === '`' && break
         if c === '\\'
@@ -1730,7 +1720,8 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
         c = not_eof_2(ts)
         continue
     end
-    return ⨳(:macrocall, symbol("@cmd"), bytestring(buf))
+    return ⨳(:macrocall, symbol("@cmd") ⤄ Lexer.nullrange(ts),
+        bytestring(buf) ⤄ Lexer.makerange(ts, r))
 end
 
 function parse_interpolate(ps::ParseState, ts::TokenStream, start, srange)
@@ -1817,7 +1808,7 @@ function _parse_string_literal(ps::ParseState, ts::TokenStream, head::Symbol, n:
             str = tostr(b, custom) ⤄ srange
             iex = parse_interpolate(ps, ts, before(here(ts)), before(orange))
             push!(args, str)
-            push!(args, isa(¬iex, AbstractString) ? Expr(:single_quoted_string,
+            push!(args, isa(¬iex, AbstractString) ? ⨳(:single_quoted_string,
                 iex) : iex)
             r = Lexer.startrange(ts)
             srange = Lexer.makerange(ts, r)
@@ -1839,6 +1830,7 @@ interpolate_string_literal(ex) = isa(¬ex, Expr) && length((¬ex).args) > 1
 triplequote_string_literal(ex) = isa(¬ex, Expr) && (¬ex).head === :triple_quoted_string
 
 function parse_string_literal(ps::ParseState, ts::TokenStream, custom)
+    r = Lexer.startrange(ts)
     if Lexer.peekchar(ts)  === '"'
         Lexer.takechar(ts)
         if Lexer.peekchar(ts) === '"'
@@ -1846,7 +1838,7 @@ function parse_string_literal(ps::ParseState, ts::TokenStream, custom)
             ex = _parse_string_literal(ps, ts, :triple_quoted_string, 2, custom)
             ret = dedent_triple_quoted_string(ex)
         else
-            ret = Expr(:single_quoted_string, "")
+            ret = ⨳(:single_quoted_string, "" ⤄ Lexer.makerange(ts, r))
         end
     else
         ret = _parse_string_literal(ps, ts, :single_quoted_string, 0, custom)
@@ -1870,7 +1862,7 @@ function drop_leading_newline(mstr)
     arg1 = (¬mstr).args[1]
     if !isempty(arg1) && arg1[1] == '\n'
         if length(arg1) == 1
-            mstr = ⨳(¬(mstr).head) ⪥ collect(children(mstr))[2:end]
+            mstr = ⨳((¬mstr).head) ⪥ collect(children(mstr))[2:end]
         else
             (¬mstr).args[1] = arg1[2:end]
         end
@@ -1999,9 +1991,9 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     nt  = require_token(ps, ts)
                     if ¬nt === ')'
                         take_token(ts)
-                        if isa(ex, Expr) && ex.head === :(...)
+                        if isa(¬ex, Expr) && (¬ex).head === :(...)
                             # (ex...)
-                            return Expr(:tuple, ex)
+                            return ⨳(:tuple, ex)
                         else
                             # value in parens (x)
                             return ex
@@ -2100,7 +2092,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             return ⨳(:macrocall, symbol("@mstr"), sl.args...)
         end
         if interpolate_string_literal(sl)
-            notzerolen = (s) -> !(isa(s, AbstractString) && isempty(s))
+            notzerolen = (s) -> !(isa(¬s, AbstractString) && isempty(¬s))
             return ⨳(:string, filter(notzerolen, children(sl))...)
         end
         return (length((¬sl).args) == 0 ? "" : (¬sl).args[1]) ⤄ sl

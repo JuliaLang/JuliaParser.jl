@@ -771,6 +771,7 @@ end
 facts("test string interpolation") do
     exprs = [
         "\"\$test\"",
+        "\"\$(\"string\")\"",
         "\"\$(1 + 1)\"",
         "\"\"\"\$(1+1)\"\"\"",
     ]

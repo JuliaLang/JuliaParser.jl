@@ -54,4 +54,4 @@ global ast1, ast2
 
 #eval(Main, topast)
 
-#run(`vimdiff $tmp1 $tmp2`)
+run(`vimdiff $tmp1 $tmp2`)

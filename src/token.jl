@@ -52,9 +52,10 @@ immutable SourceNode
     loc::Any # SourceRange
     children::Vector
 end
+Base.copy(x::SourceNode) = SourceNode(x.loc,copy(x.children))
 SourceNode(_::Void) = SourceNode(SourceRange(),SourceNode[])
 convert(::Type{SourceNode},loc::SourceRange) = SourceNode(loc,SourceNode[])
-SourceNode(x::SourceNode) = x
+SourceNode(x::SourceNode) = copy(x)
 children(node::SourceNode) = node.children
 Base.show(io::IO, node::SourceNode) = print(io, node.loc)
 
@@ -90,7 +91,7 @@ end
 ⤄(ex::SourceExpr, x::SourceNode) = ⤄(ex, x.loc)
 ⤄(x::Void, y::SourceRange) = SourceExpr(x,SourceNode(y))
 ⤄(ex::Union{ASTVerbatim, ASTExprs}, x::NodeOrRange) = SourceExpr(ex,SourceNode(x))
-⤄(ex::Union{ASTVerbatim, ASTExprs}, x::Union{SourceExpr,SourceLocToken}) = SourceExpr(ex,SourceNode(√x))
+⤄(ex::Union{ASTVerbatim, ASTExprs}, x::Union{SourceExpr,SourceLocToken}) = SourceExpr(ex,SourceNode(normalize(√x)))
 ⤄(ex::ASTVerbatim, x::Union{SourceExpr,SourceLocToken}) = SourceLocToken(ex,normalize(√x))
 ⤄(ex::SourceExpr, x::SourceLocToken) = ⤄(ex,√x)
 ⤄(tok::SourceLocToken, x::SourceRange) = SourceLocToken(tok.val, tok.loc ⤄ x)
@@ -141,6 +142,11 @@ end
 ⨳(sym::SourceLocToken,args...) = (SourceExpr(Expr(¬sym), SourceRange()) ⪥ args) ⤄ √sym
 ⨳(sym::Token,args...) = ⨳(¬sym,args...)
 
+_push!(ex::Expr, t) = push!(ex.args, ¬t)
+function _push!(ex::SourceExpr, t)
+    push!((¬ex).args, ¬t); push!(ex.loc.children, SourceNode(√t))
+end
+
 function expr_append!(ex::SourceExpr, args::Union{Array,Tuple})
     !isempty(args) || return ex
     append!(ex.expr.args,[¬x for x in args])
@@ -155,8 +161,8 @@ end
 function expr_append!(ex::Expr, new::SourceExpr)
     expr_append!(SourceExpr(ex, SourceRange()), new)
 end
-expr_append!(ex::Expr, args::Array) = (for t in args; push!((¬ex).args, ¬t); ex = ex ⤄ t; end; ex)
-expr_append!(ex::Expr, args::Tuple) = (for t in args; push!((¬ex).args, ¬t); ex = ex ⤄ t; end; ex)
+expr_append!(ex::Expr, args::Array) = (for t in args; ex = ex ⤄ t; _push!(ex, t); end; ex)
+expr_append!(ex::Expr, args::Tuple) = (for t in args; ex = ex ⤄ t; _push!(ex, t); end; ex)
 expr_append!(ex::Expr, new::Expr) = expr_append!(ex, new.args)
 
 const ⪥ = expr_append!
