@@ -10,3 +10,4 @@ before_install:
 script:
   - git clone --depth 1 --single-branch https://github.com/JuliaLang/julia
   - julia -e 'Pkg.init(); Pkg.clone(pwd()); ARGS = [joinpath(Pkg.dir("JuliaParser"), "julia")]; Pkg.test("JuliaParser")'
+  - julia -e 'include(Pkg.dir("JuliaParser","bin","repl.jl")); Pkg.test("JuliaParser")'
