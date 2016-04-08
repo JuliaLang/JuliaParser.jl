@@ -913,7 +913,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                 if chain == nothing && ¬word == :elseif
                     throw(diag(√word,"\"elseif\" without preceeding if"))
                 end
-                if Lexer.isnewline(¬peek_token(ps, ts))
+                if ¬word == :elseif && Lexer.isnewline(¬peek_token(ps, ts))
                     D = diag(√word, "missing condition in \"$(¬word)\"")
                     diag(D, √chain, "previous \"$(¬chain)\" was here")
                     throw(D)
@@ -2195,7 +2195,7 @@ end
 # Parser Entry Method
 #========================#
 
-function parse(ts::TokenStream)
+function parse(ts::TokenStream, production = parse_stmts)
     Lexer.skipws_and_comments(ts)
     t = Lexer.peek_token(ts, false)
     while true
@@ -2208,11 +2208,11 @@ function parse(ts::TokenStream)
         break
     end
     ps = ParseState()
-    ret = parse_stmts(ps, ts)
+    ret = production(ps, ts)
     return isa(ret, Lexer.AbstractToken) ? ¬ret : ret
 end
 
-parse(io::IO) = parse(TokenStream(io))
-parse(str::AbstractString)  = parse(TokenStream(IOBuffer(str)))
+parse(io::IO) = parse(TokenStream(io), production = parse_stmts)
+parse(str::AbstractString)  = parse(TokenStream(IOBuffer(str)), production = parse_stmts)
 
 end
