@@ -49,11 +49,13 @@ function Base.parse(str::AbstractString, pos::Int; greedy::Bool=true, raise::Boo
     ts = Main.JuliaParser.Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}(io)
     local result = nothing
     ast = try
-        Parser.parse(ts)
+        Parser.parse(ts, greedy ? Parser.parse_stmts : Parser.parse_atom)
     catch e
         !isa(e, Main.JuliaParser.Diagnostics.AbstractDiagnostic) && rethrow(e)
+        e = REPLDiagnostic("REPL", str, e)
+        raise && rethrow(e)
         return Expr(isa(e, Main.JuliaParser.Diagnostics.Incomplete) ? :incomplete :
-            :error, REPLDiagnostic("REPL", str, e)), position(io) + 1
+            :error, e), position(io) + 1
     end
     ¬ast, position(io) + 1
 end
