@@ -913,7 +913,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                 if chain == nothing && ¬word == :elseif
                     throw(diag(√word,"\"elseif\" without preceeding if"))
                 end
-                if ¬word == :elseif && Lexer.isnewline(¬peek_token(ps, ts))
+                if Lexer.isnewline(¬peek_token(ps, ts))
                     D = diag(√word, "missing condition in \"$(¬word)\"")
                     diag(D, √chain, "previous \"$(¬chain)\" was here")
                     throw(D)
