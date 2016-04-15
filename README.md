@@ -3,23 +3,22 @@
 [![Build Status](https://travis-ci.org/JuliaLang/JuliaParser.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/JuliaParser.jl?branch=master)
 [![Coverage Status](https://img.shields.io/coveralls/jakebolewski/JuliaParser.jl.svg)](https://coveralls.io/r/jakebolewski/JuliaParser.jl)
 
-A pure Julia port of Julia's parser.  It should be fully compatible with Julia's built in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's 300+ user packages and all Julia source code in Base.
+A pure Julia port of [Julia](https://github.com/JuliaLang/julia)'s [parser](https://github.com/JuliaLang/julia/blob/master/src/julia-parser.scm).  It should be fully compatible with Julia's built in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's [300+ user packages](http://pkg.julialang.org/) and all Julia source code in [Base](https://github.com/JuliaLang/julia/tree/master/base).
 
-Differences with Julia's Flisp Parser
+Differences with Julia's Builtin Parser
 -------------------------------------
-* BigInt and Int128 numbers are treated as literal values instead of expressions.
-* Literal Negation is done as negated literals rather than using Expr(:-)
-* QuoteNode's are replaced with Expr(:quote).
+* `BigInt` and `Int128` numbers are treated as literal values instead of expressions.
+* Literal negation is done as negated literals rather than using `Expr(:-)`
+* `QuoteNode`s are replaced with `Expr(:quote)`.
 
 Using JuliaParser as your primary parser
 -------------------------------------
-JuliaParser provides a script that will replace the builtin flips parser by itself.
+JuliaParser provides a script that will replace the builtin parser by itself.
 You may load it as follows:
 
 ```
 julia -L ~/.julia/v0.5/JuliaParser/bin/repl.jl
 ```
-
 
 TODO Items
 ----------
