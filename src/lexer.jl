@@ -15,9 +15,9 @@ const SYM_TRUE  = symbol("true")
 const SYM_FALSE = symbol("false")
 const SYM_CTRANSPOSE = symbol("'")
 
-const EOFchar = convert(Char,typemax(UInt32))
+const EOF_CHAR = convert(Char,typemax(UInt32))
 
-const all_ops = Dict{Symbol,Any}(
+const ALL_OPS = Dict{Symbol,Any}(
 :assignment  =>
        [:(=),   :(:=),  :(+=), :(-=),  :(*=),  :(/=),   :(//=),  :(.//=),
         :(.*=), :(./=), :(\=), :(.\=), :(^=),  :(.^=),  :(%=),   :(.%=),
@@ -80,7 +80,7 @@ const all_ops = Dict{Symbol,Any}(
         :(⩡), :(⩢), :(⩣)],
 :bitshift   => [:(<<), :(>>), :(>>>), :(.<<), :(.>>), :(.>>>)],
 :times      =>
-       [:(*), :(/), :(./), :(÷), :(.÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*), 
+       [:(*), :(/), :(./), :(÷), :(.÷), :(%), :(⋅), :(∘), :(×), :(.%), :(.*),
         :(\), :(.\), :(&), :(∩), :(∧), :(⊗), :(⊘), :(⊙), :(⊚), :(⊛), :(⊠), :(⊡),
         :(⊓), :(∗), :(∙), :(∤), :(⅋), :(≀), :(⊼), :(⋄), :(⋆), :(⋇), :(⋉), :(⋊),
         :(⋋), :(⋌), :(⋏), :(⋒), :(⟑), :(⦸), :(⦼), :(⦾), :(⦿), :(⧶), :(⧷), :(⨇),
@@ -96,27 +96,27 @@ const all_ops = Dict{Symbol,Any}(
 :dot        => [:(.)])
 
 if VERSION < v"0.4.0-dev+573"
-    const ops_by_precedent = Any[
+    const OPS_BY_PRECEDENT = Any[
         :assignment, :conditional, :lazy_or, :lazy_and, :arrow, :comparison, :pipe,
         :colon, :plus, :bitshift, :times, :rational, :power, :decl, :dot]
 else
-    const ops_by_precedent = Any[
+    const OPS_BY_PRECEDENT = Any[
         :assignment, :conditional, :arrow, :lazy_or, :lazy_and, :comparison, :pipe,
         :colon, :plus, :bitshift, :times, :rational, :power, :decl, :dot]
 end
 
-precedent_ops(n::Integer) = Set{Symbol}(all_ops[ops_by_precedent[n]])
-precedent_ops(s::Symbol) = Set{Symbol}(all_ops[s])
+precedent_ops(n::Integer) = Set{Symbol}(ALL_OPS[OPS_BY_PRECEDENT[n]])
+precedent_ops(s::Symbol) = Set{Symbol}(ALL_OPS[s])
 
-const assignment_ops = precedent_ops(:assignment)
+const ASSIGNMENT_OPS = precedent_ops(:assignment)
 
-const unary_ops = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), :(¬),
+const UNARY_OPS = Set{Symbol}([:(+),  :(-), :(!), :(~), :(<:), :(¬),
                                :(>:), :(√), :(∛), :(∜)])
 
-const unary_and_binary_ops = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
+const UNARY_AND_BINARY_OPS = Set{Symbol}([:(+), :(-), :($), :(&), :(~)])
 
-# Operators are special forms, not function names
-const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
+"Operators are special forms, not function names."
+const SYNTACTIC_OPS = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
                                    :(/=),  :(//=), :(./=),  :(.*=), :(./=),
                                    :(\=),  :(.\=), :(^=),   :(.^=), :(%=),
                                    :(.%=), :(|=),  :(&=),   :($=),  :(=>),
@@ -124,13 +124,13 @@ const syntactic_ops = Set{Symbol}([:(=),   :(:=),  :(+=),   :(-=),  :(*=),
                                    :(||),  :(&&),  :(.),    :(...), :(.+=),
                                    :(.-=), :(÷=), :(.÷=)])
 
-const syntactic_unary_ops = Set{Symbol}([:($), :(&), :(::)])
+const SYNTACTIC_UNARY_OPS = Set{Symbol}([:($), :(&), :(::)])
 
-const operators = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...), :(¬),
+const OPERATORS = union(Set([:(~), :(!), :(->), :(√), :(∛), :(∜), :(...), :(¬),
                              :(.'), SYM_CTRANSPOSE]),
-			                 [Set(all_ops[ops]) for ops in ops_by_precedent]...)
+                             [Set(ALL_OPS[ops]) for ops in OPS_BY_PRECEDENT]...)
 
-const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try, :return,
+const RESERVED_WORDS = Set{Symbol}([:begin,  :while, :if, :for, :try, :return,
                                     :break, :continue, :function, :stagedfunction,
                                     :macro, :quote, :let, :local, :global, :const,
                                     :abstract, :typealias, :type, :bitstype, :immutable,
@@ -138,25 +138,27 @@ const reserved_words = Set{Symbol}([:begin,  :while, :if, :for, :try, :return,
                                     :export, :importall])
 #= Helper functions =#
 
-const operator_prescedence = let
-    const precedence_map = Dict{Symbol, Int}()
-    for (i, ops) in enumerate(ops_by_precedent)
-        for op in all_ops[ops]
-            precedence_map[op] = i
+const PRECEDENCE_MAP = Dict{Symbol, Int}()
+
+let
+    for (i, ops) in enumerate(OPS_BY_PRECEDENT)
+        for op in ALL_OPS[ops]
+            PRECEDENCE_MAP[op] = i
         end
     end
-    operator_prescedence(op::Symbol) = precedence_map[op]
 end
 
-is_syntactic_op(op::Symbol) = in(op, syntactic_ops)
+operator_precedence(op::Symbol) = PRECEDENCE_MAP[op]
+
+is_syntactic_op(op::Symbol) = in(op, SYNTACTIC_OPS)
 is_syntactic_op(op) = false
 
-is_syntactic_unary_op(op::Symbol) = in(op, syntactic_unary_ops)
+is_syntactic_unary_op(op::Symbol) = in(op, SYNTACTIC_UNARY_OPS)
 is_syntactic_unary_op(op) = false
 
-const is_special_char = let chars = Set{Char}("()[]{},;\"`@")
-    is_special_char(c::Char)  = in(c, chars)
-end
+const SPECIAL_CHARS = Set{Char}("()[]{},;\"`@")
+
+is_special_char(c::Char) = in(c, SPECIAL_CHARS)
 
 isnewline(c::Char) = c === '\n'
 isnewline(t::AbstractToken) = isnewline(¬t)
@@ -263,28 +265,33 @@ function is_identifier_start_char(c::Char)
     return is_cat_id_start(c, cat)
 end
 
-#= Characters that can be in an operator =#
-const operator_chars = union([Set(string(op)) for op in operators]...)
+"Characters that can be in an operator."
+const OPERATOR_CHARS = union([Set(string(op)) for op in OPERATORS]...)
 
-is_opchar(c::Char) = in(c, operator_chars)
+is_opchar(c::Char) = in(c, OPERATOR_CHARS)
 
-#= Characters that can follow a . in an operator =#
-const is_dot_opchar = let chars = Set{Char}(".*÷^/\\+-'<>!=%≥≤≠")
-    is_dot_opchar(c::Char) = in(c, chars)
-end
+"Characters that can follow a `.` in an operator."
+const DOT_OP_CHARS = Set{Char}(".*÷^/\\+-'<>!=%≥≤≠")
 
-is_operator(op::Symbol) = in(op, operators)
+is_dot_opchar(c::Char) = in(c, DOT_OP_CHARS)
+
+is_operator(op::Symbol) = in(op, OPERATORS)
 is_operator(op::AbstractToken) = is_operator(¬op)
 is_operator(op) = false
 
-#= Implement peekchar for IOBuffer and IOStream =#
+"""
+`peekchar(io::Bufer)` -> `Char`
+`peekchar(s::IOStream)` -> `Char`
+`peekchar(ts::TokenStream)` -> `Char`
 
-# modified version from Base to give the same
-# semantics as the IOStream implementation
+Version of `peekchar` for `IOBuffer`, `IOStream` and `TokenStream`,
+modified from `Base` to give the same semantics as the `IOStream` implementation.
+"""
+function peekchar end
 
 function peekchar(io::IOBuffer)
     if !io.readable || io.ptr > io.size
-        return EOFchar
+        return EOF_CHAR
     end
     ch = convert(UInt8,io.data[io.ptr])
     if ch < 0x80
@@ -304,19 +311,20 @@ function peekchar(io::IOBuffer)
 end
 
 # this implementation is copied from Base
-const _chtmp = Array(Char, 1)
+const _CHTMP = Array(Char, 1)
+
 peekchar(s::IOStream) = begin
-    if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, _chtmp) < 0
-        return EOFchar
+    if ccall(:ios_peekutf8, Int32, (Ptr{Void}, Ptr{Char}), s, _CHTMP) < 0
+        return EOF_CHAR
     end
-    return _chtmp[1]
+    return _CHTMP[1]
 end
 
 eof(io::IO) = Base.eof(io)
 eof(t::AbstractToken) = eof(¬t)
-eof(c) = is(c, EOFchar)
+eof(c) = is(c, EOF_CHAR)
 
-readchar(io::IO) = eof(io) ? EOFchar : read(io, Char)
+readchar(io::IO) = eof(io) ? EOF_CHAR : read(io, Char)
 takechar(io::IO) = (readchar(io); io)
 
 #= Token Stream =#
@@ -357,7 +365,7 @@ takechar(ts::TokenStream) = (readchar(ts); ts)
 
 function skipws(ts::TokenStream, newlines::Bool=false)
     nc = peekchar(ts)
-    nc === EOFchar && return false
+    nc === EOF_CHAR && return false
     skipped = false
     while !eof(ts) && (isuws(nc) || isbom(nc)) && (newlines || nc !== '\n')
         takechar(ts)
@@ -658,22 +666,28 @@ end
 # Skip whitespace / comments
 #============================#
 
-# skip multiline comments
-# maintain a count of the number of enclosed #= =# pairs
-# to allow nesting of multi-line comments.
-# The loop is exited when this count goes below zero.
 
-# Count is the number of read (#=) tokens.
-# (#= test =#)  (#= test =#)  (#= #= test =# =#)
-#  ^              ^               ^        ^
-# cnt 0           cnt 1         cnt 2    cnt 1
+"""
+`skip_multiline_comment(ts::TokenStream, count::Int)` -> `TokenStream`
+
+Skips multiline comments and maintains a count of the number of enclosed `#= =#` pairs
+to allow nesting of multi-line comments.
+
+`count`: the number of read `(#=)` tokens, ie:
+
+```
+(#= test =#)  (#= test =#)  (#= #= test =# =#)
+ ^              ^               ^        ^
+cnt 0           cnt 1         cnt 2    cnt 1
+```
+"""
 function skip_multiline_comment(ts::TokenStream, count::Int)
     start, unterminated = -1, true
     startloc = before(here(ts))
     while !eof(ts)
         c = readchar(ts)
         # if "=#" token, decrement the count.
-        # If count is zero, break out of the loop
+        # The loop is exited when this count goes below zero.
         if c === '='
             start > 0 || (start = position(ts))
             if peekchar(ts) === '#' && position(ts) != start
@@ -696,8 +710,12 @@ function skip_multiline_comment(ts::TokenStream, count::Int)
     return ts
 end
 
-# if this is a mulitiline comment skip to the end
-# otherwise skip to end of line
+"""
+`skipcomment(ts::TokenStream)` -> `TokenStream`
+
+Skips to the end if this is a mulitiline comment,
+otherwise skips to end of line.
+"""
 function skipcomment(ts::TokenStream)
     @assert readchar(ts) === '#'
     if peekchar(ts) === '='
@@ -708,10 +726,13 @@ function skipcomment(ts::TokenStream)
     return ts
 end
 
-# skip all whitespace before a comment,
-# upon reaching the comment, if it is a
-# single line comment skip to the end of the line
-# otherwise skip to the end of the multiline comment block
+"""
+`skipws_and_comments(ts::TokenStream)` -> `TokenStream`
+
+Skips all whitespace before a comment, upon reaching the comment, if it is a
+single line comment, skips to the end of the line, otherwise skip to the end
+of the multiline comment block.
+"""
 function skipws_and_comments(ts::TokenStream)
     while !eof(ts)
         skipws(ts, true)
@@ -746,8 +767,8 @@ make_token(::Type{SourceLocToken},val,start,length) =
 @noinline make_token(val, r::Void) = Token(val)
 make_token(val, r::SourceRange) = SourceLocToken(val,r)
 
-EOF(ts) = Token(EOFchar)
-EOF(ts::TokenStream{SourceLocToken}) = SourceLocToken(EOFchar,here(ts))
+eof_token(ts) = Token(EOF_CHAR)
+eof_token(ts::TokenStream{SourceLocToken}) = SourceLocToken(EOF_CHAR,here(ts))
 
 macro tok(val)
     esc(quote
@@ -776,15 +797,15 @@ nullrange(ts::TokenStream) = nothing
 here(ts::TokenStream) = nothing
 
 function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
-    ts.ateof && return EOF(ts)
+    ts.ateof && return eof_token(ts)
     tmp = skipws(ts, whitespace_newline)
-    eof(ts) && return EOF(ts)
+    eof(ts) && return eof_token(ts)
     ts.isspace = tmp
     while !eof(ts.io)
         c = peekchar(ts)
         if eof(c)
             ts.ateof = true
-            return EOF(T)
+            return eof_token(T)
         elseif c === ' ' || c === '\t'
             skip(ts, 1)
             continue
@@ -832,7 +853,7 @@ function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
         end
     end
     ts.ateof = true
-    return EOF(ts)
+    return eof_token(ts)
 end
 
 next_token(ts::TokenStream) = next_token(ts, false)
@@ -848,7 +869,7 @@ function put_back!(ts::TokenStream, t::Union{AbstractToken,Void})
 end
 
 function peek_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
-    ts.ateof && return EOF(ts)
+    ts.ateof && return eof_token(ts)
     if ts.putback !== nothing
         return ts.putback::AbstractToken
     end
@@ -862,7 +883,7 @@ end
 peek_token(ts::TokenStream) = peek_token(ts, false)::AbstractToken
 
 function take_token{T}(ts::TokenStream{T})
-    ts.ateof && return EOF(ts)
+    ts.ateof && return eof_token(ts)
     if ts.putback !== nothing
         t = ts.putback
         ts.putback = nothing

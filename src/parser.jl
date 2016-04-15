@@ -170,8 +170,6 @@ const SYM_CATCH   = symbol("catch")
 const SYM_FINALLY = symbol("finally")
 const SYM_SQUOTE  = symbol("'")
 
-const EOF = Lexer.EOF
-
 const is_invalid_initial_token = let invalid = Set([')', ']', '}', SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
     is_invalid_initial_token(t) = isa(t, CharSymbol) && t in invalid
     is_invalid_initial_token(t::AbstractToken) = is_invalid_initial_token(¬t)
@@ -192,7 +190,7 @@ function parse_chain(ps::ParseState, ts::TokenStream, down::Function, op)
         ¬t !== op && return chain
         take_token(ts)
         if (ps.space_sensitive && ts.isspace &&
-            (isa(¬t, Symbol) && ¬t in Lexer.unary_and_binary_ops) &&
+            (isa(¬t, Symbol) && ¬t in Lexer.UNARY_AND_BINARY_OPS) &&
             Lexer.peekchar(ts) != ' ')
             # here we have "x -y"
             put_back!(ts, t)
@@ -210,7 +208,7 @@ function parse_with_chains{T}(ps::ParseState, ts::TokenStream, down::Function, o
         t = peek_token(ps, ts)
         !(¬t in ops) && return ex
         take_token(ts)
-        if (ps.space_sensitive && ts.isspace && (¬t in Lexer.unary_and_binary_ops) && Lexer.peekchar(ts) != ' ')
+        if (ps.space_sensitive && ts.isspace && (¬t in Lexer.UNARY_AND_BINARY_OPS) && Lexer.peekchar(ts) != ' ')
             # here we have "x -y"
             put_back!(ts, t)
             return ex
@@ -243,7 +241,7 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
         !(¬t in ops) && return ex
         take_token(ts)
         if (ps.space_sensitive && ts.isspace &&
-            (isa(¬t, Symbol) && ¬t in Lexer.unary_and_binary_ops) && Lexer.peekchar(ts) !== ' ')
+            (isa(¬t, Symbol) && ¬t in Lexer.UNARY_AND_BINARY_OPS) && Lexer.peekchar(ts) !== ' ')
             put_back!(ts, t)
             return ex
         elseif Lexer.is_syntactic_op(¬t)
@@ -378,7 +376,7 @@ end
 
 function parse_assignment(ps, ts, down, ex = down(ps, ts))
     t = peek_token(ps, ts)
-    if ¬t in Lexer.assignment_ops
+    if ¬t in Lexer.ASSIGNMENT_OPS
         take_token(ts)
         if ¬t == :~
             if ps.space_sensitive && ts.isspace && Lexer.peekchar(ts) != ' '
@@ -484,7 +482,7 @@ const is_juxtaposed = let invalid_chars = Set{Char}(['(', '[', '{'])
     is_juxtaposed(ps::ParseState, ex, t) = begin
         return !(Lexer.is_operator(¬t)) &&
                !(Lexer.is_operator(¬ex)) &&
-               !(¬t in Lexer.reserved_words) &&
+               !(¬t in Lexer.RESERVED_WORDS) &&
                !(is_closing_token(ps, t)) &&
                !(Lexer.isnewline(¬t)) &&
                !(isa(¬ex, Expr) && (¬ex).head === :(...)) &&
@@ -619,7 +617,7 @@ function parse_unary(ps::ParseState, ts::TokenStream)
         D = diag(√t, "unexpected \"$(¬t)\"")
         throw(D)
     end
-    if !(isa(¬t, Symbol) && ¬t in Lexer.unary_ops)
+    if !(isa(¬t, Symbol) && ¬t in Lexer.UNARY_OPS)
         pf = parse_factor(ps, ts)
         return parse_juxtaposed(ps, ts, pf)
     end
@@ -689,7 +687,7 @@ end
 # also handles looking for reserved words
 function parse_call(ps::ParseState, ts::TokenStream)
     ex = parse_unary_prefix(ps, ts)
-    if isa(¬ex, Symbol) && ¬ex in Lexer.reserved_words
+    if isa(¬ex, Symbol) && ¬ex in Lexer.RESERVED_WORDS
         return parse_resword(ps, ts, ex)
     end
     return parse_call_chain(ps, ts, ex, false)
@@ -965,7 +963,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
             elseif ¬word === :global || ¬word === :local
                 lno = curline(ts)
                 isconst = ¬peek_token(ps, ts) === :const ? (take_token(ts); true) : false
-                args = parse_comma_sep_assigns(ps, ts)            
+                args = parse_comma_sep_assigns(ps, ts)
                 if isconst
                     ex = ⨳(word, args...)
                     return ⨳(:const, ex)
@@ -1016,7 +1014,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                     (!istype && ¬peek_token(ps, ts) === :type) && take_token(ts)
                 end
                 nxt = peek_token(ps, ts)
-                if ¬nxt in Lexer.reserved_words
+                if ¬nxt in Lexer.RESERVED_WORDS
                     D = diag(√nxt, "invalid type name \"$(¬nxt)\"")
                     diag(D, √word, "$(¬word) was here")
                     throw(D)
@@ -1036,7 +1034,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
             elseif ¬word === :typealias
                 lhs = parse_call(ps, ts)
                 return ⨳(:typealias, lhs, parse_arrow(ps, ts))
-                
+
             elseif ¬word === :try
                 t = require_token(ps, ts)
                 tryb = ¬t === SYM_CATCH || ¬t === SYM_FINALLY ? ⨳(:block) : parse_block(ps, ts)
@@ -1969,7 +1967,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     # empty tuple
                     take_token(ts)
                     return (⨳(:tuple) ⤄ t) ⤄ rt
-                elseif ¬rt in Lexer.syntactic_ops
+                elseif ¬rt in Lexer.SYNTACTIC_OPS
                     # allow (=) etc. since this function is also used to parse
                     # quoted expression. However, anything else will invariably
                     # cause an invalid identifier name
@@ -2136,7 +2134,7 @@ end
 
 function parse_atom(ps::ParseState, ts::TokenStream)
     ex = _parse_atom(ps, ts)
-    if (¬ex !== :(=>) && (¬ex in Lexer.syntactic_ops)) || ¬ex === :(...)
+    if (¬ex !== :(=>) && (¬ex in Lexer.SYNTACTIC_OPS)) || ¬ex === :(...)
         throw(diag(√ex, "invalid identifier name \"$(¬ex)\""))
     end
     return ex
@@ -2175,7 +2173,7 @@ end
 function parse_docstring(ps::ParseState, ts::TokenStream, down)
     ex = down(ps, ts)
     if is_doc_string_literal(ex)
-        while true 
+        while true
             t = peek_token(ps, ts)
             if is_closing_token(ps, t)
                 return ex
