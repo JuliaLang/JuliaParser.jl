@@ -61,7 +61,7 @@ module Diagnostics
                     continue
                 end
                 print_with_color(message.severity == :error ? :red : :magenta, io, string(message.severity))
-                println(io, ": ", message.text)    
+                println(io, ": ", message.text)
                 continue
             end
             offset = message.location.offset
@@ -77,7 +77,7 @@ module Diagnostics
                 println(io, ": ", message.text)
                 println(io, rstrip(bytestring(file[line])))
                 print(io, " "^(col-1))
-                print_with_color(:green, io, string('^',"~"^(message.location.length-1)))
+                print_with_color(:green, io, string('^',"~"^(max(0,message.location.length-1))))
                 println(io)
             end
         end

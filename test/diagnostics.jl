@@ -428,3 +428,15 @@ let diags = do_diag_test("#=")
     @test diags.elements[1].severity == :error
     @test diags.elements[2].severity == :note
 end
+
+let diags = do_diag_test("for i = 1:")
+# none:1:11 error: missing last argument in range expression
+# for i = 1:
+#           ^
+# none:1:9 note: start of range was here
+# for i = 1:
+#         ^~
+    @test diags.elements[1].severity == :error
+    @test diags.elements[1].location.offset == endof("for i = 1:")
+    @test diags.elements[2].severity == :note
+end

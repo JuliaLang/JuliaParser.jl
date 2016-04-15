@@ -746,8 +746,8 @@ make_token(::Type{SourceLocToken},val,start,length) =
 @noinline make_token(val, r::Void) = Token(val)
 make_token(val, r::SourceRange) = SourceLocToken(val,r)
 
-EOF(::Type{Token}) = Token(convert(Char,typemax(UInt32)))
-EOF(::Type{SourceLocToken}) = SourceLocToken(convert(Char,typemax(UInt32)),0,0,0)
+EOF(ts) = Token(EOFchar)
+EOF(ts::TokenStream{SourceLocToken}) = SourceLocToken(EOFchar,here(ts))
 
 macro tok(val)
     esc(quote
@@ -768,9 +768,9 @@ nullrange(ts::TokenStream) = nothing
 here(ts::TokenStream) = nothing
 
 function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
-    ts.ateof && return EOF(T)
+    ts.ateof && return EOF(ts)
     tmp = skipws(ts, whitespace_newline)
-    tmp == EOF(T) && return EOF(T)
+    eof(ts) && return EOF(ts)
     ts.isspace = tmp
     while !eof(ts.io)
         c = peekchar(ts)
@@ -824,7 +824,7 @@ function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
         end
     end
     ts.ateof = true
-    return EOF(T)
+    return EOF(ts)
 end
 
 next_token(ts::TokenStream) = next_token(ts, false)
@@ -840,7 +840,7 @@ function put_back!(ts::TokenStream, t::Union{AbstractToken,Void})
 end
 
 function peek_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
-    ts.ateof && return EOF(T)
+    ts.ateof && return EOF(ts)
     if ts.putback !== nothing
         return ts.putback::AbstractToken
     end
@@ -854,7 +854,7 @@ end
 peek_token(ts::TokenStream) = peek_token(ts, false)::AbstractToken
 
 function take_token{T}(ts::TokenStream{T})
-    ts.ateof && return EOF(T)
+    ts.ateof && return EOF(ts)
     if ts.putback !== nothing
         t = ts.putback
         ts.putback = nothing
