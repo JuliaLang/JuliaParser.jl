@@ -1,9 +1,13 @@
+module JuliaParserHooks
 using JuliaParser
 using JuliaParser.Lexer: ¬
+using JuliaParser: Lexer
 
 # mute override warnings
-ORIG_STDERR = STDERR
-redirect_stderr()
+if ccall(:jl_generating_output, Cint, ()) == 0
+    ORIG_STDERR = STDERR
+    redirect_stderr()
+end
 immutable REPLDiagnostic
     fname::AbstractString
     text::AbstractString
@@ -28,7 +32,7 @@ end
 function Core.include(fname::ByteString)
     io = open(fname)
     file = readstring(io)
-    ts = Main.JuliaParser.Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}(file)
+    ts = Lexer.TokenStream{Lexer.SourceLocToken}(file)
     ts.filename = fname
     local result = nothing
     while !Lexer.eof(ts)
@@ -61,7 +65,7 @@ function Base.parse(str::AbstractString, pos::Int; greedy::Bool=true, raise::Boo
 end
 
 function Base.parse_input_line(code::ByteString; filename::ByteString="none")
-    ts = Main.JuliaParser.Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}(code)
+    ts = Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}(code)
     ts.filename = filename
     local result = nothing
     ast = try
@@ -79,4 +83,7 @@ function Base.incomplete_tag(e::Expr)
     isa(e.args[1].d, Main.JuliaParser.Diagnostics.Incomplete) || return :none
     e.args[1].d.tag
 end
-redirect_stderr(ORIG_STDERR)
+if ccall(:jl_generating_output, Cint, ()) == 0
+    redirect_stderr(ORIG_STDERR)
+end
+end
