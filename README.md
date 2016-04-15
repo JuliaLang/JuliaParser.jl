@@ -5,7 +5,7 @@
 
 A pure Julia port of [Julia](https://github.com/JuliaLang/julia)'s [parser](https://github.com/JuliaLang/julia/blob/master/src/julia-parser.scm).  It should be fully compatible with Julia's built in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's [300+ user packages](http://pkg.julialang.org/) and all Julia source code in [Base](https://github.com/JuliaLang/julia/tree/master/base).
 
-Differences with Julia's Flisp Parser
+Differences with Julia's Builtin Parser
 -------------------------------------
 * `BigInt` and `Int128` numbers are treated as literal values instead of expressions.
 * Literal negation is done as negated literals rather than using `Expr(:-)`
@@ -13,7 +13,7 @@ Differences with Julia's Flisp Parser
 
 Using JuliaParser as your primary parser
 -------------------------------------
-JuliaParser provides a script that will replace the builtin [flisp](https://github.com/JeffBezanson/femtolisp) parser by itself.
+JuliaParser provides a script that will replace the builtin parser by itself.
 You may load it as follows:
 
 ```
