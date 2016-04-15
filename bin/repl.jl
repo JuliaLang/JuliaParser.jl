@@ -60,9 +60,9 @@ function Base.parse(str::AbstractString, pos::Int; greedy::Bool=true, raise::Boo
     ¬ast, position(io) + 1
 end
 
-function Base.parse_input_line(code::ByteString)
+function Base.parse_input_line(code::ByteString; filename::ByteString="none")
     ts = Main.JuliaParser.Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}(code)
-    ts.filename = "REPL"
+    ts.filename = filename
     local result = nothing
     ast = try
         Parser.parse(ts)
