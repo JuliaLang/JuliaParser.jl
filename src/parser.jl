@@ -2195,7 +2195,7 @@ end
 # Parser Entry Method
 #========================#
 
-function parse(ts::TokenStream, production = parse_stmts)
+function parse(ts::TokenStream; production = parse_stmts)
     Lexer.skipws_and_comments(ts)
     t = Lexer.peek_token(ts, false)
     while true
