@@ -760,7 +760,15 @@ end
 startrange(ts::TokenStream{SourceLocToken}) = position(ts.io)
 makerange(ts::TokenStream{SourceLocToken}, r) = SourceRange(r,position(ts.io)-r,0)
 nullrange(ts::TokenStream{SourceLocToken}) = SourceRange(position(ts.io),0,0)
-here(ts::TokenStream{SourceLocToken}) = SourceRange(position(ts.io),1,0)
+function here(ts::TokenStream{SourceLocToken})
+    if ts.putback !== nothing
+        SourceRange(Tokens.normalize(√(ts.putback)).offset,1,0)
+    elseif ts.lasttoken !== nothing
+        SourceRange(Tokens.normalize(√(ts.lasttoken)).offset,1,0)
+    else
+        SourceRange(position(ts.io),1,0)
+    end
+end
 
 startrange(ts::TokenStream) = nothing
 makerange(ts::TokenStream, r) = nothing

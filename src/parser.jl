@@ -1159,7 +1159,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                     throw(diag(√nt,"Expected '('"))
                 end
                 take_token(ts)
-                al = parse_arglist(ps, ts, ')')
+                al = parse_arglist(ps, ts, ')', nt)
                 if length(al) > 1
                     al1, al2 = al[1], al[2]
                     if ¬al2 === :cdecl || ¬al2 === :stdcall || ¬al2 == :fastcall || ¬al2 == :thiscall
@@ -1400,7 +1400,6 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
             lst = closer === ')' ? to_kws(lst) : lst
             return unshift!(lst, ⨳(:parameters, params...))
         end
-        loc = here(ts)
         nxt = try
             parse_eqs(ps, ts)
         catch D
@@ -1408,6 +1407,7 @@ function _parse_arglist(ps::ParseState, ts::TokenStream, closer, opener)
             diag(D, √opener, "in argument list beginning here")
             throw(D)
         end
+        loc = here(ts)
         nt  = require_token(ps, ts)
         if ¬nt === ','
             take_token(ts)
@@ -1466,7 +1466,7 @@ function parse_vect(ps::ParseState, ts::TokenStream, frst, closer, opener)
         elseif ¬t === ';'
             head = :vcat
             ¬require_token(ps, ts) === closer && continue
-            return ((⨳(:vcat) ⪥ parse_arglist(ps, ts, closer)) ⪥ reverse!(list)) ⪥
+            return ((⨳(:vcat) ⪥ parse_arglist(ps, ts, closer, opener)) ⪥ reverse!(list)) ⪥
                 (next,)
         elseif ¬t === ']' || ¬t === '}'
             D = diag(√t, "Expected \"$closer\", got \"$(¬t)\"")
@@ -2015,7 +2015,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                         elseif ¬nt !== ';'
                             D = diag(before(nt), "Expected ',' or ')'")
                             diag(D,√t,"to match '$(¬t)' here")
-                            throw(D)    
+                            throw(D)
                         end
                         res = arglist_to_tuple(ts, false, ¬nt == ',',
                             parse_arglist(ps, ts, ')', t), (ex,))

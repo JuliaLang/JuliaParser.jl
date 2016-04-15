@@ -440,3 +440,15 @@ let diags = do_diag_test("for i = 1:")
     @test diags.elements[1].location.offset == endof("for i = 1:")
     @test diags.elements[2].severity == :note
 end
+
+let diags = do_diag_test("ccall((:SetVarDeclInit, libcxxffi), Void, (Ptr{Void},) VD)")
+# none:1:56 error: Expected ')' or ','
+# ccall((:SetVarDeclInit, libcxxffi), Void, (Ptr{Void},) VD)
+#                                                        ^
+# none:1:6 note: to match '(' here
+# ccall((:SetVarDeclInit, libcxxffi), Void, (Ptr{Void},) VD)
+#      ^
+    @test diags.elements[1].severity == :error
+    @test diags.elements[1].location.offset == 55
+    @test diags.elements[2].severity == :note
+end
