@@ -39,7 +39,7 @@ function Core.include(fname::ByteString)
         ast = try
             Parser.parse(ts)
         catch e
-            !isa(e, Main.JuliaParser.Diagnostics.Diagnostic) && rethrow(e)
+            !isa(e, Main.JuliaParser.Diagnostics.AbstractDiagnostic) && rethrow(e)
             rethrow(REPLDiagnostic(fname, file, e))
         end
         result = ccall(:jl_toplevel_eval, Any, (Any,), ¬ast)
