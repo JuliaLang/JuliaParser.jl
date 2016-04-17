@@ -3,9 +3,9 @@
 [![Build Status](https://travis-ci.org/JuliaLang/JuliaParser.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/JuliaParser.jl?branch=master)
 [![Coverage Status](https://img.shields.io/coveralls/jakebolewski/JuliaParser.jl.svg)](https://coveralls.io/r/jakebolewski/JuliaParser.jl)
 
-A pure Julia port of [Julia](https://github.com/JuliaLang/julia)'s [parser](https://github.com/JuliaLang/julia/blob/master/src/julia-parser.scm).  It should be fully compatible with Julia's built in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's [300+ user packages](http://pkg.julialang.org/) and all Julia source code in [Base](https://github.com/JuliaLang/julia/tree/master/base).
+A pure Julia port of [Julia](https://github.com/JuliaLang/julia)'s [parser](https://github.com/JuliaLang/julia/blob/master/src/julia-parser.scm).  It should be fully compatible with Julia's built-in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's [300+ user packages](http://pkg.julialang.org/) and all Julia source code in [Base](https://github.com/JuliaLang/julia/tree/master/base).
 
-Differences with Julia's Builtin Parser
+Differences with Julia's built-in parser
 -------------------------------------
 * `BigInt` and `Int128` numbers are treated as literal values instead of expressions.
 * Literal negation is done as negated literals rather than using `Expr(:-)`
@@ -13,20 +13,20 @@ Differences with Julia's Builtin Parser
 
 Using JuliaParser as your primary parser
 -------------------------------------
-JuliaParser provides a script that will replace the builtin parser by itself.
+JuliaParser provides a script that will replace the built-in parser by itself.
 You may load it as follows:
 
 ```
 julia -L ~/.julia/v0.5/JuliaParser/bin/repl.jl
 ```
 
-TODO Items
+TODO items
 ----------
 * performance improvements
 * refactor number tokenization
 * refactor to make it more useful to use as a library (right now it is pretty monolithic)
 
-Trying it Out
+Trying it out
 -------------
 ```julia
 julia> Pkg.clone("JuliaParser")
