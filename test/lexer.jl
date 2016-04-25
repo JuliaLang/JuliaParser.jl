@@ -34,7 +34,7 @@ facts("test skip to end of line") do
 end
 
 facts("test read operator") do
-    for op in Lexer.operators
+    for op in Lexer.OPERATORS
         str = "$(string(op))"
         io = TokenStream(str)
         c = Lexer.readchar(io)
@@ -762,7 +762,7 @@ end
 facts("test next_token") do
     # throw EOF error
     ts  = Lexer.TokenStream("")
-    @fact Lexer.next_token(ts) --> Lexer.EOF(Lexer.Token)
+    @fact Lexer.next_token(ts) --> Lexer.eof_token(Lexer.Token)
 
     ts  = Lexer.TokenStream("\n")
     tok = Lexer.next_token(ts)

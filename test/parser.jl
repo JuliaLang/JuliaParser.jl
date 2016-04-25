@@ -107,7 +107,7 @@ facts("test assignment expressions") do
 end
 
 facts("test parse single operator") do
-    for op in Lexer.operators
+    for op in Lexer.OPERATORS
         if op === symbol("'")
             continue
         end
@@ -150,7 +150,7 @@ facts("test tuple expressions") do
     @fact_throws Parser.parse(code)
     code = "(1,}"
     @fact_throws Parer.parse(code)
-    
+
     # missing separator in tuple constructor
     code = "(1,2 3)"
     @fact_throws Parser.parse(code)
