@@ -11,9 +11,9 @@ using ..Tokens: √
 export Token, TokenStream, next_token, set_token!, last_token,
        put_back!, peek_token, take_token, require_token
 
-const SYM_TRUE  = symbol("true")
-const SYM_FALSE = symbol("false")
-const SYM_CTRANSPOSE = symbol("'")
+const SYM_TRUE  = Symbol("true")
+const SYM_FALSE = Symbol("false")
+const SYM_CTRANSPOSE = Symbol("'")
 
 const EOF_CHAR = convert(Char,typemax(UInt32))
 
@@ -28,7 +28,7 @@ const ALL_OPS = Dict{Symbol,Any}(
 :lazy_and    => [:(&&)],
 # NOTE: -- is deprecated in 0.4
 :arrow       =>
-       [symbol("--"), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦),
+       [Symbol("--"), :(-->), :(←), :(→), :(↔), :(↚), :(↛), :(↠), :(↣), :(↦),
         :(↮), :(⇎), :(⇏), :(⇒), :(⇔), :(⇴), :(⇶), :(⇷), :(⇸), :(⇹),
         :(⇺), :(⇻), :(⇼), :(⇽), :(⇾), :(⇿), :(⟵), :(⟶), :(⟷), :(⟷),
         :(⟹), :(⟺), :(⟻), :(⟼), :(⟽), :(⟾), :(⟿), :(⤀), :(⤁), :(⤂),
@@ -395,14 +395,14 @@ function read_operator(ts::TokenStream, c::Char, r)
     end
     # 1 char operator
     if eof(nc) || !is_opchar(nc) || (c === ':' && nc === '-')
-        return symbol(c)
+        return Symbol(c)
     end
     str, c = [c], nc
-    opsym  = symbol(utf32(copy(str)))
+    opsym  = Symbol(utf32(copy(str)))
     while true
         if !eof(c) && is_opchar(c)
             push!(str, c)
-            newop = symbol(utf32(copy(str)))
+            newop = Symbol(utf32(copy(str)))
             if is_operator(newop)
                 skip(ts, utf8sizeof(c))
                 c, opsym = peekchar(ts), newop
@@ -755,7 +755,7 @@ function accum_julia_symbol(ts::TokenStream, c::Char)
         eof(nc) && break
     end
     str = normalize_string(utf32(charr), :NFC)
-    sym = symbol(str)
+    sym = Symbol(str)
     return sym === SYM_TRUE ? true : sym === SYM_FALSE ? false : sym
 end
 

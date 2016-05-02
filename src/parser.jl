@@ -135,7 +135,7 @@ macro space_sensitive(ps, body)
 end
 
 curline(ts::TokenStream)  = ts.lineno
-filename(ts::TokenStream) = symbol(ts.filename)
+filename(ts::TokenStream) = Symbol(ts.filename)
 
 if VERSION < v"0.4"
     line_number_node(ts) = LineNumberNode(curline(ts))
@@ -162,13 +162,13 @@ function short_form_function_loc(ts, ex, lno, filename)
    return ex
 end
 
-const SYM_DO      = symbol("do")
-const SYM_ELSE    = symbol("else")
-const SYM_ELSEIF  = symbol("elseif")
-const SYM_END     = symbol("end")
-const SYM_CATCH   = symbol("catch")
-const SYM_FINALLY = symbol("finally")
-const SYM_SQUOTE  = symbol("'")
+const SYM_DO      = Symbol("do")
+const SYM_ELSE    = Symbol("else")
+const SYM_ELSEIF  = Symbol("elseif")
+const SYM_END     = Symbol("end")
+const SYM_CATCH   = Symbol("catch")
+const SYM_FINALLY = Symbol("finally")
+const SYM_SQUOTE  = Symbol("'")
 
 const is_invalid_initial_token = let invalid = Set([')', ']', '}', SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
     is_invalid_initial_token(t) = isa(t, CharSymbol) && t in invalid
@@ -250,14 +250,14 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
             args = parse_chain(ps, ts, down, :(~))
             nt   = peek_token(ps, ts)
             if isa(¬nt, CharSymbol) && ¬nt in ops
-                ex = ⨳(:macrocall, symbol("@~"), ex)
+                ex = ⨳(:macrocall, Symbol("@~"), ex)
                 for i=1:length(args)-1
                     ex = ex ⪥ (args[i],)
                 end
                 ex = ex ⪥ (parse_RtoL(ps, ts, down, ops, args[end]),)
                 return ex
             else
-                ex = ⨳(:macrocall, symbol("@~"), ex) ⪥ args
+                ex = ⨳(:macrocall, Symbol("@~"), ex) ⪥ args
                 return ex
             end
         else
@@ -384,7 +384,7 @@ function parse_assignment(ps, ts, down, ex = down(ps, ts))
                 return ex
             else
                 args = collect(children(parse_chain(ps, ts, down, :~)))
-                ex = ⨳(:macrocall,symbol("@~")⤄t,ex) ⪥ args[1:end-1]
+                ex = ⨳(:macrocall,Symbol("@~")⤄t,ex) ⪥ args[1:end-1]
                 ex = ex ⪥ (parse_assignment(ps, ts, down, args[end]),)
             end
         else
@@ -523,7 +523,7 @@ function parse_range(ps::ParseState, ts::TokenStream)
             if is_closing_token(ps, nt)
                 # handles :(>:) case
                 if isa(ex, Symbol) && Lexer.is_operator(¬ex)
-                    op = symbol(string(ex, t))
+                    op = Symbol(string(ex, t))
                     Lexer.is_operator(¬op) && return op
                 end
                 range_error(diag(√nt, "missing last argument in range expression"))
@@ -806,10 +806,10 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 nt  = peek_token(ps, ts)
                 if VERSION < v"0.4"
                     suffix  = triplequote_string_literal(str) ? "_mstr" : "_str"
-                    macname = symbol(string('@', ¬ex, suffix))
+                    macname = Symbol(string('@', ¬ex, suffix))
                     macstr = (¬str).args[1]
                 else
-                    macname = symbol(string('@',¬ex,"_str"))
+                    macname = Symbol(string('@',¬ex,"_str"))
                     macstr = first(children(str))
                 end
                 if isa(¬nt, Symbol) && !Lexer.is_operator(¬nt) && !ts.isspace
@@ -1235,10 +1235,10 @@ function parse_imports(ps::ParseState, ts::TokenStream, word)
     return append!(frst, rest)
 end
 
-const sym_1dot  = symbol(".")
-const sym_2dots = symbol("..")
-const sym_3dots = symbol("...")
-const sym_4dots = symbol("....")
+const sym_1dot  = Symbol(".")
+const sym_2dots = Symbol("..")
+const sym_3dots = Symbol("...")
+const sym_4dots = Symbol("....")
 
 function parse_import_dots(ps::ParseState, ts::TokenStream)
     l = Any[]
@@ -1718,7 +1718,7 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
         c = not_eof_2(ts)
         continue
     end
-    return ⨳(:macrocall, symbol("@cmd") ⤄ Lexer.nullrange(ts),
+    return ⨳(:macrocall, Symbol("@cmd") ⤄ Lexer.nullrange(ts),
         bytestring(buf) ⤄ Lexer.makerange(ts, r))
 end
 
@@ -1908,7 +1908,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         return take_token(ts)
 
     # char literal
-    elseif ¬t === symbol("'")
+    elseif ¬t === Symbol("'")
         take_token(ts)
         r = Lexer.startrange(ts)
         fch = not_eof_1(ts)
@@ -2087,7 +2087,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
         take_token(ts)
         sl = parse_string_literal(ps, ts, false)
         if VERSION < v"0.4" && triplequote_string_literal(sl)
-            return ⨳(:macrocall, symbol("@mstr"), sl.args...)
+            return ⨳(:macrocall, Symbol("@mstr"), sl.args...)
         end
         if interpolate_string_literal(sl)
             notzerolen = (s) -> !(isa(¬s, AbstractString) && isempty(¬s))
@@ -2102,7 +2102,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
             head = parse_unary_prefix(ps, ts)
             if (peek_token(ps, ts); ts.isspace)
                 name = macroify_name(head)
-                ¬name == symbol("@__LINE__") && return curline(ts) ⤄ name
+                ¬name == Symbol("@__LINE__") && return curline(ts) ⤄ name
                 ex = ⨳(:macrocall, name ⤄ t)
                 ex ⪥ parse_space_separated_exprs(ps, ts)
                 return ex
@@ -2114,7 +2114,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     return ex
                 else
                     name = macroify_name(call)
-                    ¬name == symbol("@__LINE__") && return curline(ts) ⤄ name
+                    ¬name == Symbol("@__LINE__") && return curline(ts) ⤄ name
                     ex = ⨳(:macrocall, name ⤄ t)
                     ex ⪥ parse_space_separated_exprs(ps, ts)
                     return ex
@@ -2153,9 +2153,9 @@ end
 
 function macroify_name(ex)
     if isa(¬ex, Symbol)
-        return symbol(string('@', ¬ex)) ⤄ ex
+        return Symbol(string('@', ¬ex)) ⤄ ex
     elseif isa(¬ex, QuoteNode) && isa((¬ex).value, Symbol)
-        return QuoteNode(symbol(string('@', (¬ex).value))) ⤄ ex
+        return QuoteNode(Symbol(string('@', (¬ex).value))) ⤄ ex
     elseif is_valid_modref(¬ex)
         args = collect(children(ex))
         return ⨳(:(.), args[1], macroify_name(args[2]))
@@ -2167,7 +2167,7 @@ end
 function is_doc_string_literal(e)
     isa(¬e, AbstractString) ||
         isexpr(¬e, :string) ||
-        (isexpr(¬e, :macrocall) && (¬e).args[1] == symbol("@doc_str"))
+        (isexpr(¬e, :macrocall) && (¬e).args[1] == Symbol("@doc_str"))
 end
 
 function parse_docstring(ps::ParseState, ts::TokenStream, down)
@@ -2184,7 +2184,7 @@ function parse_docstring(ps::ParseState, ts::TokenStream, down)
             end
         end
         Lexer.eof(Lexer.peek_token(ts, false)) && return ex
-        return ⨳(:macrocall, symbol("@doc") ⤄ Lexer.nullrange(ts), ex, down(ps, ts))
+        return ⨳(:macrocall, Symbol("@doc") ⤄ Lexer.nullrange(ts), ex, down(ps, ts))
     end
     return ex
 end

@@ -804,7 +804,7 @@ facts("test next_token") do
     toks = raw_tokens("func(2) |> send!")
     @fact toks --> Any[:func, '(', 2, ')', :(|>), :(send!)]
 
-    sym_end = symbol("end")
+    sym_end = Symbol("end")
 
     toks = raw_tokens("type Test{T<:Int32}\n\ta::T\n\tb::T\nend")
     @fact toks --> Any[:type, :Test, '{',  :T, :(<:), :Int32, '}', '\n',

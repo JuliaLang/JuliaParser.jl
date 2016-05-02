@@ -108,13 +108,13 @@ end
 
 facts("test parse single operator") do
     for op in Lexer.OPERATORS
-        if op === symbol("'")
+        if op === Symbol("'")
             continue
         end
         code = string(op)
         try
             ex = Base.parse(code)
-            @fact Parser.parse(code) --> symbol("$ex")
+            @fact Parser.parse(code) --> Symbol("$ex")
         catch
             # do nothing if base cannot parse operator
         end

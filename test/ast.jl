@@ -10,13 +10,13 @@ norm_ast(a::Any) = begin
         end
         if a.head === :macrocall
             fa = a.args[1]
-            if fa === symbol("@int128_str")
+            if fa === Symbol("@int128_str")
                 return @compat parse(Int128,a.args[2])
-            elseif fa === symbol("@uint128_str")
+            elseif fa === Symbol("@uint128_str")
                 return @compat parse(UInt128,a.args[2])
-            elseif fa === symbol("@bigint_str")
+            elseif fa === Symbol("@bigint_str")
                 return @compat parse(BigInt,a.args[2])
-            elseif fa == symbol("@big_str")
+            elseif fa == Symbol("@big_str")
                 s = a.args[2]
                 n = tryparse(BigInt,s)
                 if !isnull(n)
