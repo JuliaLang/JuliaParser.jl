@@ -1719,7 +1719,7 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
         continue
     end
     return ⨳(:macrocall, Symbol("@cmd") ⤄ Lexer.nullrange(ts),
-        bytestring(buf) ⤄ Lexer.makerange(ts, r))
+        takebuf_string(buf) ⤄ Lexer.makerange(ts, r))
 end
 
 function parse_interpolate(ps::ParseState, ts::TokenStream, start, srange)
@@ -1753,10 +1753,10 @@ function parse_interpolate(ps::ParseState, ts::TokenStream, start, srange)
 end
 
 function tostr(buf::IOBuffer, custom::Bool)
-    str = bytestring(buf)
+    str = takebuf_string(buf)
     custom && return str
     str = unescape_string(str)
-    if !(@compat isvalid(UTF8String,str))
+    if !(@compat isvalid(String,str))
         throw(diag(√str,"string contains invalid UTF8 sequence"))
     end
    return str
@@ -1926,7 +1926,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 c = not_eof_1(ts)
                 continue
             end
-            str = unescape_string(bytestring(b))
+            str = unescape_string(takebuf_string(b))
             if length(str) == 1
                 # one byte e.g. '\xff' maybe not valid UTF-8
                 # but we want to use the raw value as a codepoint in this case
@@ -1976,7 +1976,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                     ¬nt !== ')' && throw(diag(after(√t),"Expected ')'"))
                     take_token(ts)
                     return t
-                elseif ¬rt == ';'
+                elseif ¬rt === ';'
                     res = arglist_to_tuple(ts, true, false, parse_arglist(ps, ts, ')', t),
                         ())
                     take_token(ts)

@@ -165,6 +165,7 @@ isnewline(t::AbstractToken) = isnewline(¬t)
 isnewline(c) = false
 
 function isuws(c::Char)
+    c = UInt32(c)
     return (c==9    || c==10   || c==11   || c==12   || c==13   || c==32 ||
             c==133  || c==160  || c==5760 || c==6158 || c==8192 ||
             c==8193 || c==8194 || c==8195 || c==8196 || c==8197 ||
@@ -172,7 +173,7 @@ function isuws(c::Char)
             c==8232 || c==8233 || c==8239 || c==8287 || c==12288)
 end
 
-isbom(c::Char) = c == 0xFEFF
+isbom(c::Char) = UInt32(c) == 0xFEFF
 
 is_zero_width_space(c::Char) = c === '\u200b' || c === '\u2060' || c === '\ufeff'
 
@@ -238,7 +239,7 @@ function is_identifier_char(c::Char)
         (c >= 'a' && c <= 'z') || c == '_' ||
         (c >= '0' && c <= '9') || c == '!')
         return true
-    elseif (c < 0xA1 || c > 0x10ffff)
+    elseif (UInt32(c) < 0xA1 || UInt32(c) > 0x10ffff)
         return false
     end
     cat = UTF8proc.category_code(c)
@@ -351,7 +352,8 @@ position(ts::TokenStream) = Base.position(ts.io)
 peekchar(ts::TokenStream) = peekchar(ts.io)
 
 # The last case is the replacement character 0xfffd (3 bytes)
-utf8sizeof(c::Char) = c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : c < 0x110000 ? 4 : 3
+utf8sizeof(c::Char) = UInt32(c) < 0x80 ? 1 : UInt32(c) < 0x800 ? 2 :
+    UInt32(c) < 0x10000 ? 3 : UInt32(c) < 0x110000 ? 4 : 3
 
 readchar(ts::TokenStream) = begin
     @assert !eof(ts)

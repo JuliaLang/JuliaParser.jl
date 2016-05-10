@@ -29,7 +29,7 @@ function Base.REPL.display_error(io::IO, d::REPLDiagnostic, bt)
     JuliaParser.Diagnostics.display_diagnostic(io, d.text, extract_diag(d.d); filename = d.fname)
 end
 
-function Core.include(fname::ByteString)
+function Core.include(fname::String)
     io = open(fname)
     file = readstring(io)
     ts = Lexer.TokenStream{Lexer.SourceLocToken}(file)
@@ -64,7 +64,7 @@ function Base.parse(str::AbstractString, pos::Int; greedy::Bool=true, raise::Boo
     ¬ast, position(io) + 1
 end
 
-function Base.parse_input_line(code::ByteString; filename::ByteString="none")
+function Base.parse_input_line(code::String; filename::String="none")
     ts = Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}(code)
     ts.filename = filename
     local result = nothing

@@ -18,7 +18,7 @@ write(src, "module X\n")
 write(src, open(readstring, ARGS[1]))
 write(src, "\nend")
 
-const jlsrc = bytestring(src)
+const jlsrc = String(src)
 
 tmp1 = tempname()
 tmp2 = tempname()

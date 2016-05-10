@@ -10,7 +10,7 @@ export ¬, ⨳, ⪥, ⤄, √, AbstractToken, Token, SourceLocToken, SourceRange
 
 abstract AbstractToken
 
-const ASTVerbatim = Union{Symbol,ASCIIString,UTF8String,LineNumberNode,Integer,Void,Char,Bool,AbstractFloat}
+const ASTVerbatim = Union{Symbol,String,String,LineNumberNode,Integer,Void,Char,Bool,AbstractFloat}
 const ASTExprs = Union{Expr, QuoteNode, TopNode}
 
 # Defensive definitions

@@ -75,7 +75,7 @@ module Diagnostics
                 print(io, "$filename:$line:$col " )
                 print_with_color(message.severity == :error ? :red : :magenta, io, string(message.severity))
                 println(io, ": ", message.text)
-                println(io, rstrip(bytestring(file[line])))
+                println(io, rstrip(String(file[line])))
                 print(io, " "^(col-1))
                 print_with_color(:green, io, string('^',"~"^(max(0,message.location.length-1))))
                 println(io)

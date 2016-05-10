@@ -4,7 +4,7 @@ include(joinpath(dirname(@__FILE__),"../src/interactiveutil.jl"))
 
 function dotest(input)
 lines = split(input,'\n')
-code = bytestring(lines[1])
+code = String(lines[1])
 ts = Lexer.TokenStream{Lexer.SourceLocToken}(code)
 res = Parser.parse(ts)
 textrep = create_textrep(res.loc, code)

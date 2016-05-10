@@ -55,7 +55,7 @@ function testall(srcdir::AbstractString)
             write(buf, open(readstring, jlpath))
             write(buf, "\nend")
 
-            src = bytestring(buf)
+            src = String(buf)
             try
                 tic()
                 past = Parser.parse(src)
