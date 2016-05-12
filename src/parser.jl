@@ -772,9 +772,8 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 ex = ⨳(:(.), ex, parse_atom(ps, ts))
             elseif ¬nt === :($)
                 dollar_ex = parse_unary(ps, ts)
-                call_ex   = ⨳(:call, TopNode(:Expr) ⤄ Lexer.nullrange(ts),
-                    ⨳(:quote, :quote) ⤄ Lexer.nullrange(ts)) ⪥ dollar_ex
-                ex = ⨳(:(.), ex, ⨳(nt, call_ex))
+                inert   = ⨳(:inert, ⨳(nt) ⪥ dollar_ex)
+                ex = ⨳(:(.), ex, inert)
             else
                 name = parse_atom(ps, ts)
                 if isexpr(¬name, :macrocall)
@@ -1113,25 +1112,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                 name = parse_unary_prefix(ps, ts)
                 body = parse_block(ps, ts, (ps, ts)->parse_docstring(ps, ts, parse_eq))
                 expect_end(ps, ts, word)
-                if !isbare
-                    # add definitions for module_local eval
-                    block = ⨳(:block) ⤄ Lexer.nullrange(ts)
-                    x = name === :x ? :y : :x
-                    evalcall1 = ⨳(:call, ⨳(:(.), TopNode(:Core) ⤄ Lexer.nullrange(ts),
-                                _QuoteNode(:eval) ⤄ Lexer.nullrange(ts)), name, x)
-                    block = block ⪥ (
-                        ⨳(:(=), ⨳(:call, :eval, x) ⤄ Lexer.nullrange(ts), VERSION < v"0.4" ?
-                            evalcall1 : ⨳(:block, location, evalcall1)),)
-                    evalcall2 = ⨳(:call, Expr(:(.), TopNode(:Core),
-                                _QuoteNode(:eval)), :m, :x)
-                    block = block ⪥ (
-                        ⨳(:(=), Expr(:call, :eval, :m, :x),
-                            VERSION < v"0.4" ? evalcall2 :
-                            ⨳(:block, location, evalcall2)),)
-                    block ⪥ body
-                    body = block ⤄ Lexer.nullrange(ts)
-                end
-                return ⨳(:module, !isbare, name, body)
+                return ⨳(:module, !isbare, name, ⨳(:block, location) ⪥ body)
 
             elseif ¬word === :export
                 exports = map(macrocall_to_atsym, parse_comma_sep(ps, ts, parse_unary_prefix))
@@ -2021,55 +2002,6 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                         return res
                     end
                 end
-            end
-        end
-
-    # cell expression
-    elseif ¬t === '{'
-        take_token(ts)
-        if ¬require_token(ps, ts) === '}'
-            take_token(ts)
-            return Expr(:cell1d)
-        end
-        vex = parse_cat(ps, ts, '}', t) ⤄ t
-        if isempty((¬vex).args)
-            return Expr(:cell1d)
-        elseif (¬vex).head === :comprehension
-            ex = ⨳(:typed_comprehension, TopNode(:Any)) ⪥ vex
-            return ex
-        elseif (¬vex).head === :dict_comprehension
-            ex = ⨳(:typed_dict_comprehension, ⨳(:(=>), TopNode(:Any), TopNode(:Any))) ⪥ vex
-            return ex
-        elseif (¬vex).head === :dict
-            ex = ⨳(:typed_dict, Expr(:(=>), TopNode(:Any), TopNode(:Any))) ⪥ vex
-            return ex
-        elseif (¬vex).head === :hcat
-            ex = ⨳(:cell2d, 1, length(vex.args)) ⪥ vex
-            return ex
-        else # Expr(:vcat, ...)
-            nr = length((¬vex).args)
-            if isa((¬vex).args[1], Expr) && (¬vex).args[1].head === :row
-                nc = length((¬vex).args[1].args)
-                ex = ⨳(:cell2d, nr, nc)
-                for row in children(vex)[2:end]
-                    if !(isa(¬row, Expr) && (¬row).head === :row && length((¬row).args) == nc)
-                        throw(diag(√row, "inconsistent shape in cell expression"))
-                    end
-                end
-                # Transpose to storage order
-                sizehint!(ex.args, nr * nc + 2)
-                for c = 1:nc, r = 1:nr
-                    push!(ex.args, vex.args[r].args[c])
-                end
-                return ex
-            else
-                for row in children(vex)[2:end]
-                    if isa(¬row, Expr) && (¬row).head === :row
-                        throw(diag(√row,"inconsistent shape in cell expression"))
-                    end
-                end
-                ex = ⨳(:cell1d) ⪥ vex
-                return ex
             end
         end
 

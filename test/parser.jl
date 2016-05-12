@@ -235,18 +235,7 @@ facts("test prefixed string literals") do
 end
 
 facts("test cell expressions") do
-    exprs = VERSION < v"0.4.0-dev" ? [
-        "{}",
-        "{1,2}",
-        "{1 2 3}",
-        "{1;2;3}",
-        "{{1 2 3}, {1 2 3}}",
-        "{{1,2,3} {1,2,3,}}",
-        """{{1,2,3}
-            {1,2,3}}""",
-        "{:a => 1,'b' => 2}",
-        "{i for i=1:10}",
-    ] : [
+    exprs = [
         "[]",
         "Any[1,2]",
         "Any[1 2 3]",

@@ -11,7 +11,7 @@ export ¬, ⨳, ⪥, ⤄, √, AbstractToken, Token, SourceLocToken, SourceRange
 abstract AbstractToken
 
 const ASTVerbatim = Union{Symbol,String,String,LineNumberNode,Integer,Void,Char,Bool,AbstractFloat}
-const ASTExprs = Union{Expr, QuoteNode, TopNode}
+const ASTExprs = Union{Expr, QuoteNode}
 
 # Defensive definitions
 Base.isequal(x::AbstractToken, y::ASTVerbatim) = error("Comparing token to raw AST Node")
