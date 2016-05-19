@@ -140,13 +140,13 @@ filename(ts::TokenStream) = Symbol(ts.filename)
 if VERSION < v"0.4"
     line_number_node(ts) = LineNumberNode(curline(ts))
 else
-    line_number_node(ts) = LineNumberNode(:none, curline(ts))
+    line_number_node(ts) = LineNumberNode(curline(ts))
 end
 
 if VERSION < v"0.5-"
     line_number_filename_node(lno, filename) = Expr(:line, lno, filename)
 else
-    line_number_filename_node(lno, filename) = LineNumberNode(filename, lno)
+    line_number_filename_node(lno, filename) = LineNumberNode(lno)
 end
 line_number_filename_node(ts::TokenStream) =
     line_number_filename_node(curline(ts), filename(ts))
