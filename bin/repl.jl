@@ -47,6 +47,65 @@ function Core.include(fname::String)
     result
 end
 
+function Core.include(fname::String)
+    io = open(fname)
+    file = readstring(io)
+    ts = Lexer.TokenStream{Lexer.SourceLocToken}(file)
+    ts.filename = fname
+    local result = nothing
+    while !Lexer.eof(ts)
+        ast = try
+            Parser.parse(ts)
+        catch e
+            !isa(e, Main.JuliaParser.Diagnostics.AbstractDiagnostic) && rethrow(e)
+            rethrow(REPLDiagnostic(fname, file, e))
+        end
+        result = ccall(:jl_toplevel_eval, Any, (Any,), ¬ast)
+    end
+    result
+end
+
+function Base.include_string(code, filename = string)
+    ts = Lexer.TokenStream{Lexer.SourceLocToken}(code)
+    ts.filename = filename
+    local result = nothing
+    while !Lexer.eof(ts)
+        ast = try
+            Parser.parse(ts)
+        catch e
+            !isa(e, Main.JuliaParser.Diagnostics.AbstractDiagnostic) && rethrow(e)
+            rethrow(REPLDiagnostic(fname, file, e))
+        end
+        result = ccall(:jl_toplevel_eval, Any, (Any,), ¬ast)
+    end
+    result
+end
+
+# Needs to be replaced due to # 265
+function Base.include_from_node1(_path::AbstractString)
+    path, prev = Base._include_dependency(_path)
+    tls = task_local_storage()
+    tls[:SOURCE_PATH] = path
+    local result
+    try
+        if myid()==1
+            # sleep a bit to process file requests from other nodes
+            nprocs()>1 && sleep(0.005)
+            result = Core.include(path)
+            nprocs()>1 && sleep(0.005)
+        else
+            result = include_string(remotecall_fetch(readstring, 1, path), path)
+        end
+    finally
+        if prev === nothing
+            delete!(tls, :SOURCE_PATH)
+        else
+            tls[:SOURCE_PATH] = prev
+        end
+    end
+    result
+end
+
 function Base.parse(str::AbstractString, pos::Int; greedy::Bool=true, raise::Bool=true)
     io = IOBuffer(str)
     seek(io, pos-1)
@@ -84,6 +143,7 @@ function Base.incomplete_tag(e::Expr)
     e.args[1].d.tag
 end
 if ccall(:jl_generating_output, Cint, ()) == 0
+    REDIRECTED_STDERR = STDERR
     redirect_stderr(ORIG_STDERR)
 end
 end
