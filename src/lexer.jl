@@ -811,6 +811,10 @@ function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
         elseif c === ' ' || c === '\t'
             skip(ts, 1)
             continue
+        elseif c == '\r'
+            skip(ts, 1)
+            peekchar(ts) === '\n' || throw(diag(here(ts),"'\\r' not followed by '\\n' is invalid"))
+            continue
         elseif c === '#'
             skipcomment(ts)
             if whitespace_newline && peekchar(ts) === '\n'
@@ -851,7 +855,7 @@ function next_token{T}(ts::TokenStream{T}, whitespace_newline::Bool)
                 throw(diag(here(ts),"invisible character \\u$(hex(c))"))
             else
                 throw(diag(here(ts),"invalid character \"$c\""))
-           end
+            end
         end
     end
     ts.ateof = true

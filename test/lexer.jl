@@ -829,3 +829,8 @@ facts("test utf8sizeof") do
     @fact utf8sizeof('\U1f596') --> 4
     @fact utf8sizeof(@compat Char(0x110000)) --> 3
 end
+
+facts("test windows style newline") do
+    toks = raw_tokens("1+#= =#\t\r\n2")
+    @fact toks --> Any[1, :+, '\n', 2]
+end
