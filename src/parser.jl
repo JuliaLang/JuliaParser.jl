@@ -137,19 +137,10 @@ end
 curline(ts::TokenStream)  = ts.lineno
 filename(ts::TokenStream) = Symbol(ts.filename)
 
-if VERSION < v"0.4"
-    line_number_node(ts) = LineNumberNode(curline(ts))
-else
-    line_number_node(ts) = LineNumberNode(curline(ts))
-end
-
-if VERSION < v"0.5-"
-    line_number_filename_node(lno, filename) = Expr(:line, lno, filename)
-else
-    line_number_filename_node(lno, filename) = LineNumberNode(lno)
-end
+line_number_node(ts) = LineNumberNode(curline(ts))
+line_number_filename_node(lno, filename) = Expr(:line, lno, filename)
 line_number_filename_node(ts::TokenStream) =
-    line_number_filename_node(curline(ts), filename(ts))
+    line_number_filename_node(curline(ts), filename(ts)) ⤄ Lexer.nullrange(ts)
 
 # insert line/file for short form function defs, otherwise leave alone
 function short_form_function_loc(ts, ex, lno, filename)
@@ -286,7 +277,7 @@ end
 
 
 function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops::Set{T1},
-                            head::Symbol, closers::Set{T2}, allow_empty::Bool, opener = nothing)
+                            head::Symbol, closers::Set{T2}, allow_empty::Bool, add_linenums::Bool, opener = nothing)
     t = require_token(ps, ts)
     if is_invalid_initial_token(¬t)
         D = diag(√t, "unexpected \"$(¬t)\" in \"$head\" expression")
@@ -294,21 +285,20 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
         throw(D)
     end
 
+    loc  = line_number_filename_node(ts) ⤄ Lexer.nullrange(ts)
     # empty block
     if isa(¬t, CharSymbol) && ¬t in closers
-        return ⨳(head) ⤄ t
+        return ⨳(head, add_linenums ? loc : nothing) ⤄ t
     end
     local args::Vector{Any}
     # in allow empty mode, skip leading runs of operator
     if allow_empty && isa(¬t, CharSymbol) && ¬t in ops
         args = Any[]
-    elseif '\n' in ops
-        # line-number must happend before (down s)
-        loc  = line_number_node(ts)
-        args = Any[loc, down(ps, ts)]
     else
         args = Any[down(ps, ts)]
+        # line-number must happend before (down s)
     end
+    add_linenums && unshift!(args, loc)
     isfirst = true
     t = peek_token(ps, ts)
     while true
@@ -336,14 +326,10 @@ function parse_Nary{T1, T2}(ps::ParseState, ts::TokenStream, down::Function, ops
            (length(ops) == 1 && ',' in ops && ¬nt === :(=))
            t = nt
            continue
-        elseif '\n' in ops
-            push!(args, line_number_node(ts))
-            push!(args, down(ps, ts))
-            t = peek_token(ps, ts)
-        else
-            push!(args, down(ps, ts))
-            t = peek_token(ps, ts)
         end
+        add_linenums && !(length(args) >= 1 && isexpr(¬(args[end]), :line)) && push!(args, line_number_filename_node(ts))
+        push!(args, down(ps, ts))
+        t = peek_token(ps, ts)
     end
 end
 
@@ -351,21 +337,21 @@ end
 const BLOCK_OPS = Set(['\n', ';'])
 const BLOCK_CLOSERS = Set([SYM_END, SYM_ELSE, SYM_ELSEIF, SYM_CATCH, SYM_FINALLY])
 function parse_block(ps::ParseState, ts::TokenStream, down = parse_eq)
-    parse_Nary(ps, ts, down, BLOCK_OPS, :block, BLOCK_CLOSERS, true)
+    parse_Nary(ps, ts, down, BLOCK_OPS, :block, BLOCK_CLOSERS, true, true)
 end
 
 # for sequenced eval inside expressions, e.g. (a;b, c;d)
 const WEXPR_OPS = Set([';'])
 const WEXPR_CLOSERS = Set([',', ')'])
 function parse_stmts_within_expr(ps::ParseState, ts::TokenStream)
-    parse_Nary(ps, ts, parse_eqs, WEXPR_OPS, :block, WEXPR_CLOSERS, true)
+    parse_Nary(ps, ts, parse_eqs, WEXPR_OPS, :block, WEXPR_CLOSERS, true, false)
 end
 
 #; at the top level produces a sequence of top level expressions
 const NL_CLOSER = Set(['\n'])
 function parse_stmts(ps::ParseState, ts::TokenStream)
     ex = parse_Nary(ps, ts, (ps, ts)->parse_docstring(ps, ts, parse_eq),
-        WEXPR_OPS, :toplevel, NL_CLOSER, true)
+        WEXPR_OPS, :toplevel, NL_CLOSER, true, false)
     # check for unparsed junk after an expression
     t = peek_token(ps, ts)
     if !(Lexer.eof(t) || ¬t === '\n')
@@ -410,7 +396,7 @@ end
 # parse-comma is neeed for commas outside parens, for example a = b, c
 const EMPTY_SET = Set()
 const COMMA_OPS = Set([','])
-parse_comma(ps::ParseState, ts::TokenStream) = parse_Nary(ps, ts, parse_cond, COMMA_OPS, :tuple, EMPTY_SET, false)
+parse_comma(ps::ParseState, ts::TokenStream) = parse_Nary(ps, ts, parse_cond, COMMA_OPS, :tuple, EMPTY_SET, false, false)
 
 const OR_OPS = Lexer.precedent_ops(:lazy_or)
 function parse_or(ps::ParseState, ts::TokenStream)
@@ -924,7 +910,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                 if ¬nxt === SYM_END
                     return ⨳(:if, test, then) ⤄ word
                 elseif ¬nxt === SYM_ELSEIF
-                    blk = ⨳(:block, line_number_node(ts), parse_resword(ps, ts, nxt, word))
+                    blk = ⨳(:block, line_number_filename_node(ts), parse_resword(ps, ts, nxt, word))
                     return ⨳(:if, test, then, blk) ⤄ word
                 elseif ¬nxt === SYM_ELSE
                     nnxt = peek_token(ps, ts)
@@ -956,6 +942,8 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                 end
                 ex = parse_block(ps, ts)
                 expect_end(ps, ts, word)
+                # Don't need line number node in empty let blocks
+                length((¬ex).args) == 1 && (ex = ⨳(:block) ⤄ ex)
                 ex = ⨳(:let, ex) ⪥ binds
                 return ex
 
@@ -1061,16 +1049,18 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                             t = nt
                             continue
                         else
+                            loc = line_number_filename_node(ts)
                             var = parse_eqs(ps, ts)
                             isvar = nb == false && (isa(¬var, Symbol) || (isa(¬var, Expr) && (¬var).head == :($)))
-                            catch_block = ¬require_token(ps, ts) === SYM_FINALLY ? ⨳(:block) :
+                            et = ¬require_token(ps, ts)
+                            catch_block = et === SYM_FINALLY || et === SYM_END ? ⨳(:block) :
                                                                                   parse_block(ps, ts)
                             catch_block = catch_block ⤄ nt
                             t = require_token(ps, ts)
                             if isvar
                                 catchb = catch_block
                             else
-                                exb = ⨳(:block, var)
+                                exb = ⨳(:block, loc, var)
                                 catchb = exb ⪥ catch_block
                             end
                             catchv = isvar ? var : false

@@ -967,6 +967,12 @@ isa(170141183460469231731687303715884105728,BigInt)
 """
 ordtype(o::by, vs::abstractarray) = try typeof(o.by(vs[1])) catch; any end
 """,
+"""
+try something
+catch test()
+x
+end
+""",
 ]
     for ex in exprs
         @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
