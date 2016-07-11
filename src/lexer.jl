@@ -400,11 +400,11 @@ function read_operator(ts::TokenStream, c::Char, r)
         return Symbol(c)
     end
     str, c = [c], nc
-    opsym  = Symbol(utf32(copy(str)))
+    opsym  = Symbol(String(copy(str)))
     while true
         if !eof(c) && is_opchar(c)
             push!(str, c)
-            newop = Symbol(utf32(copy(str)))
+            newop = Symbol(String(copy(str)))
             if is_operator(newop)
                 skip(ts, utf8sizeof(c))
                 c, opsym = peekchar(ts), newop
@@ -555,7 +555,7 @@ function disallow_dot!(ts::TokenStream, charr::Vector{Char}, loc)
         if is_dot_opchar(peekchar(ts))
             skip(ts, -1)
         else
-            throw(diag(loc, "invalid numeric constant \"$(utf32(charr)).\""))
+            throw(diag(loc, "invalid numeric constant \"$(String(charr)).\""))
         end
     end
 end
@@ -634,9 +634,9 @@ function read_number(ts::TokenStream, leading_dot::Bool, neg::Bool)
     # disallow digits after binary or octal literals, e.g. 0b12
     elseif (pred == is_char_bin || pred == is_char_oct) && !eof(c) && isdigit(c)
         push!(charr, c)
-        throw(diag(makerange(ts, r), "invalid numeric constant \"$(utf32(charr))\""))
+        throw(diag(makerange(ts, r), "invalid numeric constant \"$(String(charr))\""))
     end
-    str = utf32(charr)
+    str = String(charr)
     base = pred == is_char_hex ? 16 :
            pred == is_char_oct ? 8  :
            pred == is_char_bin ? 2  : 10
@@ -756,7 +756,7 @@ function accum_julia_symbol(ts::TokenStream, c::Char)
         push!(charr, c)
         eof(nc) && break
     end
-    str = normalize_string(utf32(charr), :NFC)
+    str = normalize_string(String(charr), :NFC)
     sym = Symbol(str)
     return sym === SYM_TRUE ? true : sym === SYM_FALSE ? false : sym
 end
