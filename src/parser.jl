@@ -1586,7 +1586,7 @@ function parse_cat(ps::ParseState, ts::TokenStream, closer, opener, isdict::Bool
             elseif Lexer.isnewline(nt)
                 take_token(ts)
                 nnt = peek_token(ps, ts)
-                if ¬nnt == ',' || ¬nnt == closer
+                if isa(¬nnt, Char) && (¬nnt == ',' || ¬nnt == closer)
                     return parse_vect(ps, ts, frst, closer, opener)
                 else
                     return parse_matrix(ps, ts, frst, closer, true, opener)
