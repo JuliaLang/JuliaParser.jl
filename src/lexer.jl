@@ -335,8 +335,8 @@ takechar(io::IO) = (readchar(io); io)
 
 #= Token Stream =#
 
-type TokenStream{T}
-    io::IO
+type TokenStream{T, I <: IO}
+    io::I
     lineno::Int
     lasttoken
     putback
@@ -345,7 +345,7 @@ type TokenStream{T}
     filename::AbstractString
 end
 
-(::Type{TokenStream{T}}){T}(io::IO) = TokenStream{T}(io, 1, nothing, nothing, false, eof(io), "none")
+(::Type{TokenStream{T}}){T}(io::IO) = TokenStream{T, typeof(io)}(io, 1, nothing, nothing, false, eof(io), "none")
 (::Type{TokenStream{T}}){T}(str::AbstractString) = TokenStream{T}(IOBuffer(str))
 TokenStream(x) = TokenStream{Token}(x)
 
