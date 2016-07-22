@@ -47,24 +47,6 @@ function Core.include(fname::String)
     result
 end
 
-function Core.include(fname::String)
-    io = open(fname)
-    file = readstring(io)
-    ts = Lexer.TokenStream{Lexer.SourceLocToken}(file)
-    ts.filename = fname
-    local result = nothing
-    while !Lexer.eof(ts)
-        ast = try
-            Parser.parse(ts)
-        catch e
-            !isa(e, Main.JuliaParser.Diagnostics.AbstractDiagnostic) && rethrow(e)
-            rethrow(REPLDiagnostic(fname, file, e))
-        end
-        result = ccall(:jl_toplevel_eval, Any, (Any,), ¬ast)
-    end
-    result
-end
-
 function Base.include_string(code, filename = string)
     ts = Lexer.TokenStream{Lexer.SourceLocToken}(code)
     ts.filename = filename
