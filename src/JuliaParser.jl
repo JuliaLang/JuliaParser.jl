@@ -1,4 +1,5 @@
-#__precompile__()
+__precompile__()
+
 module JuliaParser
 
 export Parser, Lexer
