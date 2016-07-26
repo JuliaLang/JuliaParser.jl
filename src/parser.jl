@@ -1488,7 +1488,7 @@ end
 
 function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer, gotnewline, opener)
 
-    update_outer!(v, outer) = begin
+    function update_outer!(v, outer)
         len = length(v)
         len == 0 && return outer
         len == 1 && return push!(outer, v[1])
