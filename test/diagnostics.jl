@@ -452,3 +452,24 @@ let diags = do_diag_test("ccall((:SetVarDeclInit, libcxxffi), Void, (Ptr{Void},)
     @test diags.elements[1].location.offset == 55
     @test diags.elements[2].severity == :note
 end
+
+# fix issue #47
+
+# test string with charwidth < 1
+let code = "(foo̧ + b̂ar))",
+    diag = do_diag_test(code)
+
+    io = IOBuffer()
+    JuliaParser.Diagnostics.display_diagnostic(io, code, diag, filename="test")
+    res = takebuf_string(io)
+    @test startswith(res, "test:1:12")
+end
+
+# test string with charwidth > 1
+let code = "(foo̧ + 🔨))",
+    diag = do_diag_test(code)
+    io = IOBuffer()
+    JuliaParser.Diagnostics.display_diagnostic(io, code, diag, filename="test")
+    res = takebuf_string(io)
+    @test startswith(res, "test:1:11")
+end

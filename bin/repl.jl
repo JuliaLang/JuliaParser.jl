@@ -8,6 +8,7 @@ if ccall(:jl_generating_output, Cint, ()) == 0
     ORIG_STDERR = STDERR
     redirect_stderr()
 end
+
 immutable REPLDiagnostic
     fname::AbstractString
     text::AbstractString
@@ -20,10 +21,12 @@ function Base.showerror(io::IO, d::REPLDiagnostic, bt)
     print_with_color(:white,io,"")
     JuliaParser.Diagnostics.display_diagnostic(io, d.text, extract_diag(d.d); filename = d.fname)
 end
+
 function Base.showerror(io::IO, d::REPLDiagnostic)
     print_with_color(:white,io,"")
     JuliaParser.Diagnostics.display_diagnostic(io, d.text, extract_diag(d.d); filename = d.fname)
 end
+
 function Base.REPL.display_error(io::IO, d::REPLDiagnostic, bt)
     print_with_color(:white,io,"")
     JuliaParser.Diagnostics.display_diagnostic(io, d.text, extract_diag(d.d); filename = d.fname)
@@ -124,8 +127,10 @@ function Base.incomplete_tag(e::Expr)
     isa(e.args[1].d, Main.JuliaParser.Diagnostics.Incomplete) || return :none
     e.args[1].d.tag
 end
+
 if ccall(:jl_generating_output, Cint, ()) == 0
     REDIRECTED_STDERR = STDERR
     redirect_stderr(ORIG_STDERR)
 end
+
 end

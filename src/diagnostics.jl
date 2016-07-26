@@ -11,6 +11,7 @@ module Diagnostics
         location::SourceRange
         text::AbstractString
     end
+
     immutable Diagnostic <: AbstractDiagnostic
         elements::Vector{Message}
     end
@@ -19,7 +20,6 @@ module Diagnostics
         tag::Symbol
         d::Diagnostic
     end
-
 
     function after(loc)
         loc = normalize_loc(loc)
