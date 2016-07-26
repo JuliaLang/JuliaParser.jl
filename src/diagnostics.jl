@@ -33,7 +33,7 @@ module Diagnostics
         SourceRange(loc.offset-1,1,loc.file)
     end
 
-    function normalize_loc(loc)    
+    function normalize_loc(loc)
         isa(loc, SourceNode) && (loc = loc.loc)
         isa(loc, Union{SourceExpr, SourceLocToken}) && (loc = √loc)
         isa(loc, Token) && (loc = SourceRange())
@@ -66,7 +66,8 @@ module Diagnostics
             end
             offset = message.location.offset
             line = compute_line(file, offset)
-            col = offset - file.offsets[line] + 1
+            str  = String(file[line])
+            col  = sum(charwidth, str[1:(offset - file.offsets[line] + 1)])
             if message.severity == :fixit
                 print(io, " "^(col-1))
                 print_with_color(:green, io, message.text)
@@ -75,12 +76,11 @@ module Diagnostics
                 print(io, "$filename:$line:$col " )
                 print_with_color(message.severity == :error ? :red : :magenta, io, string(message.severity))
                 println(io, ": ", message.text)
-                println(io, rstrip(String(file[line])))
+                println(io, rstrip(str))
                 print(io, " "^(col-1))
                 print_with_color(:green, io, string('^',"~"^(max(0,message.location.length-1))))
                 println(io)
             end
         end
     end
-
 end
