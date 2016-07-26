@@ -10,7 +10,7 @@ export ¬, ⨳, ⪥, ⤄, √, AbstractToken, Token, SourceLocToken, SourceRange
 
 abstract AbstractToken
 
-const ASTVerbatim = Union{Symbol,String,String,LineNumberNode,Integer,Void,Char,Bool,AbstractFloat}
+const ASTVerbatim = Union{Symbol,String,LineNumberNode,Integer,Void,Char,Bool,AbstractFloat}
 const ASTExprs = Union{Expr, QuoteNode, GlobalRef}
 
 # Defensive definitions
@@ -71,7 +71,7 @@ val(expr::SourceExpr) = expr.expr
 
 normalize(loc::SourceNode) = normalize(loc.loc)
 normalize(x) = x
-const NodeOrRange = Union{SourceNode,SourceRange}
+typealias NodeOrRange Union{SourceNode,SourceRange}
 function merge(loc1::NodeOrRange, loc2::NodeOrRange)
     loc1, loc2 = normalize(loc1), normalize(loc2)
     loc1 == SourceRange() && return loc2

@@ -29,7 +29,7 @@ function testall(srcdir::AbstractString)
     global ptime
     global btime
 
-    dirs, files = {}, {}
+    dirs, files = [], []
 
     for fname in sort(readdir(srcdir))
         path = joinpath(srcdir, fname)

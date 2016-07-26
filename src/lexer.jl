@@ -168,8 +168,8 @@ isnewline(c::Char) = c === '\n'
 isnewline(t::AbstractToken) = isnewline(¬t)
 isnewline(c) = false
 
-function isuws(c::Char)
-    c = UInt32(c)
+function isuws(ch::Char)
+    c = UInt32(ch)
     return (c==9    || c==10   || c==11   || c==12   || c==13   || c==32 ||
             c==133  || c==160  || c==5760 || c==6158 || c==8192 ||
             c==8193 || c==8194 || c==8195 || c==8196 || c==8197 ||
@@ -185,7 +185,8 @@ is_ignorable_char(c::Char) = is_zero_width_space(c) ||
                              ('\u200c' <= c <= '\u200f') ||
                              (c === '\u00ad' || c === '\u2061' || c === '\u115f')
 
-function is_cat_id_start(c::Char, cat::Integer)
+function is_cat_id_start(ch::Char, cat::Integer)
+    c = UInt32(ch)
     return (cat == UTF8proc.UTF8PROC_CATEGORY_LU || cat == UTF8proc.UTF8PROC_CATEGORY_LL ||
             cat == UTF8proc.UTF8PROC_CATEGORY_LT || cat == UTF8proc.UTF8PROC_CATEGORY_LM ||
             cat == UTF8proc.UTF8PROC_CATEGORY_LO || cat == UTF8proc.UTF8PROC_CATEGORY_NL ||
@@ -252,9 +253,9 @@ function is_identifier_char(c::Char)
        cat == UTF8proc.UTF8PROC_CATEGORY_ND || cat == UTF8proc.UTF8PROC_CATEGORY_PC ||
        cat == UTF8proc.UTF8PROC_CATEGORY_SK || cat == UTF8proc.UTF8PROC_CATEGORY_ME ||
        cat == UTF8proc.UTF8PROC_CATEGORY_NO ||
-       (0x2032 <= c <= 0x2034) || # primes
-       c == 0x0387 || c == 0x19da ||
-       (0x1369 <= c <= 0x1371)
+       (0x2032 <= UInt32(c) <= 0x2034) || # primes
+       UInt32(c) == 0x0387 || UInt32(c) == 0x19da ||
+       (0x1369 <= UInt32(c) <= 0x1371)
        return true
     end
     return false
@@ -263,7 +264,7 @@ end
 function is_identifier_start_char(c::Char)
     if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_')
         return true
-    elseif (c < 0xA1 || c > 0x10ffff)
+    elseif (UInt32(c) < 0xA1 || UInt32(c) > 0x10ffff)
         return false
     end
     cat = UTF8proc.category_code(c)
@@ -334,8 +335,8 @@ takechar(io::IO) = (readchar(io); io)
 
 #= Token Stream =#
 
-type TokenStream{T}
-    io::IO
+type TokenStream{T, I <: IO}
+    io::I
     lineno::Int
     lasttoken
     putback
@@ -344,7 +345,7 @@ type TokenStream{T}
     filename::AbstractString
 end
 
-(::Type{TokenStream{T}}){T}(io::IO) = TokenStream{T}(io, 1, nothing, nothing, false, eof(io), "none")
+(::Type{TokenStream{T}}){T}(io::IO) = TokenStream{T, typeof(io)}(io, 1, nothing, nothing, false, eof(io), "none")
 (::Type{TokenStream{T}}){T}(str::AbstractString) = TokenStream{T}(IOBuffer(str))
 TokenStream(x) = TokenStream{Token}(x)
 
