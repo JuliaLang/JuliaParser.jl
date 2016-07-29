@@ -1004,7 +1004,8 @@ if VERSION >= v"0.4.0-dev+3083"
         catch \$x
         end
         """
-        @fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
+        # See Julia issue #17704
+        #@fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
     end
 end
 
