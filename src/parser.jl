@@ -1053,7 +1053,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                             var = parse_eqs(ps, ts)
                             isvar = nb == false && (isa(¬var, Symbol) || (isa(¬var, Expr) && (¬var).head == :($)))
                             et = ¬require_token(ps, ts)
-                            catch_block = et === SYM_FINALLY || et === SYM_END ? ⨳(:block) :
+                            catch_block = et === SYM_FINALLY || et === SYM_END ? ⨳(:block, loc) :
                                                                                   parse_block(ps, ts)
                             catch_block = catch_block ⤄ nt
                             t = require_token(ps, ts)
@@ -1061,7 +1061,17 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                                 catchb = catch_block
                             else
                                 exb = ⨳(:block, loc, var)
-                                catchb = exb ⪥ catch_block
+                                if length(catch_block.args) == 1
+                                    arg1 = catch_block.args[1]
+                                    if (isa(¬arg1, Expr) && (¬arg1).head === :line) ||
+                                       (isa(¬arg1, LineNumberNode))
+                                       catchb = exb
+                                    else
+                                        catchb = exb ⪥ catch_block
+                                    end
+                                else
+                                    catchb = exb ⪥ catch_block
+                                end
                             end
                             catchv = isvar ? var : false
                             continue
@@ -1460,7 +1470,11 @@ function parse_dict(ps::ParseState, ts::TokenStream, frst, closer, opener)
 end
 
 function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, opener, word)
-    itrs = parse_comma_sep_iters(ps, ts, word)
+    if VERSION >= v"0.5-"
+        gen = parse_generator(ps, ts, frst, closer)
+    else
+        itrs = parse_comma_sep_iters(ps, ts, word)
+    end
     t = require_token(ps, ts)
     if ¬t !== closer
         D = diag(√t,"expected '$closer' not \"$(¬t)\"")
@@ -1468,7 +1482,11 @@ function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, open
         throw(D)
     end
     take_token(ts)
-    ex = ⨳(:comprehension, frst) ⪥ itrs
+    if VERSION >= v"0.5-"
+        ex = ⨳(:comprehension, gen)
+    else
+        ex = ⨳(:comprehension, frst) ⪥ itrs
+    end
     return ex
 end
 
@@ -1488,7 +1506,7 @@ end
 
 function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer, gotnewline, opener)
 
-    update_outer!(v, outer) = begin
+    function update_outer!(v, outer)
         len = length(v)
         len == 0 && return outer
         len == 1 && return push!(outer, v[1])

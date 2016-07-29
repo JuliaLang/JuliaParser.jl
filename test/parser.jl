@@ -6,15 +6,6 @@ const Lexer  = JuliaParser.Lexer
 
 const TokenStream = JuliaParser.Parser.TokenStream
 
-tokens(ts::TokenStream) = begin
-    toks = Any[]
-    while !eof(ts.io)
-        push!(toks, Lexer.next_token(ts))
-    end
-    return toks
-end
-tokens(str::AbstractString) = tokens(TokenStream(str))
-
 include("ast.jl")
 
 facts("test parse IOBuffer") do
@@ -1013,7 +1004,8 @@ if VERSION >= v"0.4.0-dev+3083"
         catch \$x
         end
         """
-        @fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
+        # See Julia issue #17704
+        #@fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
     end
 end
 
