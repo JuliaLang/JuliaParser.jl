@@ -1053,7 +1053,7 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                             var = parse_eqs(ps, ts)
                             isvar = nb == false && (isa(¬var, Symbol) || (isa(¬var, Expr) && (¬var).head == :($)))
                             et = ¬require_token(ps, ts)
-                            catch_block = et === SYM_FINALLY || et === SYM_END ? ⨳(:block) :
+                            catch_block = et === SYM_FINALLY || et === SYM_END ? ⨳(:block, loc) :
                                                                                   parse_block(ps, ts)
                             catch_block = catch_block ⤄ nt
                             t = require_token(ps, ts)
@@ -1061,7 +1061,17 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                                 catchb = catch_block
                             else
                                 exb = ⨳(:block, loc, var)
-                                catchb = exb ⪥ catch_block
+                                if length(catch_block.args) == 1
+                                    arg1 = catch_block.args[1]
+                                    if (isa(¬arg1, Expr) && (¬arg1).head === :line) ||
+                                       (isa(¬arg1, LineNumberNode))
+                                       catchb = exb
+                                    else
+                                        catchb = exb ⪥ catch_block
+                                    end
+                                else
+                                    catchb = exb ⪥ catch_block
+                                end
                             end
                             catchv = isvar ? var : false
                             continue
