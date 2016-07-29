@@ -1460,7 +1460,11 @@ function parse_dict(ps::ParseState, ts::TokenStream, frst, closer, opener)
 end
 
 function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, opener, word)
-    itrs = parse_comma_sep_iters(ps, ts, word)
+    if VERSION >= v"0.5-"
+        gen = parse_generator(ps, ts, frst, closer)
+    else
+        itrs = parse_comma_sep_iters(ps, ts, word)
+    end
     t = require_token(ps, ts)
     if ¬t !== closer
         D = diag(√t,"expected '$closer' not \"$(¬t)\"")
@@ -1468,7 +1472,11 @@ function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, open
         throw(D)
     end
     take_token(ts)
-    ex = ⨳(:comprehension, frst) ⪥ itrs
+    if VERSION >= v"0.5-"
+        ex = ⨳(:comprehension, gen)
+    else
+        ex = ⨳(:comprehension, frst) ⪥ itrs
+    end
     return ex
 end
 
