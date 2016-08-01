@@ -54,7 +54,7 @@ function RunShell()
     panel = LineEdit.Prompt(prompt;
         prompt_prefix=()->isBase?"\e[38;5;107m":"\e[38;5;166m",
         prompt_suffix=Base.text_colors[:white],
-        on_enter = Base.REPL.return_callback)
+        on_enter = dosl ? true : Base.REPL.return_callback)
 
     panel.hist = REPL.REPLHistoryProvider(Dict{Symbol,Any}(:debug => panel))
 
