@@ -54,7 +54,7 @@ function RunShell()
     panel = LineEdit.Prompt(prompt;
         prompt_prefix=()->isBase?"\e[38;5;107m":"\e[38;5;166m",
         prompt_suffix=Base.text_colors[:white],
-        on_enter = dosl ? true : Base.REPL.return_callback)
+        on_enter = dosl ? (s)->true : Base.REPL.return_callback)
 
     panel.hist = REPL.REPLHistoryProvider(Dict{Symbol,Any}(:debug => panel))
 
@@ -71,12 +71,14 @@ function RunShell()
                     ts = Main.JuliaParser.Lexer.TokenStream{Main.JuliaParser.Lexer.SourceLocToken}($line)
                     try
                         res = Main.JuliaParser.Parser.parse(ts)
-                        show(STDOUT,Tree(res.expr))
-                        println($line)
-                        w = Main.LocWidget.create_widget(res.loc,$(line))
-                        TerminalUI.print_snapshot(TerminalUI.InlineDialog(w,
-                            Base.Terminals.TTYTerminal("xterm", STDIN, STDOUT, STDERR)
-                            ))
+                        if res != nothing
+                            show(STDOUT,Tree(res.expr))
+                            println($line)
+                            w = Main.LocWidget.create_widget(res.loc,$(line))
+                            TerminalUI.print_snapshot(TerminalUI.InlineDialog(w,
+                                Base.Terminals.TTYTerminal("xterm", STDIN, STDOUT, STDERR)
+                                ))
+                        end
                     catch e
                         !isa(e, Main.JuliaParser.Diagnostics.Diagnostic) && rethrow(e)
                         Main.JuliaParser.Diagnostics.display_diagnostic(STDOUT, $line, e)
