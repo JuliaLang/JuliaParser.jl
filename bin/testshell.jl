@@ -1,7 +1,7 @@
 #!/usr/bin/env julia
 # Simple REPL to test the parser and compare it against the base
 # julia parser - ^R reloads the package, ^S switches between base
-# and JuliaParser parsers. Entered lines are parsed and printed 
+# and JuliaParser parsers. Entered lines are parsed and printed
 # in tree forms.
 
 using AbstractTrees
@@ -54,7 +54,7 @@ function RunShell()
     panel = LineEdit.Prompt(prompt;
         prompt_prefix=()->isBase?"\e[38;5;107m":"\e[38;5;166m",
         prompt_suffix=Base.text_colors[:white],
-        on_enter = s->true)
+        on_enter = Base.REPL.return_callback)
 
     panel.hist = REPL.REPLHistoryProvider(Dict{Symbol,Any}(:debug => panel))
 
@@ -92,10 +92,10 @@ function RunShell()
         LineEdit.reset_state(s)
         println()
     end
-    
+
     hp = REPL.REPLHistoryProvider(Dict{Symbol,Any}(:parse => panel))
     panel.hist = hp
-    
+
     REPL.history_reset_state(hp)
 
     extra_keymap = Dict{Any,Any}(
@@ -108,7 +108,7 @@ function RunShell()
 
     b = Dict{Any,Any}[extra_keymap, skeymap, LineEdit.default_keymap, LineEdit.escape_defaults]
     panel.keymap_dict = LineEdit.keymap(b)
-    
+
     t = Base.Terminals.TTYTerminal("xterm", STDIN, STDOUT, STDERR)
     Base.REPL.run_interface(t, LineEdit.ModalInterface([panel,search_prompt]))
 end
