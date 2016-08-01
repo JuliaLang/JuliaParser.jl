@@ -10,6 +10,9 @@ parser using `^S`. Thus, the recommended workflow is:
 3. Reload the code (using `^R`).
 4. Check if fixed, if not repeat.
 
+If you want to inspect the SourceLocation tracking in JuliaParser, pass the `--sl`
+command line flag to the test shell.  This option only works for single line inputs.
+
 # Symbology
 
 Currently, there are a number of unicode operators used to denote various AST
