@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/JuliaLang/JuliaParser.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/JuliaParser.jl?branch=master)
 
-A pure Julia port of [Julia](https://github.com/JuliaLang/julia)'s [parser](https://github.com/JuliaLang/julia/blob/master/src/julia-parser.scm).  It should be fully compatible with Julia's built-in parser and it correctly parses all ~3000+ Julia source files currently available in Julia's [300+ user packages](http://pkg.julialang.org/) and all Julia source code in [Base](https://github.com/JuliaLang/julia/tree/master/base).
+A pure Julia port of [Julia](https://github.com/JuliaLang/julia)'s [parser](https://github.com/JuliaLang/julia/blob/master/src/julia-parser.scm).  It strives to be fully compatible with Julia's built-in parser.
 
 Differences with Julia's built-in parser
 -------------------------------------
