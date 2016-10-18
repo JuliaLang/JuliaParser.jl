@@ -983,6 +983,10 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
                         throw(D)
                     end
                 end
+                if ¬peek_token(ps, ts) === :(::)
+                    take_token(ts)
+                    def = ⨳(:(::), def, parse_call(ps, ts))
+                end
                 ¬peek_token(ps, ts) !== SYM_END && Lexer.skipws_and_comments(ts)
                 loc  = line_number_filename_node(ts)
                 body = parse_block(ps, ts)
