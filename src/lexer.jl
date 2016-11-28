@@ -328,7 +328,7 @@ end
 
 eof(io::IO) = Base.eof(io)
 eof(t::AbstractToken) = eof(¬t)
-eof(c) = is(c, EOF_CHAR)
+eof(c) = c===EOF_CHAR
 
 readchar(io::IO) = eof(io) ? EOF_CHAR : read(io, Char)
 takechar(io::IO) = (readchar(io); io)
