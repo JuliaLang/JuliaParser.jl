@@ -59,7 +59,7 @@ function RunShell()
     panel.hist = REPL.REPLHistoryProvider(Dict{Symbol,Any}(:debug => panel))
 
     panel.on_done = (s,buf,ok)->begin
-        line = takebuf_string(buf)
+        line = String(take!(buf))
         if !ok || strip(line) == "q"
             LineEdit.transition(s, :abort)
         end
