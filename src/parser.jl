@@ -1342,7 +1342,7 @@ end
 
 function to_kws(lst)
     n = length(lst)
-    kwargs = Array(Any, n)
+    kwargs = Array{Any}(n)
     for i = 1:n
         ex = lst[i]
         if isa(¬ex, Expr) && (¬ex).head === :(=) && length((¬ex).args) == 2
