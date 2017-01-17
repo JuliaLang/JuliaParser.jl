@@ -1025,5 +1025,6 @@ end
 
 #issue 72
 facts("parse an incorrectly specified vector") do
-    @fact Parser.parse("[1,2;3]") --> :([$(Expr(:parameters, 3));1;2])
+    str = "[1,2;3]"
+    @fact Parser.parse(str) --> Base.parse(str)
 end
