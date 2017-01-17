@@ -417,7 +417,7 @@ facts("test function return tuple") do
             """,
             """
             # from Iterators.jl parse failure
-            function next(it::Take, state)
+            function next(it::Iterators.Take, state)
                 n, xs_state = state
                 v, xs_state = next(it.xs, xs_state)
                 return v, (n - 1, xs_state)

@@ -461,7 +461,7 @@ let code = "(foo̧ + b̂ar))",
 
     io = IOBuffer()
     JuliaParser.Diagnostics.display_diagnostic(io, code, diag, filename="test")
-    res = takebuf_string(io)
+    res = String(take!(io))
     @test startswith(res, "test:1:12")
 end
 
@@ -470,6 +470,6 @@ let code = "(foo̧ + 🔨))",
     diag = do_diag_test(code)
     io = IOBuffer()
     JuliaParser.Diagnostics.display_diagnostic(io, code, diag, filename="test")
-    res = takebuf_string(io)
+    res = String(take!(io))
     @test startswith(res, "test:1:11")
 end

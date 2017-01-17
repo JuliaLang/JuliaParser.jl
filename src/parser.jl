@@ -1708,7 +1708,7 @@ function parse_backquote(ps::ParseState, ts::TokenStream)
         continue
     end
     return ⨳(:macrocall, Symbol("@cmd") ⤄ Lexer.nullrange(ts),
-        takebuf_string(buf) ⤄ Lexer.makerange(ts, r))
+        String(take!(buf)) ⤄ Lexer.makerange(ts, r))
 end
 
 function parse_interpolate(ps::ParseState, ts::TokenStream, start, srange)
@@ -1742,7 +1742,7 @@ function parse_interpolate(ps::ParseState, ts::TokenStream, start, srange)
 end
 
 function tostr(buf::IOBuffer, custom::Bool)
-    str = takebuf_string(buf)
+    str = String(take!(buf))
     custom && return str
     str = unescape_string(str)
     if !(@compat isvalid(String,str))
@@ -1915,7 +1915,7 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
                 c = not_eof_1(ts)
                 continue
             end
-            str = unescape_string(takebuf_string(b))
+            str = unescape_string(String(take!(b)))
             if length(str) == 1
                 # one byte e.g. '\xff' maybe not valid UTF-8
                 # but we want to use the raw value as a codepoint in this case
