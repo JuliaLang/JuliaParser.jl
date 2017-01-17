@@ -50,7 +50,7 @@ function Core.include(fname::String)
     result
 end
 
-function Base.include_string(code, filename = string)
+function Base.include_string(code, filename = "string")
     ts = Lexer.TokenStream{Lexer.SourceLocToken}(code)
     ts.filename = filename
     local result = nothing
