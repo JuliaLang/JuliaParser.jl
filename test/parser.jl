@@ -1022,3 +1022,6 @@ facts("misc syntax changes") do
         @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
+
+# issue #72 : failure to parse and incorrectly specified vector
+Base.@test Parser.parse("[1,2;3]") == :([$(Expr(:parameters, 3));1;2])
