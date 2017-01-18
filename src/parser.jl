@@ -15,7 +15,7 @@ export parse
 
 typealias CharSymbol @compat(Union{Char, Symbol})
 
-type ParseState
+type ParseState{mode}
     # disable range colon for parsing ternary cond op
     range_colon_enabled::Bool
 
@@ -32,7 +32,7 @@ type ParseState
     whitespace_newline::Bool
 end
 
-ParseState() = ParseState(true, false, false, false, false)
+ParseState(mode=:none) = ParseState{mode}(true, false, false, false, false)
 
 peek_token(ps::ParseState, ts::TokenStream)    = Lexer.peek_token(ts, ps.whitespace_newline)
 next_token(ps::ParseState, ts::TokenStream)    = Lexer.next_token(ts, ps.whitespace_newline)
@@ -2133,7 +2133,7 @@ end
 # Parser Entry Method
 #========================#
 
-function parse(ts::TokenStream; production = parse_stmts)
+function parse(ts::TokenStream; production = parse_stmts,mode = :none)
     Lexer.skipws_and_comments(ts)
     t = Lexer.peek_token(ts, false)
     while true
@@ -2145,12 +2145,12 @@ function parse(ts::TokenStream; production = parse_stmts)
         end
         break
     end
-    ps = ParseState()
+    ps = ParseState(mode)
     ret = production(ps, ts)
     return isa(ret, Lexer.AbstractToken) ? ¬ret : ret
 end
 
-parse(io::IO) = parse(TokenStream(io), production = parse_stmts)
-parse(str::AbstractString)  = parse(TokenStream(IOBuffer(str)), production = parse_stmts)
+parse(io::IO, mode = :none) = parse(TokenStream(io), production = parse_stmts, mode = mode)
+parse(str::AbstractString, mode = :none)  = parse(TokenStream(IOBuffer(str)), production = parse_stmts, mode = mode)
 
 end
