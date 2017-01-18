@@ -1022,3 +1022,9 @@ facts("misc syntax changes") do
         @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
     end
 end
+
+#issue 72
+facts("parse an incorrectly specified vector") do
+    str = "[1,2;3]"
+    @fact Parser.parse(str) --> Base.parse(str)
+end
