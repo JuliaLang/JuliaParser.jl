@@ -287,18 +287,6 @@ facts("test sized uint literal") do
                 @fact typeof(pn) --> $ty
             end
         end
-
-        if VERSION < v"0.4-"
-            s  = string(repr(typemax(UInt128)), "f")
-            sn = BigInt(s)
-            n  = Lexer.sized_uint_literal(s, 4)
-            @fact sn == n --> true
-            @fact typeof(n) --> BigInt
-
-            pn = eval(parse(s))
-            @fact pn == n --> true
-            @fact typeof(pn) --> BigInt
-        end
     end
 
     context("octal") do
@@ -324,17 +312,6 @@ facts("test sized uint literal") do
                 @fact pn --> n
                 @fact typeof(pn) --> $ty
             end
-        end
-
-        if VERSION < v"0.4-"
-            s = "0o" * oct(typemax(UInt128)) * "7"
-            sn = BigInt(s)
-            n  = Lexer.sized_uint_oct_literal(s)
-            @fact sn --> n
-            @fact typeof(n) --> BigInt
-            pn = eval(parse(s))
-            @fact n --> pn
-            @fact typeof(n) --> typeof(pn)
         end
     end
 

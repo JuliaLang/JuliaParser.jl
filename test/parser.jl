@@ -253,7 +253,7 @@ facts("test cat expressions") do
         "[[1,2,3] [1,2,3,]]",
         """[[1,2,3]
             [1,2,3]]""",
-        VERSION < v"0.4.0-dev+980" ? "[:a => 1, :b => 2]" : "Dict(:a => 1, :b => 2)",
+        "Dict(:a => 1, :b => 2)",
         "[i for i=1:10]"
     ]
     for ex in exprs
@@ -564,11 +564,7 @@ facts("test type / immutable expression") do
     ]
 
     for ex in immutabletypeexprs
-        if VERSION < v"0.4"
-            @fact (Parser.parse(ex) |> norm_ast) --> (Base.parse(ex) |> norm_ast)
-        else
-            @fact_throws Parser.parse(ex)
-        end
+        @fact_throws Parser.parse(ex)
     end
 end
 
@@ -985,29 +981,29 @@ facts("misc errors") do
     end
 end
 
-if VERSION >= v"0.4.0-dev+2606"
-    # Julia issue 9617
-    facts("incorrect parsing of hex floats") do
-        src = """
-        let p = 15
-            @test 2p+1 == 31  # not a hex float literal
-        end
-        """
-        @fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
+
+# Julia issue 9617
+facts("incorrect parsing of hex floats") do
+    src = """
+    let p = 15
+        @test 2p+1 == 31  # not a hex float literal
     end
+    """
+    @fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
 end
 
-if VERSION >= v"0.4.0-dev+3083"
-    facts("interpolate var in cache block") do
-        src = """
-        try
-        catch \$x
-        end
-        """
-        # See Julia issue #17704
-        #@fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
+
+
+facts("interpolate var in cache block") do
+    src = """
+    try
+    catch \$x
     end
+    """
+    # See Julia issue #17704
+    #@fact Parser.parse(src) |> norm_ast --> (Base.parse(src) |> norm_ast)
 end
+
 
 facts("parse two statements") do
     s = "0\na(b)"

@@ -216,8 +216,7 @@ function parse_LtoR{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
         t  = peek_token(ps, ts)
         !(¬t in ops) && return ex
         take_token(ts)
-        if Lexer.is_syntactic_op(¬t) || ¬t === :(::) ||
-                (VERSION < v"0.4.0-dev+573" && ¬t === :(in))
+        if Lexer.is_syntactic_op(¬t) || ¬t === :(::)
             ex = ⨳(t, ex, down(ps, ts))
         else
             ex = ⨳(:call, t, ex, down(ps, ts))
@@ -258,7 +257,7 @@ function parse_RtoL{T}(ps::ParseState, ts::TokenStream, down::Function, ops::Set
 end
 
 function parse_cond(ps::ParseState, ts::TokenStream)
-    ex = (VERSION < v"0.4.0-dev+573" ? parse_or : parse_arrow)(ps, ts)
+    ex = parse_arrow(ps, ts)
     if ¬peek_token(ps, ts) === :(?)
         t = take_token(ts)
         then = @without_range_colon ps begin
@@ -400,23 +399,16 @@ parse_comma(ps::ParseState, ts::TokenStream) = parse_Nary(ps, ts, parse_cond, CO
 
 const OR_OPS = Lexer.precedent_ops(:lazy_or)
 function parse_or(ps::ParseState, ts::TokenStream)
-    (VERSION < v"0.4.0-dev+573" ? parse_LtoR : parse_RtoL)(
-        ps, ts, parse_and, OR_OPS)
+    parse_RtoL(ps, ts, parse_and, OR_OPS)
 end
 
 const AND_OPS = Lexer.precedent_ops(:lazy_and)
 function parse_and(ps::ParseState, ts::TokenStream)
-    if VERSION < v"0.4.0-dev+573"
-        parse_LtoR(ps, ts, parse_arrow, AND_OPS)
-    else
-        parse_RtoL(ps, ts, parse_comparison, AND_OPS)
-    end
+    parse_RtoL(ps, ts, parse_comparison, AND_OPS)
 end
 
 const ARROW_OPS = Lexer.precedent_ops(:arrow)
-parse_arrow(ps::ParseState, ts::TokenStream) =
-    parse_RtoL(ps, ts, VERSION < v"0.4.0-dev+573" ? parse_ineq : parse_or,
-        ARROW_OPS)
+parse_arrow(ps::ParseState, ts::TokenStream) = parse_RtoL(ps, ts, parse_or, ARROW_OPS)
 
 const INEQ_OPS = Lexer.precedent_ops(:comparison)
 parse_ineq(ps::ParseState, ts::TokenStream)  = parse_comparison(ps, ts, INEQ_OPS)
@@ -440,7 +432,7 @@ const RAT_OPS = Lexer.precedent_ops(:rational)
 parse_rational(ps::ParseState, ts::TokenStream) = parse_LtoR(ps, ts, parse_unary, RAT_OPS)
 
 function parse_comparison(ps::ParseState, ts::TokenStream, ops=INEQ_OPS)
-    ex = VERSION < v"0.4.0-dev+573" ? parse_in(ps, ts) : parse_pipes(ps, ts)
+    ex = parse_pipes(ps, ts)
     isfirst = true
     while true
         t = peek_token(ps, ts)
@@ -730,16 +722,7 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
             elseif (¬al).head === :hcat
                 ex = ⨳(:typed_hcat, ex) ⪥ al
             elseif (¬al).head === :vect
-                @assert VERSION >= v"0.4"
                 ex = ⨳(:ref, ex) ⪥ al
-            elseif (¬al).head === :vcat && VERSION < v"0.4"
-                ex = ⨳(:ref, ex)
-                for arg in (¬al).args
-                    if isa(¬arg, Expr) && arg.head === :row
-                        ex.head = :typed_vcat
-                    end
-                    push!((¬ex).args, arg)
-                end
             elseif (¬al).head === :vcat
                 ex = ⨳(:typed_vcat, ex) ⪥ al
             elseif (¬al).head === :comprehension
@@ -789,14 +772,8 @@ function parse_call_chain(ps::ParseState, ts::TokenStream, ex, one_call::Bool)
                 take_token(ts)
                 str = parse_string_literal(ps, ts, true)
                 nt  = peek_token(ps, ts)
-                if VERSION < v"0.4"
-                    suffix  = triplequote_string_literal(str) ? "_mstr" : "_str"
-                    macname = Symbol(string('@', ¬ex, suffix))
-                    macstr = (¬str).args[1]
-                else
-                    macname = Symbol(string('@',¬ex,"_str"))
-                    macstr = first(children(str))
-                end
+                macname = Symbol(string('@',¬ex,"_str"))
+                macstr = first(children(str))
                 if isa(¬nt, Symbol) && !Lexer.is_operator(¬nt) && !ts.isspace
                     # string literal suffix "s"x
                     t = take_token(ts)
@@ -837,14 +814,10 @@ parse_subtype_spec(ps::ParseState, ts::TokenStream) = subtype_syntax(parse_ineq(
     r = Lexer.nullrange(ts)
     if finalb == nothing
         return catchb != nothing ? ⨳(:try, tryb, catchv, catchb) :
-                                   $(VERSION > v"0.4.0-dev" ?
-                                        :(⨳(:try, tryb, false ⤄ r, ⨳(:block) ⤄ r)) :
-                                        :(⨳(:try, tryb, false ⤄ r, false ⤄ r)))
+                                   $(:(⨳(:try, tryb, false ⤄ r, ⨳(:block) ⤄ r)))
     else
         return catchb != nothing ? ⨳(:try, tryb, catchv, catchb, finalb) :
-                                   $(VERSION > v"0.4.0-dev" ?
-                                        :(⨳(:try, tryb, false ⤄ r, false ⤄ r, finalb)) :
-                                        :(⨳(:try, tryb, false ⤄ r, false ⤄ r, finalb)))
+                                   $(:(⨳(:try, tryb, false ⤄ r, false ⤄ r, finalb)))
     end
 end
 
@@ -996,10 +969,6 @@ function parse_resword(ps::ParseState, ts::TokenStream, word, chain = nothing)
 
             elseif ¬word === :type || ¬word === :immutable
                 istype = ¬word === :type
-                if VERSION < v"0.4"
-                    # allow "immutable type"
-                    (!istype && ¬peek_token(ps, ts) === :type) && take_token(ts)
-                end
                 nxt = peek_token(ps, ts)
                 if ¬nxt in Lexer.RESERVED_WORDS
                     D = diag(√nxt, "invalid type name \"$(¬nxt)\"")
@@ -1422,7 +1391,7 @@ end
 function parse_vect(ps::ParseState, ts::TokenStream, frst, closer, opener)
     lst = Any[]
     nxt = frst
-    head = VERSION < v"0.4" ? :vcat : :vect
+    head = :vect
     while true
         t = require_token(ps, ts)
         if ¬t === closer
@@ -1436,7 +1405,7 @@ function parse_vect(ps::ParseState, ts::TokenStream, frst, closer, opener)
                 # allow ending with ,
                 take_token(ts)
                 push!(lst, nxt)
-                ex = ⨳(VERSION < v"0.4" ? :vcat : :vect) ⪥ lst
+                ex = ⨳(:vect) ⪥ lst
                 return ex
             end
             lst = push!(lst, nxt)
@@ -1470,11 +1439,7 @@ function parse_dict(ps::ParseState, ts::TokenStream, frst, closer, opener)
 end
 
 function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, opener, word)
-    if VERSION >= v"0.5-"
-        gen = parse_generator(ps, ts, frst, closer)
-    else
-        itrs = parse_comma_sep_iters(ps, ts, word)
-    end
+    gen = parse_generator(ps, ts, frst, closer)
     t = require_token(ps, ts)
     if ¬t !== closer
         D = diag(√t,"expected '$closer' not \"$(¬t)\"")
@@ -1482,11 +1447,7 @@ function parse_comprehension(ps::ParseState, ts::TokenStream, frst, closer, open
         throw(D)
     end
     take_token(ts)
-    if VERSION >= v"0.5-"
-        ex = ⨳(:comprehension, gen)
-    else
-        ex = ⨳(:comprehension, frst) ⪥ itrs
-    end
+    ex = ⨳(:comprehension, gen)
     return ex
 end
 
@@ -1531,7 +1492,7 @@ function parse_matrix(ps::ParseState, ts::TokenStream, frst, closer, gotnewline,
                 ex = ⨳(:vcat,update_outer!(vec, outer)...)
             elseif length(vec) <= 1
                 # [x] => (vect x)
-                ex = ⨳(VERSION < v"0.4" ? :vcat : :vect, vec...) ⤄ t
+                ex = ⨳(:vect, vec...) ⤄ t
             else
                 # [x y] => (hcat x y)
                 ex = ⨳(:hcat, vec...)
@@ -2026,9 +1987,6 @@ function _parse_atom(ps::ParseState, ts::TokenStream)
     elseif ¬t === '"'
         take_token(ts)
         sl = parse_string_literal(ps, ts, false)
-        if VERSION < v"0.4" && triplequote_string_literal(sl)
-            return ⨳(:macrocall, Symbol("@mstr"), sl.args...)
-        end
         if interpolate_string_literal(sl)
             notzerolen = (s) -> !(isa(¬s, AbstractString) && isempty(¬s))
             return ⨳(:string, filter(notzerolen, children(sl))...)

@@ -99,15 +99,10 @@ const ALL_OPS = Dict{Symbol,Any}(
 :decl       => [:(::)],
 :dot        => [:(.)])
 
-if VERSION < v"0.4.0-dev+573"
-    const OPS_BY_PRECEDENT = Any[
-        :assignment, :conditional, :lazy_or, :lazy_and, :arrow, :comparison, :pipe,
-        :colon, :plus, :bitshift, :times, :rational, :power, :decl, :dot]
-else
-    const OPS_BY_PRECEDENT = Any[
-        :assignment, :conditional, :arrow, :lazy_or, :lazy_and, :comparison, :pipe,
-        :colon, :plus, :bitshift, :times, :rational, :power, :decl, :dot]
-end
+
+const OPS_BY_PRECEDENT = Any[
+    :assignment, :conditional, :arrow, :lazy_or, :lazy_and, :comparison, :pipe,
+    :colon, :plus, :bitshift, :times, :rational, :power, :decl, :dot]
 
 precedent_ops(n::Integer) = Set{Symbol}(ALL_OPS[OPS_BY_PRECEDENT[n]])
 precedent_ops(s::Symbol) = Set{Symbol}(ALL_OPS[s])
