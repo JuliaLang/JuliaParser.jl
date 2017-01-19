@@ -1028,3 +1028,10 @@ facts("parse an incorrectly specified vector") do
     str = "[1,2;3]"
     @fact Parser.parse(str) --> Base.parse(str)
 end
+
+if VERSION >= v"0.6.0-dev+1741"
+    facts("check `isa` added as infix operator") do
+        str = "1 isa Int"
+        @fact Parser.parse(str) --> Base.parse(str)
+    end
+end
