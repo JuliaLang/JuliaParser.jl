@@ -444,7 +444,7 @@ function parse_comparison(ps::ParseState, ts::TokenStream, ops=INEQ_OPS)
     isfirst = true
     while true
         t = peek_token(ps, ts)
-        if !(¬t in ops || ¬t === :in || ¬t === :isa)
+        if !(¬t in ops || ¬t === :in || (VERSION >= v"0.6.0-dev.1471" && ¬t === :isa))
             if VERSION > v"0.5.0-dev+3167" && !isfirst && length((¬ex).args) == 3
                 args = collect(children(ex))
                 return subtype_syntax(⨳(:call, args[2], args[1], args[3]))
