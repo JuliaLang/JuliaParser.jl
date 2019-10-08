@@ -2,6 +2,9 @@
 
 [![Build Status](https://travis-ci.org/JuliaLang/JuliaParser.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/JuliaParser.jl?branch=master)
 
+
+**Note:** This package is unmaintained and heavily bitrotted. It will not parse recent JuliaCode correctly!
+
 A pure Julia port of [Julia](https://github.com/JuliaLang/julia)'s [parser](https://github.com/JuliaLang/julia/blob/master/src/julia-parser.scm).  It strives to be fully compatible with Julia's built-in parser.
 
 Differences with Julia's built-in parser
